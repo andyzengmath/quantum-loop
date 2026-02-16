@@ -1,0 +1,22 @@
+# Internal development notes
+SUMMARY.md
+
+# Runtime state (per-project, not committed)
+quantum.json
+progress.txt
+.last-ql-branch
+
+# Archives of previous runs
+archive/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

@@ -1,0 +1,207 @@
+{
+  "project": "MyApp",
+  "branchName": "ql/task-priority",
+  "description": "Task Priority System - Add priority levels to tasks with filtering and sorting",
+  "prdPath": "tasks/prd-task-priority.md",
+  "designPath": "docs/plans/2026-02-16-task-priority-design.md",
+  "createdAt": "2026-02-16T10:00:00Z",
+  "updatedAt": "2026-02-16T10:00:00Z",
+  "stories": [
+    {
+      "id": "US-001",
+      "title": "Add priority field to database",
+      "description": "As a developer, I need to store task priority so it persists across sessions.",
+      "acceptanceCriteria": [
+        "Add priority column to tasks table: 'high' | 'medium' | 'low' (default 'medium')",
+        "Generate and run migration successfully",
+        "Existing tasks default to 'medium' priority",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "status": "pending",
+      "dependsOn": [],
+      "tasks": [
+        {
+          "id": "T-001",
+          "title": "Write migration test",
+          "description": "Write a test that verifies the priority column exists with correct type and default value.",
+          "filePaths": ["tests/migrations/test_add_priority.py"],
+          "commands": ["pytest tests/migrations/test_add_priority.py -v"],
+          "testFirst": true,
+          "status": "pending"
+        },
+        {
+          "id": "T-002",
+          "title": "Create migration file",
+          "description": "Generate Alembic migration adding 'priority' column (VARCHAR, default 'medium') to tasks table.",
+          "filePaths": ["alembic/versions/add_priority_column.py"],
+          "commands": ["alembic upgrade head", "pytest tests/migrations/ -v"],
+          "testFirst": false,
+          "status": "pending"
+        },
+        {
+          "id": "T-003",
+          "title": "Update model and type definitions",
+          "description": "Add priority field to Task model and TaskPriority type ('high' | 'medium' | 'low').",
+          "filePaths": ["models/task.py", "types/task.py"],
+          "commands": ["pyright", "pytest tests/models/ -v"],
+          "testFirst": false,
+          "status": "pending"
+        }
+      ],
+      "review": {
+        "specCompliance": {
+          "status": "pending",
+          "issues": [],
+          "reviewedAt": null
+        },
+        "codeQuality": {
+          "status": "pending",
+          "issues": [],
+          "reviewedAt": null
+        }
+      },
+      "retries": {
+        "attempts": 0,
+        "maxAttempts": 3,
+        "failureLog": []
+      },
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Display priority indicator on task cards",
+      "description": "As a user, I want to see task priority at a glance so I can focus on what matters.",
+      "acceptanceCriteria": [
+        "Each task card shows colored priority badge (red=high, yellow=medium, gray=low)",
+        "Priority visible without hovering or clicking",
+        "Badge uses accessible contrast ratios",
+        "Typecheck passes",
+        "Verify in browser"
+      ],
+      "priority": 2,
+      "status": "pending",
+      "dependsOn": ["US-001"],
+      "tasks": [
+        {
+          "id": "T-004",
+          "title": "Write PriorityBadge component test",
+          "description": "Test that PriorityBadge renders correct color and label for each priority level.",
+          "filePaths": ["tests/components/test_priority_badge.tsx"],
+          "commands": ["jest tests/components/test_priority_badge.tsx"],
+          "testFirst": true,
+          "status": "pending"
+        },
+        {
+          "id": "T-005",
+          "title": "Implement PriorityBadge component",
+          "description": "Create PriorityBadge component with red/yellow/gray variants. Use existing Badge component as base.",
+          "filePaths": ["components/PriorityBadge.tsx", "components/PriorityBadge.css"],
+          "commands": ["jest tests/components/test_priority_badge.tsx", "tsc --noEmit"],
+          "testFirst": false,
+          "status": "pending"
+        },
+        {
+          "id": "T-006",
+          "title": "Integrate badge into TaskCard",
+          "description": "Add PriorityBadge to TaskCard component, passing task.priority as prop.",
+          "filePaths": ["components/TaskCard.tsx"],
+          "commands": ["jest tests/components/ --passWithNoTests", "tsc --noEmit"],
+          "testFirst": false,
+          "status": "pending"
+        }
+      ],
+      "review": {
+        "specCompliance": {
+          "status": "pending",
+          "issues": [],
+          "reviewedAt": null
+        },
+        "codeQuality": {
+          "status": "pending",
+          "issues": [],
+          "reviewedAt": null
+        }
+      },
+      "retries": {
+        "attempts": 0,
+        "maxAttempts": 3,
+        "failureLog": []
+      },
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Filter tasks by priority",
+      "description": "As a user, I want to filter the task list by priority so I can see only high-priority items.",
+      "acceptanceCriteria": [
+        "Filter dropdown with options: All | High | Medium | Low",
+        "Filter persists in URL query params",
+        "Empty state message when no tasks match filter",
+        "Typecheck passes",
+        "Verify in browser"
+      ],
+      "priority": 3,
+      "status": "pending",
+      "dependsOn": ["US-001", "US-002"],
+      "tasks": [
+        {
+          "id": "T-007",
+          "title": "Write filter API test",
+          "description": "Test that GET /tasks?priority=high returns only high-priority tasks.",
+          "filePaths": ["tests/api/test_task_filter.py"],
+          "commands": ["pytest tests/api/test_task_filter.py -v"],
+          "testFirst": true,
+          "status": "pending"
+        },
+        {
+          "id": "T-008",
+          "title": "Add priority filter to tasks endpoint",
+          "description": "Add optional 'priority' query param to GET /tasks. Filter by priority column when present.",
+          "filePaths": ["api/routes/tasks.py"],
+          "commands": ["pytest tests/api/test_task_filter.py -v", "pyright"],
+          "testFirst": false,
+          "status": "pending"
+        },
+        {
+          "id": "T-009",
+          "title": "Write PriorityFilter component test",
+          "description": "Test that PriorityFilter renders dropdown and calls onChange with selected value.",
+          "filePaths": ["tests/components/test_priority_filter.tsx"],
+          "commands": ["jest tests/components/test_priority_filter.tsx"],
+          "testFirst": true,
+          "status": "pending"
+        },
+        {
+          "id": "T-010",
+          "title": "Implement PriorityFilter and integrate",
+          "description": "Create PriorityFilter dropdown. Wire to URL params. Show empty state when no results.",
+          "filePaths": ["components/PriorityFilter.tsx", "pages/TaskList.tsx"],
+          "commands": ["jest tests/components/ --passWithNoTests", "tsc --noEmit"],
+          "testFirst": false,
+          "status": "pending"
+        }
+      ],
+      "review": {
+        "specCompliance": {
+          "status": "pending",
+          "issues": [],
+          "reviewedAt": null
+        },
+        "codeQuality": {
+          "status": "pending",
+          "issues": [],
+          "reviewedAt": null
+        }
+      },
+      "retries": {
+        "attempts": 0,
+        "maxAttempts": 3,
+        "failureLog": []
+      },
+      "notes": ""
+    }
+  ],
+  "progress": [],
+  "codebasePatterns": []
+}
