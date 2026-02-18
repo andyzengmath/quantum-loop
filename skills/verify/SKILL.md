@@ -1,6 +1,5 @@
 ---
-name: verify
-description: "Iron Law verification gate. Requires fresh evidence before any completion claim. Use before claiming work is done, before committing, or before marking a story as passed. Triggers on: verify, check, prove it works."
+description: Iron Law verification gate. Requires fresh evidence before any completion claim. Use before claiming work is done, before committing, or before marking a story as passed.
 ---
 
 # Quantum-Loop: Verify

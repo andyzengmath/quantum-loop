@@ -1,6 +1,5 @@
 ---
-name: execute
-description: "Run the autonomous execution loop. Processes stories from the dependency DAG with TDD enforcement, two-stage review gates, and structured error recovery. Use after /quantum-loop:plan has created quantum.json. Triggers on: execute, run loop, start building."
+description: Run the autonomous execution loop. Processes stories from the dependency DAG with TDD enforcement, two-stage review gates, and structured error recovery. Use after /quantum-loop:plan has created quantum.json.
 ---
 
 # Quantum-Loop: Execute

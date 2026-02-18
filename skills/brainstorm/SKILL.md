@@ -1,6 +1,5 @@
 ---
-name: brainstorm
-description: "Deep Socratic exploration of a feature idea before implementation. Asks questions one at a time, proposes 2-3 alternative approaches with trade-offs, presents design section-by-section for approval, and saves an approved design document. Use when starting a new feature, exploring an idea, or before writing a spec."
+description: Deep Socratic exploration of a feature idea before implementation. Asks questions one at a time, proposes 2-3 alternative approaches with trade-offs, presents design section-by-section for approval, and saves an approved design document. Use when starting a new feature, exploring an idea, or before writing a spec.
 ---
 
 # Quantum-Loop: Brainstorm

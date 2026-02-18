@@ -1,6 +1,5 @@
 ---
-name: spec
-description: "Generate a structured Product Requirements Document (PRD) with user stories, acceptance criteria, and functional requirements. Use when you have an approved design and need formal requirements, or when starting from scratch. Triggers on: create spec, write prd, spec out, requirements for."
+description: Generate a structured Product Requirements Document (PRD) with user stories, acceptance criteria, and functional requirements. Use when you have an approved design and need formal requirements, or when starting from scratch.
 ---
 
 # Quantum-Loop: Spec

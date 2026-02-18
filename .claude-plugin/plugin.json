@@ -1,27 +1,8 @@
 {
   "name": "quantum-loop",
+  "description": "Spec-driven autonomous development loop: brainstorm, spec, plan, execute with TDD, two-stage review gates, and Iron Law verification.",
   "version": "1.0.0",
-  "description": "Spec-driven autonomous development loop combining structured PRD generation, dependency DAG execution, two-stage review gates, and Iron Law verification. Merges the best of Ralph and Superpowers.",
   "author": {
     "name": "andyzengmath"
-  },
-  "homepage": "https://github.com/andyzengmath/quantum-loop",
-  "repository": "https://github.com/andyzengmath/quantum-loop",
-  "license": "MIT",
-  "keywords": [
-    "autonomous",
-    "prd",
-    "tdd",
-    "verification",
-    "review",
-    "planning",
-    "brainstorming",
-    "agent-loop"
-  ],
-  "skills": ["./skills/"],
-  "agents": [
-    "./agents/implementer.md",
-    "./agents/spec-reviewer.md",
-    "./agents/quality-reviewer.md"
-  ]
+  }
 }
