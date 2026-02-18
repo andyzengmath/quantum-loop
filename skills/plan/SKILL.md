@@ -1,7 +1,6 @@
 ---
-name: ql-plan
-description: "Convert a PRD into machine-readable quantum.json with dependency DAG, granular 2-5 minute tasks, and execution metadata. Use after creating a spec with /ql-spec. Triggers on: create plan, convert to json, plan tasks, generate quantum json, ql-plan."
-user-invocable: true
+name: plan
+description: "Convert a PRD into machine-readable quantum.json with dependency DAG, granular 2-5 minute tasks, and execution metadata. Use after creating a spec. Triggers on: create plan, convert to json, plan tasks, generate quantum json."
 ---
 
 # Quantum-Loop: Plan
@@ -169,7 +168,7 @@ If a previous `quantum.json` exists:
 3. If SAME feature: ask user whether to overwrite or merge
 
 Inform the user:
-> "Plan saved to `quantum.json` with [N] stories and [M] total tasks. Dependencies: [describe the DAG briefly]. When you're ready to start building, run `/ql-execute`."
+> "Plan saved to `quantum.json` with [N] stories and [M] total tasks. Dependencies: [describe the DAG briefly]. When you're ready to start building, run `/quantum-loop:execute`."
 
 ## Anti-Rationalization Guards
 

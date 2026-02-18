@@ -1,12 +1,11 @@
 ---
-name: ql-spec
-description: "Generate a structured Product Requirements Document (PRD) with user stories, acceptance criteria, and functional requirements. Use when you have an approved design and need formal requirements, or when starting from scratch. Triggers on: create spec, write prd, spec out, requirements for, ql-spec."
-user-invocable: true
+name: spec
+description: "Generate a structured Product Requirements Document (PRD) with user stories, acceptance criteria, and functional requirements. Use when you have an approved design and need formal requirements, or when starting from scratch. Triggers on: create spec, write prd, spec out, requirements for."
 ---
 
 # Quantum-Loop: Spec
 
-You are generating a formal Product Requirements Document (PRD). This document will be consumed by `/ql-plan` to produce machine-readable tasks for autonomous execution. Write for junior developers or AI agents -- be explicit, unambiguous, and verifiable.
+You are generating a formal Product Requirements Document (PRD). This document will be consumed by `/quantum-loop:plan` to produce machine-readable tasks for autonomous execution. Write for junior developers or AI agents -- be explicit, unambiguous, and verifiable.
 
 ## Step 1: Gather Context
 
@@ -122,9 +121,9 @@ Remaining areas needing clarification. If none, state "None at this time."
 Save to: `tasks/prd-<feature-name>.md` (kebab-case filename).
 
 Inform the user:
-> "PRD saved to `tasks/prd-<feature-name>.md`. When you're ready to create the execution plan, run `/ql-plan`."
+> "PRD saved to `tasks/prd-<feature-name>.md`. When you're ready to create the execution plan, run `/quantum-loop:plan`."
 
-Do NOT start implementing. Do NOT create quantum.json. That is `/ql-plan`'s job.
+Do NOT start implementing. Do NOT create quantum.json. That is `/quantum-loop:plan`'s job.
 
 ## Acceptance Criteria Quality Standards
 

@@ -1,7 +1,6 @@
 ---
-name: ql-verify
-description: "Iron Law verification gate. Requires fresh evidence before any completion claim. Use before claiming work is done, before committing, or before marking a story as passed. Triggers on: verify, check, prove it works, ql-verify."
-user-invocable: true
+name: verify
+description: "Iron Law verification gate. Requires fresh evidence before any completion claim. Use before claiming work is done, before committing, or before marking a story as passed. Triggers on: verify, check, prove it works."
 ---
 
 # Quantum-Loop: Verify
@@ -110,7 +109,7 @@ If you notice ANY of these, you are about to violate the Iron Law:
 | "It's just a type change, typecheck is enough" | Type changes can break runtime behavior. Run tests too. |
 | "Different words but same idea, so rule doesn't apply" | Spirit over letter. If you're rationalizing, you're violating. |
 
-## Integration with /ql-execute
+## Integration with /quantum-loop:execute
 
 When called from the execution loop, this skill:
 1. Receives the claim type and story context

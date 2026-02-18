@@ -1,7 +1,6 @@
 ---
-name: ql-execute
-description: "Run the autonomous execution loop. Processes stories from the dependency DAG with TDD enforcement, two-stage review gates, and structured error recovery. Use after /ql-plan has created quantum.json. Triggers on: execute, run loop, start building, ql-execute."
-user-invocable: true
+name: execute
+description: "Run the autonomous execution loop. Processes stories from the dependency DAG with TDD enforcement, two-stage review gates, and structured error recovery. Use after /quantum-loop:plan has created quantum.json. Triggers on: execute, run loop, start building."
 ---
 
 # Quantum-Loop: Execute
@@ -11,7 +10,7 @@ You are orchestrating the autonomous execution loop. This skill drives the end-t
 ## Prerequisites
 
 Before starting:
-1. `quantum.json` must exist (created by `/ql-plan`)
+1. `quantum.json` must exist (created by `/quantum-loop:plan`)
 2. The project must be a git repository
 3. Project build tools must be available (npm, pip, cargo, etc.)
 

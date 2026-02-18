@@ -1,7 +1,6 @@
 ---
-name: ql-review
-description: "Two-stage code review: spec compliance first, then code quality. Use after implementation or before merge. Triggers on: review code, code review, check implementation, ql-review."
-user-invocable: true
+name: review
+description: "Two-stage code review: spec compliance first, then code quality. Use after implementation or before merge. Triggers on: review code, code review, check implementation."
 ---
 
 # Quantum-Loop: Review
@@ -14,12 +13,12 @@ Code that doesn't match the spec is waste -- no matter how well-written. Checkin
 
 ## Usage Modes
 
-### Mode 1: Within /ql-execute (automated)
+### Mode 1: Within /quantum-loop:execute (automated)
 Called automatically by the execution loop after a story's quality checks pass.
 Receives story context from quantum.json.
 
 ### Mode 2: Standalone (user-invoked)
-User invokes `/ql-review` directly to review recent changes.
+User invokes `/quantum-loop:review` directly to review recent changes.
 
 ## Standalone Workflow
 
@@ -59,7 +58,7 @@ Wait for the review result.
 - Present the issues to the user (or to the execution loop)
 - List every unsatisfied acceptance criterion with evidence
 - Do NOT proceed to Stage 2
-- If within /ql-execute: return failure with issues list
+- If within /quantum-loop:execute: return failure with issues list
 
 ### Step 4: Stage 2 -- Code Quality Review
 
@@ -85,7 +84,7 @@ Wait for the review result.
 
 ## Handling Review Feedback
 
-### Within /ql-execute (automated)
+### Within /quantum-loop:execute (automated)
 1. If review fails, the implementer gets ONE attempt to fix the issues
 2. After fixing, both review stages run again from scratch
 3. If second attempt also fails, story is marked as failed
@@ -93,7 +92,7 @@ Wait for the review result.
 ### Standalone (user-invoked)
 1. Present the full review report
 2. User decides which issues to fix
-3. User can re-invoke `/ql-review` after fixing
+3. User can re-invoke `/quantum-loop:review` after fixing
 
 ## Output Format
 

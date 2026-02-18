@@ -1,7 +1,6 @@
 ---
-name: ql-brainstorm
-description: "Deep Socratic exploration of a feature idea before implementation. Asks questions one at a time, proposes 2-3 alternative approaches with trade-offs, presents design section-by-section for approval, and saves an approved design document. Use when starting a new feature, exploring an idea, or before writing a spec. Triggers on: brainstorm, explore idea, design this, think through, ql-brainstorm."
-user-invocable: true
+name: brainstorm
+description: "Deep Socratic exploration of a feature idea before implementation. Asks questions one at a time, proposes 2-3 alternative approaches with trade-offs, presents design section-by-section for approval, and saves an approved design document. Use when starting a new feature, exploring an idea, or before writing a spec."
 ---
 
 # Quantum-Loop: Brainstorm
@@ -81,11 +80,11 @@ docs/plans/YYYY-MM-DD-<topic>-design.md
 
 Use kebab-case for the topic. The document should include:
 - All approved sections assembled together
-- A "Next Steps" section pointing to `/ql-spec` for formal PRD creation
+- A "Next Steps" section pointing to `/quantum-loop:spec` for formal PRD creation
 - Date and any open questions noted during brainstorming
 
 Inform the user:
-> "Design saved to `docs/plans/YYYY-MM-DD-<topic>-design.md`. When you're ready to create a formal spec, run `/ql-spec`."
+> "Design saved to `docs/plans/YYYY-MM-DD-<topic>-design.md`. When you're ready to create a formal spec, run `/quantum-loop:spec`."
 
 ## Anti-Rationalization Guards
 
@@ -141,5 +140,5 @@ The saved design document should follow this structure:
 - [Any unresolved questions noted during brainstorming]
 
 ## Next Steps
-Run `/ql-spec` to generate a formal Product Requirements Document from this design.
+Run `/quantum-loop:spec` to generate a formal Product Requirements Document from this design.
 ```

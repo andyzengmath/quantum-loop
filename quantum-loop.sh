@@ -15,7 +15,7 @@ set -euo pipefail
 #   --help               Show this help message
 #
 # Prerequisites:
-#   - quantum.json must exist in the current directory (run /ql-plan first)
+#   - quantum.json must exist in the current directory (run /quantum-loop:plan first)
 #   - jq must be installed
 #   - claude or amp CLI must be installed
 # =============================================================================
@@ -71,7 +71,7 @@ fi
 
 # Validate quantum.json
 if [[ ! -f quantum.json ]]; then
-  echo "ERROR: quantum.json not found. Run /ql-plan first to create it."
+  echo "ERROR: quantum.json not found. Run /quantum-loop:plan first to create it."
   exit 1
 fi
 
