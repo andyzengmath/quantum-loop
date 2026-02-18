@@ -3,10 +3,10 @@
   "version": "1.0.0",
   "description": "Spec-driven autonomous development loop combining structured PRD generation, dependency DAG execution, two-stage review gates, and Iron Law verification. Merges the best of Ralph and Superpowers.",
   "author": {
-    "name": "quantum-loop"
+    "name": "andyzengmath"
   },
-  "homepage": "https://github.com/andyzeng/quantum-loop",
-  "repository": "https://github.com/andyzeng/quantum-loop",
+  "homepage": "https://github.com/andyzengmath/quantum-loop",
+  "repository": "https://github.com/andyzengmath/quantum-loop",
   "license": "MIT",
   "keywords": [
     "autonomous",
@@ -18,7 +18,7 @@
     "brainstorming",
     "agent-loop"
   ],
-  "skills": "./skills/",
+  "skills": ["./skills/"],
   "agents": [
     "./agents/implementer.md",
     "./agents/spec-reviewer.md",

@@ -1,0 +1,20 @@
+{
+  "name": "quantum-loop",
+  "owner": {
+    "name": "andyzengmath"
+  },
+  "metadata": {
+    "description": "Spec-driven autonomous development loop with PRD generation, dependency DAG execution, two-stage review gates, and Iron Law verification",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "quantum-loop",
+      "source": "./",
+      "description": "6 skills (brainstorm, spec, plan, execute, verify, review) and 3 agents (implementer, spec-reviewer, quality-reviewer) for autonomous spec-driven development",
+      "version": "1.0.0",
+      "keywords": ["autonomous", "prd", "tdd", "verification", "review", "planning", "agent-loop"],
+      "category": "productivity"
+    }
+  ]
+}

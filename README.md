@@ -43,12 +43,14 @@ Each phase produces an artifact consumed by the next. Skip a phase and the next 
 ### Install
 
 ```bash
-# Claude Code marketplace
-/install quantum-loop
+# Step 1: Register the marketplace
+/plugin marketplace add andyzengmath/quantum-loop
 
-# Or clone manually
-git clone https://github.com/andyzeng/quantum-loop.git ~/.claude/plugins/quantum-loop
+# Step 2: Install the plugin
+/plugin install quantum-loop@quantum-loop
 ```
+
+After installation, restart Claude Code. The `/ql-*` commands will be available.
 
 ### Run
 
