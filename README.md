@@ -23,7 +23,7 @@ AI coding agents are fast. They're also confidently wrong. They skip tests, igno
 ## How It Works
 
 ```
-/quantum-loop:brainstorm → /quantum-loop:spec → /quantum-loop:plan → /quantum-loop:execute
+/quantum-loop:ql-brainstorm → /quantum-loop:ql-spec → /quantum-loop:ql-plan → /quantum-loop:ql-execute
          │                        │                     │                      │
       Socratic               9-section            quantum.json          Autonomous loop
       dialogue                 PRD                with DAG               with gates
@@ -42,35 +42,64 @@ Each phase produces an artifact consumed by the next. Skip a phase and the next 
 
 ### Install
 
-**Option 1: From marketplace** (recommended)
+**Option 1: Plugin marketplace** (requires Claude Code >= 1.0.33)
 ```bash
-# In Claude Code, run these two commands:
+# In Claude Code:
 /plugin marketplace add andyzengmath/quantum-loop
 /plugin install quantum-loop@quantum-loop
 ```
 
-**Option 2: Local testing** (no marketplace needed)
+**Option 2: Local plugin flag** (any version)
 ```bash
 git clone https://github.com/andyzengmath/quantum-loop.git
 claude --plugin-dir ./quantum-loop
 ```
 
-After installation, restart Claude Code. All commands are namespaced under `quantum-loop:`.
+**Option 3: Manual config** (if the above don't work)
+
+Clone the repo, then edit three files in `~/.claude/`:
+
+1. Add quantum-loop to an existing marketplace's `.claude-plugin/marketplace.json`:
+   ```json
+   {
+     "name": "quantum-loop",
+     "source": { "source": "url", "url": "https://github.com/andyzengmath/quantum-loop.git" },
+     "description": "Spec-driven autonomous development loop",
+     "version": "1.0.0",
+     "strict": true
+   }
+   ```
+2. Add to `plugins/installed_plugins.json`:
+   ```json
+   "quantum-loop@<marketplace-name>": [{
+     "scope": "user",
+     "installPath": "/path/to/quantum-loop",
+     "version": "1.0.0",
+     "installedAt": "2026-02-18T00:00:00.000Z",
+     "lastUpdated": "2026-02-18T00:00:00.000Z"
+   }]
+   ```
+3. Add to `settings.json` under `enabledPlugins`:
+   ```json
+   "quantum-loop@<marketplace-name>": true
+   ```
+
+After any install method, restart Claude Code. Commands use the `quantum-loop:` prefix (e.g., `/quantum-loop:ql-brainstorm`) or the short form (`/ql-brainstorm`).
 
 ### Run
 
 ```bash
 # Step 1: Explore the idea (Socratic Q&A, 2-3 approaches, section-by-section approval)
-/quantum-loop:brainstorm Add a task priority system with filtering
+/quantum-loop:ql-brainstorm Add a task priority system with filtering
 
 # Step 2: Generate formal spec (5-8 lettered questions, respond "1A, 2C, 3B")
-/quantum-loop:spec
+/quantum-loop:ql-spec
 
 # Step 3: Create execution plan (dependency DAG, granular tasks, verification commands)
-/quantum-loop:plan
+/quantum-loop:ql-plan
 
 # Step 4a: Execute interactively
-/quantum-loop:execute
+/quantum-loop:ql-execute
 
 # Step 4b: Or run autonomously (fresh AI context per story)
 ./quantum-loop.sh --max-iterations 20
@@ -123,12 +152,12 @@ Quantum-Loop takes [Superpowers](https://github.com/obra/superpowers)' disciplin
 
 | Command | What it does | Output |
 |---------|-------------|--------|
-| `/quantum-loop:brainstorm` | Socratic exploration: one question at a time, 2-3 approaches with trade-offs, section-by-section design approval | `docs/plans/YYYY-MM-DD-<topic>-design.md` |
-| `/quantum-loop:spec` | 5-8 lettered-option questions, generates 9-section PRD with user stories and verifiable acceptance criteria | `tasks/prd-<feature>.md` |
-| `/quantum-loop:plan` | Analyzes dependencies, builds DAG, decomposes stories into 2-5 minute tasks with exact file paths and commands | `quantum.json` |
-| `/quantum-loop:execute` | Runs the autonomous loop: pick story from DAG → TDD → quality checks → spec review → code review → commit | Updated `quantum.json` |
-| `/quantum-loop:verify` | Standalone Iron Law gate: identify command → run fresh → read output → verify claim → only then assert | Verification report |
-| `/quantum-loop:review` | Two-stage review: Stage 1 (spec compliance) must pass before Stage 2 (code quality) begins | Review report |
+| `/quantum-loop:ql-brainstorm` | Socratic exploration: one question at a time, 2-3 approaches with trade-offs, section-by-section design approval | `docs/plans/YYYY-MM-DD-<topic>-design.md` |
+| `/quantum-loop:ql-spec` | 5-8 lettered-option questions, generates 9-section PRD with user stories and verifiable acceptance criteria | `tasks/prd-<feature>.md` |
+| `/quantum-loop:ql-plan` | Analyzes dependencies, builds DAG, decomposes stories into 2-5 minute tasks with exact file paths and commands | `quantum.json` |
+| `/quantum-loop:ql-execute` | Runs the autonomous loop: pick story from DAG → TDD → quality checks → spec review → code review → commit | Updated `quantum.json` |
+| `/quantum-loop:ql-verify` | Standalone Iron Law gate: identify command → run fresh → read output → verify claim → only then assert | Verification report |
+| `/quantum-loop:ql-review` | Two-stage review: Stage 1 (spec compliance) must pass before Stage 2 (code quality) begins | Review report |
 
 ---
 
