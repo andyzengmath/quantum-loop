@@ -18,7 +18,7 @@
     "brainstorming",
     "agent-loop"
   ],
-  "skills": ["./skills/"],
+  "skills": ["./skills/", "./commands/"],
   "agents": [
     "./agents/implementer.md",
     "./agents/spec-reviewer.md",
