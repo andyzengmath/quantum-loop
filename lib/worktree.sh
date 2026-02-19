@@ -2,16 +2,9 @@
 # lib/worktree.sh -- Git worktree lifecycle functions for quantum-loop
 # Source this file to use create_worktree(), remove_worktree(), list_worktrees()
 
-# _validate_story_id(story_id)
-# Returns 0 if story_id matches safe pattern, 1 otherwise.
-_validate_story_id() {
-  local story_id="$1"
-  if [[ ! "$story_id" =~ ^[A-Za-z0-9_-]+$ ]]; then
-    echo "ERROR: Invalid story_id format: $story_id" >&2
-    return 1
-  fi
-  return 0
-}
+# Source shared utilities
+WORKTREE_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$WORKTREE_LIB_DIR/common.sh" || { printf "ERROR: common.sh not found\n" >&2; return 1 2>/dev/null || exit 1; }
 
 # create_worktree(story_id, branch_name, repo_root)
 # Creates a worktree at <repo_root>/.ql-wt/<story_id>/ branched from branch_name HEAD.
@@ -22,7 +15,7 @@ create_worktree() {
   local repo_root="$3"
 
   if [[ -z "$story_id" || -z "$branch_name" || -z "$repo_root" ]]; then
-    echo "ERROR: create_worktree requires story_id, branch_name, repo_root" >&2
+    printf "ERROR: create_worktree requires story_id, branch_name, repo_root\n" >&2
     return 1
   fi
   _validate_story_id "$story_id" || return 1
@@ -46,7 +39,7 @@ remove_worktree() {
   local repo_root="$2"
 
   if [[ -z "$story_id" || -z "$repo_root" ]]; then
-    echo "ERROR: remove_worktree requires story_id, repo_root" >&2
+    printf "ERROR: remove_worktree requires story_id, repo_root\n" >&2
     return 1
   fi
   _validate_story_id "$story_id" || return 1
@@ -73,7 +66,7 @@ list_worktrees() {
   local repo_root="$1"
 
   if [[ -z "$repo_root" ]]; then
-    echo "ERROR: list_worktrees requires repo_root" >&2
+    printf "ERROR: list_worktrees requires repo_root\n" >&2
     return 1
   fi
 
