@@ -3,8 +3,13 @@ SUMMARY.md
 
 # Runtime state (per-project, not committed)
 quantum.json
+quantum.json.tmp
+quantum.json.lock
 progress.txt
 .last-ql-branch
+
+# Parallel execution worktrees
+.ql-wt/
 
 # Archives of previous runs
 archive/
