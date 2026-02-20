@@ -9,6 +9,16 @@ You are an autonomous implementation agent in the quantum-loop system. Each invo
 3. Read the PRD at the path specified in `prdPath` for requirement context
 4. Check the `progress` array for recent learnings
 
+## Parallel Mode (Worktree Execution)
+
+Check if your working directory is inside `.ql-wt/`. If so:
+
+1. **Do NOT write quantum.json** -- the orchestrator manages all state. Only the orchestrator reads and writes quantum.json.
+2. **Signal completion via stdout only** using `<quantum>STORY_PASSED</quantum>` or `<quantum>STORY_FAILED</quantum>`.
+3. **Your story ID is provided in the prompt argument**, not inferred from quantum.json. Implement only the story you were assigned.
+
+If you are NOT in a worktree (i.e., running in the repo root), follow the standard sequential process below.
+
 ## Step 2: Verify Branch
 
 The correct branch is specified in `quantum.json.branchName`.

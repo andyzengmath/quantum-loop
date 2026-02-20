@@ -2,7 +2,7 @@
 
 **Your AI agent writes code. Quantum-Loop makes sure it writes the *right* code.**
 
-A Claude Code plugin that turns a one-line feature description into verified, reviewed, autonomously-implemented code -- through structured specs, dependency-aware execution, and mandatory verification gates that prevent AI agents from cutting corners.
+A Claude Code plugin that turns a one-line feature description into verified, reviewed, autonomously-implemented code -- through structured specs, dependency-aware execution, parallel worktree agents, and mandatory verification gates that prevent AI agents from cutting corners.
 
 > Named after [Loop Quantum Gravity](https://en.wikipedia.org/wiki/Loop_quantum_gravity): spacetime is built from discrete, verified loops. So is your codebase.
 
@@ -98,11 +98,14 @@ After any install method, restart Claude Code. Commands use the `quantum-loop:` 
 # Step 3: Create execution plan (dependency DAG, granular tasks, verification commands)
 /quantum-loop:ql-plan
 
-# Step 4a: Execute interactively
+# Step 4a: Execute interactively (auto-detects parallelism)
 /quantum-loop:ql-execute
 
-# Step 4b: Or run autonomously (fresh AI context per story)
+# Step 4b: Or run autonomously -- sequential (one story at a time)
 ./quantum-loop.sh --max-iterations 20
+
+# Step 4c: Or run autonomously -- parallel (independent stories run concurrently)
+./quantum-loop.sh --parallel --max-parallel 4 --max-iterations 20
 ```
 
 ---
@@ -115,6 +118,7 @@ After any install method, restart Claude Code. Commands use the `quantum-loop:` 
 |--|---------|-------------|
 | Requirements | "Build me X" | 9-section PRD with verifiable acceptance criteria |
 | Execution | One big prompt | Dependency DAG, one story per context window |
+| Parallelism | None | Independent stories run concurrently in isolated worktrees |
 | Verification | "Looks right" | Iron Law: fresh evidence for every claim |
 | Review | None | Two-stage: spec compliance, then code quality |
 | Failure | Start over | Retry with failure log, skip to independent stories |
@@ -155,7 +159,7 @@ Quantum-Loop takes [Superpowers](https://github.com/obra/superpowers)' disciplin
 | `/quantum-loop:ql-brainstorm` | Socratic exploration: one question at a time, 2-3 approaches with trade-offs, section-by-section design approval | `docs/plans/YYYY-MM-DD-<topic>-design.md` |
 | `/quantum-loop:ql-spec` | 5-8 lettered-option questions, generates 9-section PRD with user stories and verifiable acceptance criteria | `tasks/prd-<feature>.md` |
 | `/quantum-loop:ql-plan` | Analyzes dependencies, builds DAG, decomposes stories into 2-5 minute tasks with exact file paths and commands | `quantum.json` |
-| `/quantum-loop:ql-execute` | Runs the autonomous loop: pick story from DAG → TDD → quality checks → spec review → code review → commit | Updated `quantum.json` |
+| `/quantum-loop:ql-execute` | Runs the autonomous loop: picks stories from DAG, runs independent stories in parallel via worktree agents, TDD → quality checks → spec review → code review → commit | Updated `quantum.json` |
 | `/quantum-loop:ql-verify` | Standalone Iron Law gate: identify command → run fresh → read output → verify claim → only then assert | Verification report |
 | `/quantum-loop:ql-review` | Two-stage review: Stage 1 (spec compliance) must pass before Stage 2 (code quality) begins | Review report |
 
@@ -173,6 +177,41 @@ US-001 (schema) ──→ US-002 (UI) ──→ US-004 (integration)
 ```
 
 If US-002 fails, US-003 still executes (it only depends on US-001).
+
+### Parallel Execution
+
+When multiple stories have all dependencies satisfied, Quantum-Loop runs them concurrently in isolated git worktrees:
+
+```
+Wave 1:  US-001 (schema)   ─── worktree ─── [PASSED] ── merge
+         US-005 (config)   ─── worktree ─── [PASSED] ── merge
+
+Wave 2:  US-002 (UI)       ─── worktree ─── [PASSED] ── merge    (unblocked by US-001)
+         US-003 (API)      ─── worktree ─── [FAILED] ── retry    (unblocked by US-001)
+
+Wave 3:  US-003 (API)      ─── worktree ─── [PASSED] ── merge    (retry succeeded)
+         US-004 (tests)    ─── worktree ─── [PASSED] ── merge    (unblocked by US-002 + US-003)
+```
+
+**How it works:**
+1. The orchestrator queries the DAG for all stories with satisfied dependencies
+2. Each story gets an isolated git worktree (`.ql-wt/<story-id>/`)
+3. A fresh Claude Code agent is spawned per worktree with the story ID in its prompt
+4. Agents signal completion via stdout (`<quantum>STORY_PASSED</quantum>` or `<quantum>STORY_FAILED</quantum>`)
+5. On pass, the worktree branch is merged into the feature branch immediately
+6. The DAG is re-queried after every completion to spawn newly unblocked stories
+7. On merge conflict or failure, the story is retried in the next wave
+
+**Agents are fully isolated:** each works in its own worktree directory. Only the orchestrator reads/writes `quantum.json`. Agents that timeout (default 15 min) or crash are killed, their stories marked failed, and worktrees cleaned up.
+
+**Two execution modes:**
+
+| Mode | Trigger | Agent type |
+|------|---------|------------|
+| Interactive | `/ql-execute` (auto-detects 2+ executable stories) | Background Task subagents |
+| Autonomous | `./quantum-loop.sh --parallel` | Background `claude --print` processes |
+
+Without `--parallel` or with only one executable story, execution remains sequential -- full backward compatibility.
 
 ### 5-State Story Tracking
 
@@ -267,27 +306,77 @@ See [`quantum.json.example`](quantum.json.example) for the full schema with 3 st
 ```
 quantum-loop/
 ├── skills/
-│   ├── brainstorm/    # Socratic design exploration
-│   ├── spec/          # PRD generation
-│   ├── plan/          # quantum.json creation
-│   ├── execute/       # Autonomous loop orchestration
-│   ├── verify/        # Iron Law verification
-│   └── review/        # Two-stage code review
+│   ├── brainstorm/       # Socratic design exploration
+│   ├── spec/             # PRD generation
+│   ├── plan/             # quantum.json creation
+│   ├── execute/          # Autonomous loop orchestration (parallel-aware)
+│   ├── verify/           # Iron Law verification
+│   └── review/           # Two-stage code review
 ├── agents/
-│   ├── implementer    # TDD implementation per story
-│   ├── spec-reviewer  # Acceptance criteria check
-│   └── quality-reviewer # Code quality check
-├── quantum-loop.sh    # Autonomous bash loop
-└── CLAUDE.md          # Agent template per iteration
+│   ├── implementer       # TDD implementation per story
+│   ├── spec-reviewer     # Acceptance criteria check
+│   └── quality-reviewer  # Code quality check
+├── lib/                  # Shell libraries for parallel orchestration
+│   ├── common.sh         # Shared validation utilities
+│   ├── dag-query.sh      # DAG query + cycle detection
+│   ├── worktree.sh       # Git worktree lifecycle (create/remove/list)
+│   ├── spawn.sh          # Agent spawning (autonomous mode)
+│   ├── monitor.sh        # Agent polling, signal detection, merge-on-pass
+│   ├── json-atomic.sh    # Atomic quantum.json writes (tmp + mv)
+│   └── crash-recovery.sh # Orphaned worktree cleanup on startup
+├── tests/                # Shell test suites (110 tests)
+│   ├── test_dag_query.sh
+│   ├── test_worktree.sh
+│   ├── test_spawn.sh
+│   ├── test_monitor_merge.sh
+│   ├── test_timeout.sh
+│   ├── test_json_atomic.sh
+│   └── test_crash_recovery.sh
+├── quantum-loop.sh       # Autonomous bash loop (sequential + parallel)
+└── CLAUDE.md             # Agent template (parallel-aware)
 ```
 
 **`quantum-loop.sh`** drives autonomous execution:
+
+**Sequential mode** (default):
 1. Reads quantum.json state
 2. Selects next story from dependency DAG (jq query)
 3. Spawns fresh Claude Code instance with CLAUDE.md
 4. Processes completion signals (`<quantum>STORY_PASSED</quantum>`, etc.)
 5. Handles retries and cascade blocking
 6. Exits: `0` (all passed), `1` (blocked), `2` (max iterations)
+
+**Parallel mode** (`--parallel`):
+1. Recovers orphaned worktrees from any interrupted previous run
+2. Queries DAG for all independently executable stories
+3. Creates isolated git worktree per story (`.ql-wt/<story-id>/`)
+4. Spawns background `claude --print` process per worktree (up to `--max-parallel`)
+5. Monitors agents: polls for signals, enforces 15-min timeout, detects crashes
+6. On pass: merges worktree branch into feature branch, re-queries DAG, spawns newly unblocked stories
+7. On failure/timeout/crash: marks story failed, cleans up worktree, retries next wave
+8. Exits: `0` (all passed), `1` (blocked), `2` (max iterations)
+
+### CLI Reference
+
+```
+./quantum-loop.sh [OPTIONS]
+
+Options:
+  --max-iterations N   Maximum iterations before stopping (default: 20)
+  --max-retries N      Max retry attempts per story (default: 3)
+  --tool TOOL          AI tool: "claude" (default) or "amp"
+  --parallel           Enable parallel execution of independent stories
+  --max-parallel N     Max concurrent agents in parallel mode (default: 4)
+  --help               Show help message
+```
+
+### Crash Recovery
+
+If a parallel run is interrupted (Ctrl+C, power loss, etc.), the next run automatically:
+- Detects orphaned worktrees listed in `execution.activeWorktrees`
+- Removes them with `git worktree remove --force`
+- Resets affected story statuses from `in_progress` back to `pending`
+- Logs: "Recovered N orphaned worktrees from interrupted parallel execution"
 
 ---
 
