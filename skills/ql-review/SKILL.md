@@ -1,5 +1,6 @@
 ---
-description: Two-stage code review. Spec compliance first, then code quality. Use after implementation or before merge.
+name: ql-review
+description: Two-stage code review. Spec compliance first, then code quality. Use after implementation or before merge. Triggers on: review code, code review, check implementation, ql-review.
 ---
 
 # Quantum-Loop: Review
