@@ -1,5 +1,6 @@
 ---
-description: Convert a PRD into machine-readable quantum.json with dependency DAG, granular 2-5 minute tasks, and execution metadata. Use after creating a spec with /quantum-loop:spec.
+name: ql-plan
+description: Convert a PRD into machine-readable quantum.json with dependency DAG, granular 2-5 minute tasks, and execution metadata. Use after creating a spec with /quantum-loop:spec. Triggers on: create plan, convert to json, plan tasks, generate quantum json, ql-plan.
 ---
 
 # Quantum-Loop: Plan

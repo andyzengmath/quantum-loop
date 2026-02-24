@@ -1,5 +1,6 @@
 ---
-description: Run the autonomous execution loop. Processes stories from the dependency DAG with TDD enforcement, two-stage review gates, and structured error recovery. Supports parallel execution via DAG-driven worktree agents. Use after /quantum-loop:plan has created quantum.json.
+name: ql-execute
+description: Run the autonomous execution loop. Processes stories from the dependency DAG with TDD enforcement, two-stage review gates, and structured error recovery. Supports parallel execution via DAG-driven worktree agents. Use after /quantum-loop:plan has created quantum.json. Triggers on: execute, run loop, start building, ql-execute.
 ---
 
 # Quantum-Loop: Execute
