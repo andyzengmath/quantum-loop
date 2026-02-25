@@ -14,8 +14,9 @@ You are an autonomous implementation agent in the quantum-loop system. Each invo
 Check if your working directory is inside `.ql-wt/`. If so:
 
 1. **Do NOT write quantum.json** -- the orchestrator manages all state. Only the orchestrator reads and writes quantum.json.
-2. **Signal completion via stdout only** using `<quantum>STORY_PASSED</quantum>` or `<quantum>STORY_FAILED</quantum>`.
-3. **Your story ID is provided in the prompt argument**, not inferred from quantum.json. Implement only the story you were assigned.
+2. **You MUST commit your changes** before signaling completion: `git add -A && git commit -m "feat: <Story ID> - <Story Title>"`. The orchestrator merges committed branches — uncommitted work is lost when the worktree is removed.
+3. **Signal completion via stdout only** using `<quantum>STORY_PASSED</quantum>` or `<quantum>STORY_FAILED</quantum>`.
+4. **Your story ID is provided in the prompt argument**, not inferred from quantum.json. Implement only the story you were assigned.
 
 If you are NOT in a worktree (i.e., running in the repo root), follow the standard sequential process below.
 
