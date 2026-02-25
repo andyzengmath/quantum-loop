@@ -96,13 +96,21 @@ merge_worktree_branch() {
     return 1
   fi
 
+  # Stash any dirty working tree state so merge can proceed
+  local stashed=false
+  if git -C "$repo_root" status --porcelain 2>/dev/null | grep -q .; then
+    git -C "$repo_root" stash push -m "ql-auto-stash-before-merge-${worktree_branch}" -q 2>/dev/null && stashed=true
+  fi
+
   # Attempt merge (no squash, no rebase per spec)
   if git -C "$repo_root" merge "$worktree_branch" --no-edit -q 2>/dev/null; then
+    [[ "$stashed" == "true" ]] && { git -C "$repo_root" stash pop -q 2>/dev/null || true; }
     return 0
   fi
 
-  # Merge failed -- abort and return conflict
+  # Merge failed -- abort and restore stash
   git -C "$repo_root" merge --abort 2>/dev/null || true
+  [[ "$stashed" == "true" ]] && { git -C "$repo_root" stash pop -q 2>/dev/null || true; }
   return 1
 }
 
