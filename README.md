@@ -309,10 +309,11 @@ quantum-loop/
 │   ├── brainstorm/       # Socratic design exploration
 │   ├── spec/             # PRD generation
 │   ├── plan/             # quantum.json creation
-│   ├── execute/          # Autonomous loop orchestration (parallel-aware)
+│   ├── execute/          # Thin dispatcher -> orchestrator agent
 │   ├── verify/           # Iron Law verification
 │   └── review/           # Two-stage code review
 ├── agents/
+│   ├── orchestrator      # Execution lifecycle manager (DAG, dispatch, review, commit)
 │   ├── implementer       # TDD implementation per story
 │   ├── spec-reviewer     # Acceptance criteria check
 │   └── quality-reviewer  # Code quality check
@@ -377,6 +378,12 @@ If a parallel run is interrupted (Ctrl+C, power loss, etc.), the next run automa
 - Removes them with `git worktree remove --force`
 - Resets affected story statuses from `in_progress` back to `pending`
 - Logs: "Recovered N orphaned worktrees from interrupted parallel execution"
+
+### Windows Users
+
+On Windows, use `/ql-execute` (interactive mode) instead of `quantum-loop.sh`. The shell script relies on Git Bash background process management and worktree operations that are unreliable on Windows due to OneDrive file locking and process lifecycle differences.
+
+`/ql-execute` invokes the orchestrator agent inside Claude Code, which uses native `isolation: "worktree"` for parallel execution -- no manual worktree management, no Git Bash quirks.
 
 ---
 
