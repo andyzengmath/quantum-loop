@@ -131,11 +131,14 @@ Quantum-Loop builds on [Ralph](https://github.com/snarktank/ralph)'s autonomous 
 |--|-------|-------------|
 | Story status | Boolean (`passes: true`) | 5 states (pending → in_progress → passed/failed/blocked) |
 | Dependencies | Linear priority only | DAG-based execution |
+| Parallelism | None (sequential only) | Independent stories run concurrently in isolated worktrees |
+| Orchestration | Shell script only | Shell script + **orchestrator agent** (in-process, full tool access) |
 | Error recovery | Silent failure | Retry counter + structured failure logs |
 | Code review | None | Two-stage mandatory gates |
 | Verification | "Typecheck passes" | Iron Law + anti-rationalization guards |
 | Design phase | None | Socratic brainstorming |
 | Progress | Free-form text | Structured JSON |
+| Windows support | Untested | Orchestrator agent with native worktree isolation |
 
 ### vs. Superpowers
 
@@ -144,11 +147,13 @@ Quantum-Loop takes [Superpowers](https://github.com/obra/superpowers)' disciplin
 | | Superpowers | Quantum-Loop |
 |--|------------|-------------|
 | State format | None (session-only) | Machine-readable quantum.json |
-| Execution | Manual or batched | Autonomous bash loop |
+| Execution | Manual or subagent-driven | Orchestrator agent with DAG-driven dispatch |
+| Parallelism | Sequential subagents | Concurrent subagents in isolated worktrees |
 | Persistence | None | Cross-session via quantum.json |
 | Requirements | Informal design docs | Formal PRD with numbered FRs |
 | Dependencies | None | Explicit DAG |
-| Task tracking | In-session only | Survives restarts |
+| Task tracking | In-session TodoWrite | quantum.json survives restarts |
+| Autonomous mode | None | Shell script for overnight runs (Linux/Mac) |
 
 ---
 
