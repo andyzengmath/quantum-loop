@@ -25,7 +25,13 @@ build_agent_prompt() {
 Implement story ${story_id} following the instructions in CLAUDE.md.
 
 IMPORTANT: You are running in a worktree (.ql-wt/). Do NOT write quantum.json.
-The orchestrator manages all state. Signal completion via stdout only:
+The orchestrator manages all state.
+
+You MUST commit your changes before signaling completion:
+  git add -A && git commit -m "feat: ${story_id} - <Story Title>"
+Uncommitted work is LOST when the worktree is removed.
+
+Signal completion via stdout only:
 - On success: output <quantum>STORY_PASSED</quantum>
 - On failure: output <quantum>STORY_FAILED</quantum>
 

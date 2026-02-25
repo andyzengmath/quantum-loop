@@ -304,6 +304,12 @@ if [[ "$PARALLEL_MODE" == "true" ]]; then
           STORY_PASSED)
             wait "$PID" 2>/dev/null || true
             WT_BRANCH="ql-wt/${SID}"
+            # Safety commit: ensure agent changes are committed before merge
+            # (agents should commit per CLAUDE.md, but this catches any that don't)
+            if git -C "$WT" status --porcelain 2>/dev/null | grep -q .; then
+              git -C "$WT" add -A >/dev/null 2>&1 || true
+              git -C "$WT" commit -m "feat: ${SID} - auto-commit by orchestrator" >/dev/null 2>&1 || true
+            fi
             if merge_worktree_branch "$REPO_ROOT" "$WT_BRANCH"; then
               printf "[PASSED] %s\n" "$SID"
               jq --arg id "$SID" --argjson wave "$WAVE" '
