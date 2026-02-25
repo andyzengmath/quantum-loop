@@ -106,6 +106,9 @@ After any install method, restart Claude Code. Commands use the `quantum-loop:` 
 
 # Step 4c: Or run autonomously -- parallel (independent stories run concurrently)
 ./quantum-loop.sh --parallel --max-parallel 4 --max-iterations 20
+
+# Step 4d: Windows autonomous (native PowerShell, no bash required)
+.\quantum-loop.ps1 -MaxIterations 20 -SkipPermissions
 ```
 
 ---
@@ -386,9 +389,32 @@ If a parallel run is interrupted (Ctrl+C, power loss, etc.), the next run automa
 
 ### Windows Users
 
-On Windows, use `/ql-execute` (interactive mode) instead of `quantum-loop.sh`. The shell script relies on Git Bash background process management and worktree operations that are unreliable on Windows due to OneDrive file locking and process lifecycle differences.
+Three options for Windows, in order of recommendation:
 
-`/ql-execute` invokes the orchestrator agent inside Claude Code, which uses native `isolation: "worktree"` for parallel execution -- no manual worktree management, no Git Bash quirks.
+**Option 1: `/ql-execute` (interactive, recommended)**
+```bash
+# In Claude Code:
+/quantum-loop:ql-execute
+```
+Invokes the orchestrator agent inside Claude Code with full tool access and native worktree isolation for parallel execution. Most reliable option.
+
+**Option 2: `quantum-loop.ps1` (autonomous overnight, native PowerShell)**
+```powershell
+.\quantum-loop.ps1 -MaxIterations 20 -SkipPermissions
+.\quantum-loop.ps1 -MaxIterations 50 -SkipPermissions -Model "claude-sonnet-4-5-20250514"
+```
+Native PowerShell sequential loop -- no bash, no WSL, no Git Bash. Spawns fresh `claude --print` per story. Requires `jq` installed. Sequential only (no parallel).
+
+**Option 3: WSL2 + `quantum-loop.sh` (autonomous overnight, full feature set)**
+```bash
+# In WSL2 Ubuntu:
+wsl
+cd /mnt/c/Users/you/project
+./quantum-loop.sh --parallel --max-parallel 4 --max-iterations 20
+```
+Full feature set including parallel mode. [WSL2 setup guide](https://learn.microsoft.com/en-us/windows/wsl/install). Requires `jq` and `claude` CLI installed inside WSL2.
+
+The bash script's parallel mode (`--parallel`) is **not recommended** with Git Bash on Windows due to OneDrive file locking and background process management issues. Use WSL2 or the PowerShell script instead.
 
 ---
 
