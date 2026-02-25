@@ -197,12 +197,12 @@ Wave 3:  US-003 (API)      ─── worktree ─── [PASSED] ── merge   
 1. The orchestrator queries the DAG for all stories with satisfied dependencies
 2. Each story gets an isolated git worktree (`.ql-wt/<story-id>/`)
 3. A fresh Claude Code agent is spawned per worktree with the story ID in its prompt
-4. Agents signal completion via stdout (`<quantum>STORY_PASSED</quantum>` or `<quantum>STORY_FAILED</quantum>`)
-5. On pass, the worktree branch is merged into the feature branch immediately
+4. Agents implement the story, commit their changes (`git add -A && git commit`), then signal completion
+5. The orchestrator verifies changes are committed (safety commit if agent forgot), then merges the worktree branch into the feature branch
 6. The DAG is re-queried after every completion to spawn newly unblocked stories
 7. On merge conflict or failure, the story is retried in the next wave
 
-**Agents are fully isolated:** each works in its own worktree directory. Only the orchestrator reads/writes `quantum.json`. Agents that timeout (default 15 min) or crash are killed, their stories marked failed, and worktrees cleaned up.
+**Agents are fully isolated:** each works in its own worktree directory. Only the orchestrator reads/writes `quantum.json`. Agents must commit before signaling — the orchestrator includes a safety commit as a fallback, but uncommitted work in a removed worktree is lost. Agents that timeout (default 15 min) or crash are killed, their stories marked failed, and worktrees cleaned up.
 
 **Two execution modes:**
 
@@ -352,7 +352,7 @@ quantum-loop/
 3. Creates isolated git worktree per story (`.ql-wt/<story-id>/`)
 4. Spawns background `claude --print` process per worktree (up to `--max-parallel`)
 5. Monitors agents: polls for signals, enforces 15-min timeout, detects crashes
-6. On pass: merges worktree branch into feature branch, re-queries DAG, spawns newly unblocked stories
+6. On pass: safety-commits any uncommitted changes, merges worktree branch into feature branch, re-queries DAG, spawns newly unblocked stories
 7. On failure/timeout/crash: marks story failed, cleans up worktree, retries next wave
 8. Exits: `0` (all passed), `1` (blocked), `2` (max iterations)
 
