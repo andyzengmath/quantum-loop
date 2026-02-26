@@ -1,6 +1,6 @@
 ---
 name: ql-spec
-description: Generate a structured Product Requirements Document (PRD) with user stories, acceptance criteria, and functional requirements. Use when you have an approved design and need formal requirements, or when starting from scratch. Triggers on: create spec, write prd, spec out, requirements for, ql-spec.
+description: "Part of the quantum-loop autonomous development pipeline (brainstorm \u2192 spec \u2192 plan \u2192 execute \u2192 review \u2192 verify). Generate a structured Product Requirements Document (PRD) with user stories, acceptance criteria, and functional requirements. Use when you have an approved design and need formal requirements, or when starting from scratch. Triggers on: create spec, write prd, spec out, requirements for, ql-spec."
 ---
 
 # Quantum-Loop: Spec

@@ -1,6 +1,6 @@
 ---
 name: ql-review
-description: Two-stage code review. Spec compliance first, then code quality. Use after implementation or before merge. Triggers on: review code, code review, check implementation, ql-review.
+description: "Part of the quantum-loop autonomous development pipeline (brainstorm \u2192 spec \u2192 plan \u2192 execute \u2192 review \u2192 verify). Two-stage code review. Spec compliance first, then code quality. Use after implementation or before merge. Triggers on: review code, code review, check implementation, ql-review."
 ---
 
 # Quantum-Loop: Review

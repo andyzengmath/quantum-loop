@@ -1,6 +1,6 @@
 ---
 name: ql-execute
-description: Run the autonomous execution loop. Reads quantum.json, queries the dependency DAG, implements stories with TDD and two-stage review gates. Supports parallel execution via native worktree isolation. Use after /quantum-loop:plan has created quantum.json. Triggers on: execute, run loop, start building, ql-execute.
+description: "Part of the quantum-loop autonomous development pipeline (brainstorm \u2192 spec \u2192 plan \u2192 execute \u2192 review \u2192 verify). Run the autonomous execution loop. Reads quantum.json, queries the dependency DAG, implements stories with TDD and two-stage review gates. Supports parallel execution via native worktree isolation. Use after /quantum-loop:plan has created quantum.json. Triggers on: execute, run loop, start building, ql-execute."
 ---
 
 # Quantum-Loop: Execute
