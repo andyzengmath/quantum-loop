@@ -106,6 +106,9 @@ After any install method, restart Claude Code. Commands use the `quantum-loop:` 
 
 # Step 4c: Or run autonomously -- parallel (independent stories run concurrently)
 ./quantum-loop.sh --parallel --max-parallel 4 --max-iterations 20
+
+# Step 4d: Windows autonomous (native PowerShell, no bash required)
+.\quantum-loop.ps1 -MaxIterations 20 -SkipPermissions
 ```
 
 ---
@@ -125,30 +128,11 @@ After any install method, restart Claude Code. Commands use the `quantum-loop:` 
 
 ### vs. Ralph
 
-Quantum-Loop builds on [Ralph](https://github.com/snarktank/ralph)'s autonomous loop architecture and adds what it's missing:
-
-| | Ralph | Quantum-Loop |
-|--|-------|-------------|
-| Story status | Boolean (`passes: true`) | 5 states (pending → in_progress → passed/failed/blocked) |
-| Dependencies | Linear priority only | DAG-based execution |
-| Error recovery | Silent failure | Retry counter + structured failure logs |
-| Code review | None | Two-stage mandatory gates |
-| Verification | "Typecheck passes" | Iron Law + anti-rationalization guards |
-| Design phase | None | Socratic brainstorming |
-| Progress | Free-form text | Structured JSON |
+Quantum-Loop builds on [Ralph](https://github.com/snarktank/ralph)'s autonomous loop architecture and adds: DAG-based dependencies, parallel worktree execution, 5-state story tracking, two-stage review gates, structured retry/failure logs, and an in-process orchestrator agent.
 
 ### vs. Superpowers
 
-Quantum-Loop takes [Superpowers](https://github.com/obra/superpowers)' discipline and makes it autonomous:
-
-| | Superpowers | Quantum-Loop |
-|--|------------|-------------|
-| State format | None (session-only) | Machine-readable quantum.json |
-| Execution | Manual or batched | Autonomous bash loop |
-| Persistence | None | Cross-session via quantum.json |
-| Requirements | Informal design docs | Formal PRD with numbered FRs |
-| Dependencies | None | Explicit DAG |
-| Task tracking | In-session only | Survives restarts |
+Quantum-Loop takes [Superpowers](https://github.com/obra/superpowers)' verification discipline (Iron Law, anti-rationalization guards, two-stage review) and adds: machine-readable state (quantum.json), DAG-driven execution, cross-session persistence, parallel execution, and autonomous overnight runs.
 
 ---
 
@@ -381,9 +365,38 @@ If a parallel run is interrupted (Ctrl+C, power loss, etc.), the next run automa
 
 ### Windows Users
 
+<<<<<<< ql/orchestrator-and-fixes
 On Windows, use `/ql-execute` (interactive mode) instead of `quantum-loop.sh`. The shell script relies on Git Bash background process management and worktree operations that are unreliable on Windows due to OneDrive file locking and process lifecycle differences.
 
 `/ql-execute` invokes the orchestrator agent inside Claude Code, which uses native `isolation: "worktree"` for parallel execution -- no manual worktree management, no Git Bash quirks.
+=======
+Three options for Windows, in order of recommendation:
+
+**Option 1: `/ql-execute` (interactive, recommended)**
+```bash
+# In Claude Code:
+/quantum-loop:ql-execute
+```
+Invokes the orchestrator agent inside Claude Code with full tool access and native worktree isolation for parallel execution. Most reliable option.
+
+**Option 2: `quantum-loop.ps1` (autonomous overnight, native PowerShell)**
+```powershell
+.\quantum-loop.ps1 -MaxIterations 20 -SkipPermissions
+.\quantum-loop.ps1 -MaxIterations 50 -SkipPermissions -Model "claude-sonnet-4-5-20250514"
+```
+Native PowerShell sequential loop -- no bash, no WSL, no Git Bash. Spawns fresh `claude --print` per story. Requires `jq` installed. Sequential only (no parallel).
+
+**Option 3: WSL2 + `quantum-loop.sh` (autonomous overnight, full feature set)**
+```bash
+# In WSL2 Ubuntu:
+wsl
+cd /mnt/c/Users/you/project
+./quantum-loop.sh --parallel --max-parallel 4 --max-iterations 20
+```
+Full feature set including parallel mode. [WSL2 setup guide](https://learn.microsoft.com/en-us/windows/wsl/install). Requires `jq` and `claude` CLI installed inside WSL2.
+
+The bash script's parallel mode (`--parallel`) is **not recommended** with Git Bash on Windows due to OneDrive file locking and background process management issues. Use WSL2 or the PowerShell script instead.
+>>>>>>> master
 
 ---
 

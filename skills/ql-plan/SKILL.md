@@ -167,6 +167,7 @@ If a previous `quantum.json` exists:
 2. If DIFFERENT feature: archive to `archive/YYYY-MM-DD-<old-branch>/quantum.json`
 3. If SAME feature: ask user whether to overwrite or merge
 
+<<<<<<< ql/orchestrator-and-fixes
 ## Step 6: Copy Runner Scripts
 
 After saving quantum.json, copy the autonomous runner scripts into the project so the user can run `./quantum-loop.sh` directly:
@@ -189,6 +190,34 @@ Inform the user:
 > To execute autonomously: `./quantum-loop.sh --parallel --max-parallel 4`
 > To execute autonomously (sequential): `./quantum-loop.sh --max-iterations 20`
 > On Windows PowerShell: `.\quantum-loop.ps1 --parallel --max-parallel 4`"
+=======
+## Step 6: Set Up Runner Scripts
+
+After saving quantum.json, ensure the user can run autonomous execution:
+
+1. Add to `.gitignore` if not already present: `.ql-wt/`, `.quantum-logs/`, `quantum.json.tmp`
+2. Check if `quantum-loop.sh` already exists in the project root
+3. If it does NOT exist, inform the user to get the runner scripts:
+
+> "Plan saved to `quantum.json` with [N] stories and [M] total tasks. Dependencies: [describe the DAG briefly].
+>
+> **To execute:**
+> - Interactive (recommended): `/quantum-loop:ql-execute`
+> - Autonomous overnight (get runner scripts first):
+>   ```bash
+>   # Download runner scripts from the quantum-loop repo
+>   curl -sO https://raw.githubusercontent.com/andyzengmath/quantum-loop/main/templates/quantum-loop.sh && chmod +x quantum-loop.sh
+>   curl -sO https://raw.githubusercontent.com/andyzengmath/quantum-loop/main/templates/quantum-loop.ps1
+>   # Then run:
+>   ./quantum-loop.sh --max-iterations 20                    # Linux/Mac sequential
+>   ./quantum-loop.sh --parallel --max-parallel 4            # Linux/Mac parallel
+>   .\quantum-loop.ps1 -MaxIterations 20 -SkipPermissions    # Windows PowerShell
+>   ```"
+
+If `quantum-loop.sh` already exists, just inform:
+> "Plan saved to `quantum.json` with [N] stories and [M] total tasks.
+> Run `/quantum-loop:ql-execute` or `./quantum-loop.sh --max-iterations 20`."
+>>>>>>> master
 
 ## Anti-Rationalization Guards
 
