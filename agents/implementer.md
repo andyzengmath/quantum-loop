@@ -54,7 +54,17 @@ For each task in the story's `tasks` array, in order:
 1. Update `quantum.json`: set this task's `status` to `"passed"` or `"failed"`
 2. If `"failed"`: add a note explaining what went wrong
 
-## After All Tasks Complete
+## Integration Wiring Check
+
+After completing all tasks, verify your new code is actually connected to the codebase:
+
+1. For each new function, class, or module you created: confirm it is imported and called from at least one place outside its own file (excluding tests)
+2. If you find unwired code: wire it in now — add the import to the appropriate caller file, insert the call at the correct point in the control flow
+3. Run a quick smoke test to confirm the wiring works
+
+**This is not optional.** Code that exists but is never called is wasted work. The most common failure in parallel execution is "built in isolation, never wired together."
+
+## After Wiring Check
 
 Run the project's quality checks in order:
 
@@ -94,9 +104,10 @@ All three MUST pass. If ANY fails:
      "learnings": "[Any patterns or gotchas discovered]"
    }
    ```
-3. Output: `<quantum>CHECKS_PASSED</quantum>`
+3. Commit your changes: `git add -A && git commit -m "feat: [Story ID] - [Story Title]"`
+4. Output: `<quantum>STORY_PASSED</quantum>`
 
-The orchestration loop will then run spec compliance and code quality reviews before marking the story as passed. You do NOT mark the story as passed -- that happens after reviews.
+**Note:** In sequential mode (repo root), the orchestration loop may run additional reviews after this signal. In parallel mode (worktree), your commit will be merged by the orchestrator.
 
 ## Rules
 

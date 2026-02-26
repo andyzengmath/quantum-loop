@@ -290,12 +290,12 @@ See [`quantum.json.example`](quantum.json.example) for the full schema with 3 st
 ```
 quantum-loop/
 ├── skills/
-│   ├── brainstorm/       # Socratic design exploration
-│   ├── spec/             # PRD generation
-│   ├── plan/             # quantum.json creation
-│   ├── execute/          # Thin dispatcher -> orchestrator agent
-│   ├── verify/           # Iron Law verification
-│   └── review/           # Two-stage code review
+│   ├── ql-brainstorm/    # Socratic design exploration
+│   ├── ql-spec/          # PRD generation
+│   ├── ql-plan/          # quantum.json creation
+│   ├── ql-execute/       # Thin dispatcher -> orchestrator agent
+│   ├── ql-verify/        # Iron Law verification
+│   └── ql-review/        # Two-stage code review
 ├── agents/
 │   ├── orchestrator      # Execution lifecycle manager (DAG, dispatch, review, commit)
 │   ├── implementer       # TDD implementation per story
