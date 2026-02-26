@@ -1,6 +1,6 @@
 ---
 name: ql-brainstorm
-description: Deep Socratic exploration of a feature idea before implementation. Asks questions one at a time, proposes 2-3 alternative approaches with trade-offs, presents design section-by-section for approval, and saves an approved design document. Use when starting a new feature, exploring an idea, or before writing a spec. Triggers on: brainstorm, explore idea, design this, think through, ql-brainstorm.
+description: "Part of the quantum-loop autonomous development pipeline (brainstorm \u2192 spec \u2192 plan \u2192 execute \u2192 review \u2192 verify). Deep Socratic exploration of a feature idea before implementation. Asks questions one at a time, proposes 2-3 alternative approaches with trade-offs, presents design section-by-section for approval, and saves an approved design document. Use when starting a new feature, exploring an idea, or before writing a spec. Triggers on: brainstorm, explore idea, design this, think through, ql-brainstorm."
 ---
 
 # Quantum-Loop: Brainstorm

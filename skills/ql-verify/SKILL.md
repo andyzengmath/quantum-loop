@@ -1,6 +1,6 @@
 ---
 name: ql-verify
-description: Iron Law verification gate. Requires fresh evidence before any completion claim. Use before claiming work is done, before committing, or before marking a story as passed. Triggers on: verify, check, prove it works, ql-verify.
+description: "Part of the quantum-loop autonomous development pipeline (brainstorm \u2192 spec \u2192 plan \u2192 execute \u2192 review \u2192 verify). Iron Law verification gate. Requires fresh evidence before any completion claim. Use before claiming work is done, before committing, or before marking a story as passed. Triggers on: verify, check, prove it works, ql-verify."
 ---
 
 # Quantum-Loop: Verify
