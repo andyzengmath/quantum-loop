@@ -365,6 +365,11 @@ If a parallel run is interrupted (Ctrl+C, power loss, etc.), the next run automa
 
 ### Windows Users
 
+<<<<<<< ql/orchestrator-and-fixes
+On Windows, use `/ql-execute` (interactive mode) instead of `quantum-loop.sh`. The shell script relies on Git Bash background process management and worktree operations that are unreliable on Windows due to OneDrive file locking and process lifecycle differences.
+
+`/ql-execute` invokes the orchestrator agent inside Claude Code, which uses native `isolation: "worktree"` for parallel execution -- no manual worktree management, no Git Bash quirks.
+=======
 Three options for Windows, in order of recommendation:
 
 **Option 1: `/ql-execute` (interactive, recommended)**
@@ -391,6 +396,7 @@ cd /mnt/c/Users/you/project
 Full feature set including parallel mode. [WSL2 setup guide](https://learn.microsoft.com/en-us/windows/wsl/install). Requires `jq` and `claude` CLI installed inside WSL2.
 
 The bash script's parallel mode (`--parallel`) is **not recommended** with Git Bash on Windows due to OneDrive file locking and background process management issues. Use WSL2 or the PowerShell script instead.
+>>>>>>> master
 
 ---
 
