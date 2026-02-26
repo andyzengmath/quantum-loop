@@ -62,6 +62,21 @@ Each task MUST specify:
 - `testFirst`: Boolean -- should a test be written first? (default: true for logic, false for config/scaffolding)
 - `status`: Always "pending" when created
 
+### Integration Wiring Rule (CRITICAL)
+
+Every story that creates a new module, function, or component MUST include a final task that wires it into the existing codebase. Without this, parallel agents build components in isolation that are never called.
+
+**Bad:** Story creates `extract_docx_images()` but never modifies `DocxLoader.load()` to call it.
+**Good:** Story's last task is "Wire `extract_docx_images()` into `DocxLoader.load()` — add import, call the function after text extraction, pass results to chunk builder."
+
+The wiring task MUST specify:
+- Which existing file(s) to modify (the caller, not the new module)
+- What import to add
+- Where in the control flow to insert the call
+- A verification command that proves the wiring works (e.g., an integration test or a pipeline run)
+
+If a story creates something that will be wired by a DEPENDENT story, document this explicitly in the dependent story's first task: "Import and call `X` from the newly completed `US-NNN`."
+
 ### Task Sizing Guide
 
 **Right-sized (2-5 minutes):**
@@ -70,7 +85,7 @@ Each task MUST specify:
 - Add one column to a database migration
 - Create one React component (no logic, just rendering)
 - Add one API route handler
-- Wire one component into a page
+- **Wire a new module into an existing caller** (import + call + verify)
 
 **Too large (split these):**
 - "Build the component with all its logic and tests"
@@ -204,3 +219,5 @@ If `quantum-loop.sh` already exists, just inform:
 | "All tasks should be testFirst" | Config and scaffolding tasks don't need tests first. Be intentional. |
 | "Verification commands aren't needed for this task" | Every task needs a way to verify it worked. No exceptions. |
 | "I'll skip cycle detection" | Circular dependencies cause infinite loops in the execution engine. Always check. |
+| "The wiring will happen naturally" | It won't. Parallel agents can't see each other's work. Every story needs an explicit wiring task that modifies the CALLER, not just the new module. |
+| "Creating the module is enough, someone will import it" | Nobody will. If no task says "add import X to file Y and call it at line Z", it stays dead code forever. |

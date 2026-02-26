@@ -76,7 +76,13 @@ After all tasks pass, run:
 
 If any check fails: ONE focused fix attempt, re-run. If still fails -> mark story failed.
 
-### 3A.4: Two-Stage Review Gate
+### 3A.4: Integration Wiring Check
+Before running reviews, verify the story's new code is actually connected:
+- For each new function/class/module: confirm it is imported and called from outside its own file
+- If any new code is unwired: wire it in now (add import + call to the appropriate caller)
+- Run the full test suite (not just the story's tests) to confirm no regressions
+
+### 3A.5: Two-Stage Review Gate
 
 **Stage 1: Spec Compliance**
 - Read the PRD acceptance criteria for this story
@@ -91,7 +97,7 @@ If any check fails: ONE focused fix attempt, re-run. If still fails -> mark stor
 - Pass if: 0 Critical AND < 3 Important
 - If fails: ONE fix attempt, re-review
 
-### 3A.5: On Success
+### 3A.6: On Success
 ```bash
 git add -A
 git commit -m "feat: <Story ID> - <Story Title>"
@@ -106,7 +112,7 @@ Update quantum.json:
 
 Return to Step 2.
 
-### 3A.6: On Failure
+### 3A.7: On Failure
 - Increment `retries.attempts`
 - Add entry to `retries.failureLog` with timestamp, error, phase
 - Set story `status: "failed"`
@@ -157,7 +163,44 @@ Poll each running agent:
 - If new stories are eligible and slots are available: spawn them immediately
 - Log: `[SPAWNED] US-YYY - New Story (wave N+1, newly unblocked)`
 
-**Continue until all agents finish**, then return to Step 2.
+**Continue until all agents finish**, then run the Integration Check (Step 3C) before returning to Step 2.
+
+## Step 3C: Integration Check (after each wave)
+
+After stories from a wave are merged, verify they are actually wired together. This catches the "built in isolation, never called" failure pattern.
+
+### 3C.1: Dead Code Detection
+For each story that just passed, check that its new exports are imported somewhere:
+
+```
+For each new function/class/module created by the story:
+  1. Find the definition (grep for 'def funcname', 'class ClassName', 'export')
+  2. Search for imports/calls outside the defining file (grep for 'import funcname', 'from module import', 'require')
+  3. If no caller exists outside the file and its tests → FLAG as unwired
+```
+
+### 3C.2: Pipeline Connectivity
+Run the full test suite (not just per-story tests) to catch integration failures:
+```bash
+# Run ALL tests, not just the story's tests
+npm test        # or pytest, cargo test, etc.
+```
+
+If the full test suite fails on tests that were passing before this wave, the new code broke something.
+
+### 3C.3: On Integration Failure
+If dead code or pipeline breaks are detected:
+
+1. Log which functions/modules are unwired
+2. Create a **fix task** that wires them in:
+   - Identify the caller that should import the new code
+   - Identify where in the control flow the call should be inserted
+   - Implement the wiring (import + call + verify)
+3. Run the fix inline (do not spawn a new agent — the orchestrator does this itself)
+4. Re-run the full test suite to confirm the fix
+5. Commit: `git add -A && git commit -m "fix: wire <module> into <caller>"`
+
+This step is NOT optional. Components built but never called are wasted work.
 
 ## Step 4: Completion
 
@@ -234,3 +277,5 @@ After each story (pass or fail):
 | "This retry won't help" | A fresh attempt often succeeds where the previous one failed. Try it. |
 | "The quality check warning isn't important" | Warnings become errors. Fix them now. |
 | "I can mark this task done without running verification" | NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE. |
+| "The function exists, so the story is done" | Existing but never called = dead code = wasted work. Verify it's WIRED IN. |
+| "Integration will happen in a later story" | If no later story explicitly wires it, it will never happen. Wire it now or add an explicit wiring task. |
