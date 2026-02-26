@@ -27,15 +27,16 @@ Implement story ${story_id} following the instructions in CLAUDE.md.
 IMPORTANT: You are running in a worktree (.ql-wt/). Do NOT write quantum.json.
 The orchestrator manages all state.
 
-You MUST commit your changes before signaling completion:
-  git add -A && git commit -m "feat: ${story_id} - <Story Title>"
+Your workflow:
+1. Read quantum.json for story details, PRD path, and codebasePatterns
+2. Implement all tasks in order (TDD if testFirst is true)
+3. Verify new code is wired into callers (not just created in isolation)
+4. Run quality checks (typecheck, lint, tests)
+5. Self-review against acceptance criteria in the PRD
+6. Commit: git add -A && git commit -m "feat: ${story_id} - <Story Title>"
+7. Signal: <quantum>STORY_PASSED</quantum> or <quantum>STORY_FAILED</quantum>
+
 Uncommitted work is LOST when the worktree is removed.
-
-Signal completion via stdout only:
-- On success: output <quantum>STORY_PASSED</quantum>
-- On failure: output <quantum>STORY_FAILED</quantum>
-
-Read quantum.json from the repo root only for context (PRD path, story details).
 Your story ID is ${story_id}. Implement ONLY this story.
 PROMPT
 }
@@ -85,7 +86,8 @@ spawn_autonomous() {
   local output_file="${worktree_path}/${AGENT_OUTPUT_FILENAME}"
 
   # Spawn in background, capture output to file
-  (cd "$worktree_path" && claude --print -p "$prompt" > "$output_file" 2>&1) &
+  # --dangerously-skip-permissions required: background agents have no TTY for permission prompts
+  (cd "$worktree_path" && claude --dangerously-skip-permissions --print -p "$prompt" > "$output_file" 2>&1) &
   local pid=$!
 
   printf "%s" "$pid"

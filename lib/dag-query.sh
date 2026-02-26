@@ -38,7 +38,7 @@ get_executable_stories() {
       if length == 0 then
         "BLOCKED"
       else
-        [.[].id] | join("\n")
+        [.[].id]
       end
     end
   ' "$json_path"

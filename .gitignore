@@ -11,6 +11,9 @@ progress.txt
 # Parallel execution worktrees
 .ql-wt/
 
+# Agent logs
+.quantum-logs/
+
 # Archives of previous runs
 archive/
 

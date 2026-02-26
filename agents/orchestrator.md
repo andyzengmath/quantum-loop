@@ -66,7 +66,7 @@ Follow the implementer agent protocol for each task in order:
 - Run verification commands from `task.commands`
 
 After each task: update `task.status` to `"passed"` or `"failed"` in quantum.json.
-On task failure: stop, proceed to error handling (Step 3A.5).
+On task failure: stop, proceed to error handling (Step 3A.7).
 
 ### 3A.3: Quality Checks
 After all tasks pass, run:

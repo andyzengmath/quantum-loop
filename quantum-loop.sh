@@ -171,7 +171,7 @@ printf "===========================================\n\n"
 
 if [[ "$PARALLEL_MODE" == "true" ]]; then
   # Crash recovery on startup
-  REPO_ROOT="$SCRIPT_DIR"
+  REPO_ROOT="$(pwd)"
   recover_orphaned_worktrees "$REPO_ROOT/quantum.json" "$REPO_ROOT" || true
   cleanup_stale_tmp "$REPO_ROOT/quantum.json" || true
 

@@ -128,7 +128,7 @@ is_story_complete() {
   node -e "
     const q = JSON.parse(require('fs').readFileSync('$PLAN_FILE', 'utf8'));
     const story = q.stories.find(s => s.id === '$story_id');
-    process.exit(story.tasks.every(t => t.status === 'completed') ? 0 : 1);
+    process.exit(story.tasks.every(t => t.status === 'passed') ? 0 : 1);
   "
 }
 
@@ -138,11 +138,11 @@ get_next_tasks() {
     const q = JSON.parse(require('fs').readFileSync('$PLAN_FILE', 'utf8'));
     const completedStories = new Set(
       q.stories
-        .filter(s => s.tasks.every(t => t.status === 'completed'))
+        .filter(s => s.tasks.every(t => t.status === 'passed'))
         .map(s => s.id)
     );
     const readyStories = q.stories.filter(s => {
-      if (s.tasks.every(t => t.status === 'completed')) return false;
+      if (s.tasks.every(t => t.status === 'passed')) return false;
       if (s.tasks.some(t => t.status === 'in_progress')) return false;
       return s.dependsOn.every(dep => completedStories.has(dep));
     });
@@ -221,11 +221,11 @@ execute_task() {
   rm -f "$prompt_file"
 
   if [[ $exit_code -eq 0 ]]; then
-    log "✅ Task $task_id completed"
-    update_task_status "$task_id" "completed"
+    log "✅ Task $task_id passed"
+    update_task_status "$task_id" "passed"
     if is_story_complete "$story_id"; then
-      log "🎉 Story $story_id fully completed"
-      update_story_status "$story_id" "completed"
+      log "🎉 Story $story_id fully passed"
+      update_story_status "$story_id" "passed"
     fi
   else
     log "❌ Task $task_id failed (exit code $exit_code)"
@@ -523,10 +523,10 @@ main() {
               # Merge worktree branch into main branch
               if merge_task_worktree "$wk"; then
                 log "  [PASSED] $tid (story $sid) — ${elapsed}s"
-                update_task_status "$tid" "completed"
+                update_task_status "$tid" "passed"
                 if is_story_complete "$sid"; then
                   log "  [STORY DONE] $sid"
-                  update_story_status "$sid" "completed"
+                  update_story_status "$sid" "passed"
                 fi
               else
                 log "  [CONFLICT] $tid (story $sid) — merge failed"
@@ -535,10 +535,10 @@ main() {
             else
               # Agent exited 0 but made no changes — suspicious but mark completed
               log "  [PASSED] $tid (story $sid) — ${elapsed}s (no file changes)"
-              update_task_status "$tid" "completed"
+              update_task_status "$tid" "passed"
               if is_story_complete "$sid"; then
                 log "  [STORY DONE] $sid"
-                update_story_status "$sid" "completed"
+                update_story_status "$sid" "passed"
               fi
             fi
           else
@@ -650,24 +650,24 @@ main() {
 
   node -e "
     const q = JSON.parse(require('fs').readFileSync('$PLAN_FILE', 'utf8'));
-    let completed = 0, pending = 0, failed = 0, inProgress = 0;
+    let passed = 0, pending = 0, failed = 0, inProgress = 0;
     for (const s of q.stories) {
       for (const t of s.tasks) {
-        if (t.status === 'completed') completed++;
+        if (t.status === 'passed') passed++;
         else if (t.status === 'failed') failed++;
         else if (t.status === 'in_progress') inProgress++;
         else pending++;
       }
     }
-    const total = completed + pending + failed + inProgress;
-    console.log('  Completed: ' + completed + '/' + total);
+    const total = passed + pending + failed + inProgress;
+    console.log('  Passed:    ' + passed + '/' + total);
     console.log('  Failed:    ' + failed);
     console.log('  Pending:   ' + pending);
     if (inProgress > 0) console.log('  Stuck:     ' + inProgress + ' (were in_progress when loop ended)');
     console.log('');
     console.log('  Stories:');
     for (const s of q.stories) {
-      const done = s.tasks.filter(t => t.status === 'completed').length;
+      const done = s.tasks.filter(t => t.status === 'passed').length;
       const icon = done === s.tasks.length ? '✅' : s.tasks.some(t => t.status === 'failed') ? '❌' : '⏳';
       console.log('    ' + icon + ' ' + s.id + ': ' + done + '/' + s.tasks.length + ' — ' + s.title);
     }
