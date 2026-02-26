@@ -167,30 +167,6 @@ If a previous `quantum.json` exists:
 2. If DIFFERENT feature: archive to `archive/YYYY-MM-DD-<old-branch>/quantum.json`
 3. If SAME feature: ask user whether to overwrite or merge
 
-<<<<<<< ql/orchestrator-and-fixes
-## Step 6: Copy Runner Scripts
-
-After saving quantum.json, copy the autonomous runner scripts into the project so the user can run `./quantum-loop.sh` directly:
-
-1. Locate the plugin root directory (where this skill's SKILL.md lives, two levels up from `skills/ql-plan/`)
-2. Copy `quantum-loop.sh` from the plugin root to the project root (if it doesn't already exist or is outdated)
-3. Copy `quantum-loop.ps1` from the plugin root to the project root (for Windows users)
-4. Make `quantum-loop.sh` executable: `chmod +x quantum-loop.sh`
-5. Add to `.gitignore` if not already present: `.ql-wt/`, `.quantum-logs/`, `quantum.json.tmp`
-
-**Use `${CLAUDE_PLUGIN_ROOT}` if available** to find the plugin directory. If not available, search for the plugin in `~/.claude/plugins/` or common plugin install locations.
-
-If the runner scripts cannot be found, inform the user:
-> "quantum-loop.sh was not found in the plugin directory. You can copy it manually from the quantum-loop repo, or run `/quantum-loop:execute` for interactive execution."
-
-Inform the user:
-> "Plan saved to `quantum.json` with [N] stories and [M] total tasks. Dependencies: [describe the DAG briefly].
->
-> To execute interactively: `/quantum-loop:execute`
-> To execute autonomously: `./quantum-loop.sh --parallel --max-parallel 4`
-> To execute autonomously (sequential): `./quantum-loop.sh --max-iterations 20`
-> On Windows PowerShell: `.\quantum-loop.ps1 --parallel --max-parallel 4`"
-=======
 ## Step 6: Set Up Runner Scripts
 
 After saving quantum.json, ensure the user can run autonomous execution:
@@ -217,7 +193,6 @@ After saving quantum.json, ensure the user can run autonomous execution:
 If `quantum-loop.sh` already exists, just inform:
 > "Plan saved to `quantum.json` with [N] stories and [M] total tasks.
 > Run `/quantum-loop:ql-execute` or `./quantum-loop.sh --max-iterations 20`."
->>>>>>> master
 
 ## Anti-Rationalization Guards
 
