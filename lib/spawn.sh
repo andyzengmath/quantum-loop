@@ -59,7 +59,7 @@ build_autonomous_command() {
   prompt=$(build_agent_prompt "$story_id") || return 1
 
   # Build the command that will be run in the background
-  printf 'cd %q && claude --print -p %q' "$worktree_path" "$prompt"
+  printf 'cd %q && claude --dangerously-skip-permissions --print -p %q' "$worktree_path" "$prompt"
 }
 
 # spawn_autonomous(story_id, worktree_path)
