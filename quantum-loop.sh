@@ -336,15 +336,17 @@ if [[ "$PARALLEL_MODE" == "true" ]]; then
               fi
             fi
             local STATUS_MERGE=0
-            if merge_worktree_branch "$REPO_ROOT" "$WT_BRANCH"; then
+            # merge_worktree_branch outputs conflict file list on failure (before aborting)
+            local MERGE_OUTPUT
+            MERGE_OUTPUT=$(merge_worktree_branch "$REPO_ROOT" "$WT_BRANCH" 2>&1)
+            if [[ $? -eq 0 ]]; then
               printf "[PASSED] %s\n" "$SID"
               jq --arg id "$SID" --argjson wave "$WAVE" '
                 .stories |= map(if .id == $id then .status = "passed" else . end)
               ' "$REPO_ROOT/quantum.json" > "$REPO_ROOT/quantum.json.tmp" \
                 && mv "$REPO_ROOT/quantum.json.tmp" "$REPO_ROOT/quantum.json"
             else
-              # Capture conflict details before aborting
-              CONFLICT_FILES=$(git -C "$REPO_ROOT" diff --name-only --diff-filter=U 2>/dev/null || echo "unknown")
+              CONFLICT_FILES="${MERGE_OUTPUT:-unknown}"
               STATUS_MERGE=1
               printf "[CONFLICT] %s - merge conflict in: %s\n" "$SID" "$CONFLICT_FILES"
               printf "[INFO] Branch %s preserved for manual resolution\n" "$WT_BRANCH"

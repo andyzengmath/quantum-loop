@@ -93,7 +93,7 @@ recover_orphaned_worktrees() {
   local updated
   updated=$(jq --arg merged "$merged_ids" '
     (.stories[] | select(.status == "in_progress")) |=
-      if ($merged | split(",") | map(select(. != "")) | index(.id)) then
+      if ($merged | split(",") | map(select(. != "")) | index(.id) | . != null) then
         (.status = "passed" | del(.worktree))
       else
         (.status = "pending" | del(.worktree))

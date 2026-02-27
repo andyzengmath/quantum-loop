@@ -108,7 +108,9 @@ merge_worktree_branch() {
     return 0
   fi
 
-  # Merge failed -- abort and restore stash
+  # Merge failed -- capture conflict details before aborting
+  # Write conflict file list to stdout so caller can capture it
+  git -C "$repo_root" diff --name-only --diff-filter=U 2>/dev/null || true
   git -C "$repo_root" merge --abort 2>/dev/null || true
   [[ "$stashed" == "true" ]] && { git -C "$repo_root" stash pop -q 2>/dev/null || true; }
   return 1
