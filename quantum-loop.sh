@@ -180,6 +180,20 @@ printf "===========================================\n\n"
 # =============================================================================
 
 if [[ "$PARALLEL_MODE" == "true" ]]; then
+  # Trap SIGINT/SIGTERM to kill background agents and avoid orphaned processes
+  declare -a AGENT_PIDS=()
+  cleanup_on_exit() {
+    printf "\n[INTERRUPT] Cleaning up agents...\n"
+    for pid in "${AGENT_PIDS[@]+"${AGENT_PIDS[@]}"}"; do
+      kill "$pid" 2>/dev/null || true
+    done
+    for pid in "${AGENT_PIDS[@]+"${AGENT_PIDS[@]}"}"; do
+      wait "$pid" 2>/dev/null || true
+    done
+    exit 130
+  }
+  trap cleanup_on_exit INT TERM
+
   # Crash recovery on startup
   REPO_ROOT="$(pwd)"
   recover_orphaned_worktrees "$REPO_ROOT/quantum.json" "$REPO_ROOT" || true
@@ -329,7 +343,7 @@ if [[ "$PARALLEL_MODE" == "true" ]]; then
             # Exclude junk files (#4) and quantum.json (#5)
             if git -C "$WT" status --porcelain 2>/dev/null | grep -q .; then
               git -C "$WT" add -A >/dev/null 2>&1 || true
-              git -C "$WT" reset HEAD -- quantum.json .ql-agent-output.txt "*.tmp" >/dev/null 2>&1 || true
+              git -C "$WT" reset HEAD -- quantum.json .ql-agent-output.txt quantum.json.tmp >/dev/null 2>&1 || true
               git -C "$WT" checkout -- quantum.json >/dev/null 2>&1 || true
               if ! git -C "$WT" diff --cached --quiet 2>/dev/null; then
                 git -C "$WT" commit -m "feat: ${SID} - auto-commit by orchestrator" >/dev/null 2>&1 || true
@@ -340,11 +354,39 @@ if [[ "$PARALLEL_MODE" == "true" ]]; then
             local MERGE_OUTPUT
             MERGE_OUTPUT=$(merge_worktree_branch "$REPO_ROOT" "$WT_BRANCH" 2>&1)
             if [[ $? -eq 0 ]]; then
-              printf "[PASSED] %s\n" "$SID"
-              jq --arg id "$SID" --argjson wave "$WAVE" '
-                .stories |= map(if .id == $id then .status = "passed" else . end)
-              ' "$REPO_ROOT/quantum.json" > "$REPO_ROOT/quantum.json.tmp" \
-                && mv "$REPO_ROOT/quantum.json.tmp" "$REPO_ROOT/quantum.json"
+              # Post-merge regression test: verify the merge didn't break anything
+              # Detect test command from quantum.json or common patterns
+              local TEST_CMD
+              TEST_CMD=$(jq -r '.testCommand // empty' "$REPO_ROOT/quantum.json" 2>/dev/null)
+              if [[ -z "$TEST_CMD" ]]; then
+                # Auto-detect: try common test runners
+                if [[ -f "$REPO_ROOT/package.json" ]]; then TEST_CMD="npm test"
+                elif [[ -f "$REPO_ROOT/pyproject.toml" ]] || [[ -f "$REPO_ROOT/setup.py" ]]; then TEST_CMD="python -m pytest -x -q"
+                elif [[ -f "$REPO_ROOT/Cargo.toml" ]]; then TEST_CMD="cargo test"
+                fi
+              fi
+              if [[ -n "$TEST_CMD" ]]; then
+                if ! (cd "$REPO_ROOT" && eval "$TEST_CMD" >/dev/null 2>&1); then
+                  printf "[REGRESSION] %s - tests fail after merge, reverting\n" "$SID"
+                  git -C "$REPO_ROOT" revert -m 1 HEAD --no-edit >/dev/null 2>&1 || true
+                  jq --arg id "$SID" '
+                    .stories |= map(if .id == $id then
+                      .status = "failed" |
+                      .retries.attempts += 1 |
+                      .retries.failureLog += [{"phase": "merge_regression", "timestamp": (now | todate)}]
+                    else . end)
+                  ' "$REPO_ROOT/quantum.json" > "$REPO_ROOT/quantum.json.tmp" \
+                    && mv "$REPO_ROOT/quantum.json.tmp" "$REPO_ROOT/quantum.json"
+                  STATUS_MERGE=1
+                fi
+              fi
+              if [[ "$STATUS_MERGE" -eq 0 ]]; then
+                printf "[PASSED] %s\n" "$SID"
+                jq --arg id "$SID" --argjson wave "$WAVE" '
+                  .stories |= map(if .id == $id then .status = "passed" else . end)
+                ' "$REPO_ROOT/quantum.json" > "$REPO_ROOT/quantum.json.tmp" \
+                  && mv "$REPO_ROOT/quantum.json.tmp" "$REPO_ROOT/quantum.json"
+              fi
             else
               CONFLICT_FILES="${MERGE_OUTPUT:-unknown}"
               STATUS_MERGE=1
