@@ -2,9 +2,19 @@
 set -euo pipefail
 
 # =============================================================================
-# quantum-loop.sh -- Autonomous development loop with DAG-based story selection,
-# two-stage review gates, and structured error recovery.
-# Supports parallel execution via DAG-driven worktree agents.
+# quantum-loop.sh -- PLUGIN-LEVEL autonomous development loop.
+#
+# THIS SCRIPT IS FOR THE QUANTUM-LOOP PLUGIN REPO ITSELF.
+# It requires lib/*.sh modules and jq. It operates at the STORY level
+# (one story per agent invocation) and uses CLAUDE.md as the agent prompt.
+#
+# FOR USER PROJECTS: Use templates/quantum-loop.sh instead.
+# That script is self-contained (no lib/ dependency), uses node for JSON,
+# and operates at the TASK level. Download it via:
+#   curl -sO https://raw.githubusercontent.com/andyzengmath/quantum-loop/main/templates/quantum-loop.sh
+#
+# Features: DAG-based story selection, two-stage review gates,
+# structured error recovery, parallel execution via worktree agents.
 #
 # Usage:
 #   ./quantum-loop.sh [OPTIONS]

@@ -1,5 +1,12 @@
 #!/usr/bin/env bash
-# quantum-loop.sh — Executes quantum.json tasks via Claude Code CLI
+# quantum-loop.sh — PROJECT-LEVEL autonomous runner for user projects.
+#
+# THIS IS THE SCRIPT YOU COPY INTO YOUR PROJECT.
+# Self-contained (no lib/ dependency), uses node for JSON processing,
+# operates at the TASK level (one task per agent invocation).
+# Includes: safety commit before merge, stash-before-merge, worktree prune,
+# storyId-taskId unique keys, absolute paths for background agents.
+#
 # Respects dependency DAG, runs independent tasks in parallel via git worktrees.
 #
 # Usage:
@@ -221,14 +228,14 @@ execute_task() {
   rm -f "$prompt_file"
 
   if [[ $exit_code -eq 0 ]]; then
-    log "✅ Task $task_id passed"
+    log "[PASSED] Task $task_id"
     update_task_status "$task_id" "passed"
     if is_story_complete "$story_id"; then
-      log "🎉 Story $story_id fully passed"
+      log "[STORY DONE] $story_id"
       update_story_status "$story_id" "passed"
     fi
   else
-    log "❌ Task $task_id failed (exit code $exit_code)"
+    log "[FAILED] Task $task_id (exit code $exit_code)"
     update_task_status "$task_id" "failed"
     [[ "$VERBOSE" != "true" ]] && echo "  See log: $log_file"
     [[ "$VERBOSE" == "true" ]] && cat "$log_file"
@@ -636,7 +643,7 @@ main() {
         local failed_id
         failed_id=$(node -e "console.log(JSON.parse(process.argv[1]).id)" "$task")
         failed_tasks+=("$failed_id")
-        log "⚠️  Task $failed_id failed. Continuing..."
+        log "[WARNING] Task $failed_id failed. Continuing..."
       fi
       iteration=$((iteration + 1))
     done
@@ -668,7 +675,7 @@ main() {
     console.log('  Stories:');
     for (const s of q.stories) {
       const done = s.tasks.filter(t => t.status === 'passed').length;
-      const icon = done === s.tasks.length ? '✅' : s.tasks.some(t => t.status === 'failed') ? '❌' : '⏳';
+      const icon = done === s.tasks.length ? 'DONE' : s.tasks.some(t => t.status === 'failed') ? 'FAIL' : '    ';
       console.log('    ' + icon + ' ' + s.id + ': ' + done + '/' + s.tasks.length + ' — ' + s.title);
     }
   "
