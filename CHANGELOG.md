@@ -7,6 +7,22 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.3.0] - 2026-02-27
+
+### Added
+- **Cross-story integration review** — Stage 3 in ql-review traces call chains across story boundaries using LSP (grep fallback). Runs after dependency chains complete and as a final gate before COMPLETE.
+- **Final integration gate** — orchestrator runs import smoke test, full test suite, and dead code scan before declaring COMPLETE
+- **File-touch conflict detection** — ql-plan Step 5 flags parallel stories modifying the same file, adds reconciliation tasks, stores conflicts in `quantum.json` metadata (`fileConflicts`)
+- **Consumer verification pattern** — wiring acceptance criteria belong on the consumer story, not the creator
+- **Edge case test requirements** — boundary values, type variations, collision scenarios, scale tests required for all testFirst tasks
+- **Edge case reference doc** — `references/edge-cases.md` with Python, JS, Go, Rust testing gotchas. Implementer reads it at the start of every testFirst task.
+- **Import chain verification** — ql-verify requires integration evidence for multi-story features
+- **Cursor marketplace manifest** — `.cursor-plugin/plugin.json` for cross-platform publishing
+
+### Changed
+- Orchestrator Step 4 split into Step 4 (Final Integration Gate) and Step 5 (Completion)
+- Implementer always reads `references/edge-cases.md` for testFirst tasks (not on-demand)
+
 ## [0.2.0] - 2026-02-25
 
 ### Added

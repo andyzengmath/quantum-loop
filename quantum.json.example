@@ -204,6 +204,13 @@
   ],
   "progress": [],
   "codebasePatterns": [],
+  "fileConflicts": [
+    {
+      "file": "src/generator.py",
+      "stories": ["US-007", "US-008"],
+      "reconciliationTask": "US-008 T-004: Reconcile generator.py changes from US-007"
+    }
+  ],
   "_comment_runtime_fields": "The following fields are added at runtime by the orchestrator and are not part of the initial schema:",
   "_execution_example": {
     "mode": "parallel",
