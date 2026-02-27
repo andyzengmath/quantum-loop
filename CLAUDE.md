@@ -75,7 +75,8 @@ Implement the change, then run verification commands from `task.commands`.
 
 ### After each task:
 
-Update `quantum.json`: set task status to `"passed"` or `"failed"`.
+**If you are NOT in a worktree:** Update `quantum.json`: set task status to `"passed"` or `"failed"`.
+**If you ARE in a worktree (.ql-wt/):** Do NOT update quantum.json. Log progress to stdout only.
 
 ## Step 5: Quality Checks
 

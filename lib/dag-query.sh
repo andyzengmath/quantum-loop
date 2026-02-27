@@ -21,6 +21,7 @@ get_executable_stories() {
       [
         $all[] |
         select(
+          .status != "in_progress" and
           (
             .status == "pending" or
             (.status == "failed" and .retries.attempts < .retries.maxAttempts)

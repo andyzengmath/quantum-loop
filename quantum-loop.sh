@@ -312,14 +312,30 @@ if [[ "$PARALLEL_MODE" == "true" ]]; then
           RUNNING)
             ;;
           STORY_PASSED)
+            # Give agent a few seconds to finish after signaling (#9: post-signal timeout)
+            local wait_start
+            wait_start=$(date +%s)
+            while kill -0 "$PID" 2>/dev/null; do
+              local wait_elapsed=$(( $(date +%s) - wait_start ))
+              if [[ $wait_elapsed -ge 30 ]]; then
+                kill "$PID" 2>/dev/null || true
+                break
+              fi
+              sleep 1
+            done
             wait "$PID" 2>/dev/null || true
             WT_BRANCH="ql-wt/${SID}"
             # Safety commit: ensure agent changes are committed before merge
-            # (agents should commit per CLAUDE.md, but this catches any that don't)
+            # Exclude junk files (#4) and quantum.json (#5)
             if git -C "$WT" status --porcelain 2>/dev/null | grep -q .; then
               git -C "$WT" add -A >/dev/null 2>&1 || true
-              git -C "$WT" commit -m "feat: ${SID} - auto-commit by orchestrator" >/dev/null 2>&1 || true
+              git -C "$WT" reset HEAD -- quantum.json .ql-agent-output.txt "*.tmp" >/dev/null 2>&1 || true
+              git -C "$WT" checkout -- quantum.json >/dev/null 2>&1 || true
+              if ! git -C "$WT" diff --cached --quiet 2>/dev/null; then
+                git -C "$WT" commit -m "feat: ${SID} - auto-commit by orchestrator" >/dev/null 2>&1 || true
+              fi
             fi
+            local STATUS_MERGE=0
             if merge_worktree_branch "$REPO_ROOT" "$WT_BRANCH"; then
               printf "[PASSED] %s\n" "$SID"
               jq --arg id "$SID" --argjson wave "$WAVE" '
@@ -327,17 +343,27 @@ if [[ "$PARALLEL_MODE" == "true" ]]; then
               ' "$REPO_ROOT/quantum.json" > "$REPO_ROOT/quantum.json.tmp" \
                 && mv "$REPO_ROOT/quantum.json.tmp" "$REPO_ROOT/quantum.json"
             else
-              printf "[CONFLICT] %s - merge conflict\n" "$SID"
-              jq --arg id "$SID" '
+              # Capture conflict details before aborting
+              CONFLICT_FILES=$(git -C "$REPO_ROOT" diff --name-only --diff-filter=U 2>/dev/null || echo "unknown")
+              STATUS_MERGE=1
+              printf "[CONFLICT] %s - merge conflict in: %s\n" "$SID" "$CONFLICT_FILES"
+              printf "[INFO] Branch %s preserved for manual resolution\n" "$WT_BRANCH"
+              jq --arg id "$SID" --arg files "$CONFLICT_FILES" '
                 .stories |= map(if .id == $id then
                   .status = "failed" |
                   .retries.attempts += 1 |
-                  .retries.failureLog += [{"phase": "merge_conflict", "timestamp": (now | todate)}]
+                  .retries.failureLog += [{"phase": "merge_conflict", "files": $files, "timestamp": (now | todate)}]
                 else . end)
               ' "$REPO_ROOT/quantum.json" > "$REPO_ROOT/quantum.json.tmp" \
                 && mv "$REPO_ROOT/quantum.json.tmp" "$REPO_ROOT/quantum.json"
             fi
-            remove_worktree "$SID" "$REPO_ROOT" || true
+            # Only remove worktree dir, preserve branch on conflict for manual resolution (#3)
+            if [[ "$STATUS_MERGE" == "0" ]]; then
+              remove_worktree "$SID" "$REPO_ROOT" || true
+            else
+              # Remove worktree dir but keep the branch
+              git -C "$REPO_ROOT" worktree remove --force ".ql-wt/$SID" 2>/dev/null || true
+            fi
             clear_story_worktree "$REPO_ROOT/quantum.json" "$SID" || true
             local_completed+=("$idx")
             ;;

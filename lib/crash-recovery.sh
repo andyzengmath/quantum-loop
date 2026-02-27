@@ -76,12 +76,28 @@ recover_orphaned_worktrees() {
     fi
   done
 
-  # Update quantum.json: reset in_progress stories to pending, clear worktree fields,
-  # clear activeWorktrees
+  # Update quantum.json: for each in_progress story, check if its branch
+  # was already merged before the crash (#6). If merged → mark passed. If not → pending.
+  local merged_ids=""
+  local story_ids_in_progress
+  story_ids_in_progress=$(jq -r '.stories[] | select(.status == "in_progress") | .id' "$json_path" 2>/dev/null)
+  for sid in $story_ids_in_progress; do
+    local wt_branch="ql-wt/${sid}"
+    if git -C "$repo_root" rev-parse --verify "$wt_branch" >/dev/null 2>&1 \
+       && git -C "$repo_root" merge-base --is-ancestor "$wt_branch" HEAD 2>/dev/null; then
+      printf "INFO: %s was already merged before crash — marking passed\n" "$sid"
+      merged_ids="${merged_ids}${sid},"
+    fi
+  done
+
   local updated
-  updated=$(jq '
-    (.stories[] | select(.status == "in_progress" and has("worktree"))) |=
-      (.status = "pending" | del(.worktree)) |
+  updated=$(jq --arg merged "$merged_ids" '
+    (.stories[] | select(.status == "in_progress")) |=
+      if ($merged | split(",") | map(select(. != "")) | index(.id)) then
+        (.status = "passed" | del(.worktree))
+      else
+        (.status = "pending" | del(.worktree))
+      end |
     .execution.activeWorktrees = []
   ' "$json_path") || {
     printf "ERROR: recover_orphaned_worktrees jq transform failed\n" >&2

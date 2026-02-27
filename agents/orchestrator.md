@@ -158,12 +158,18 @@ Poll each running agent:
 - Increment `retries.attempts`, add to `failureLog`
 - Set story `status: "failed"`
 
-**After any completion:**
+**After each STORY_PASSED merge:**
+- Run the full test suite to catch semantic merge regressions (#7)
+- If tests fail after merge: `git reset --hard HEAD~1` to undo, mark story failed
+- Run a quick wiring check on the just-merged story's new exports (#11)
+
+**After all completions in this wave:**
 - Re-query DAG (Step 2 logic)
-- If new stories are eligible and slots are available: spawn them immediately
+- Run the full Integration Check (Step 3C)
+- Only THEN spawn newly unblocked stories — do not spawn mid-wave (#2)
 - Log: `[SPAWNED] US-YYY - New Story (wave N+1, newly unblocked)`
 
-**Continue until all agents finish**, then run the Integration Check (Step 3C) before returning to Step 2.
+**Note on implicit dependencies (#2):** Worktrees branch from HEAD at spawn time. If Story B has an implicit (undeclared) dependency on Story A, and both run in the same wave, B will not see A's code. The DAG only catches explicit `dependsOn` relationships. Ensure `/ql-plan` captures all dependencies, including integration wiring.
 
 ## Step 3C: Integration Check (after each wave)
 
