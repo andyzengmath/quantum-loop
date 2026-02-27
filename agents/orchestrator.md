@@ -163,7 +163,7 @@ Poll each running agent:
 - If tests fail after merge: `git revert -m 1 HEAD` to undo the merge commit, mark story failed
 - Run a quick wiring check on the just-merged story's new exports (LSP "Find References" preferred, grep fallback)
 
-**When a dependency chain completes** (a story passes AND all stories that depend on it have also passed):
+**When a complete dependency chain passes** (ALL stories in the chain have `status: "passed"` — skip if any story in the chain is still pending, in_progress, or failed):
 - Run a cross-story integration review:
   1. For each function exported by upstream stories, verify it is **called** (not just imported) in downstream stories. Use LSP "Find References" when available, fall back to grep.
   2. Check type consistency across story boundaries — if upstream returns a list and downstream expects a string, flag it. Use LSP "Hover" when available.
