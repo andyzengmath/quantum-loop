@@ -203,5 +203,12 @@
     }
   ],
   "progress": [],
-  "codebasePatterns": []
+  "codebasePatterns": [],
+  "_comment_runtime_fields": "The following fields are added at runtime by the orchestrator and are not part of the initial schema:",
+  "_execution_example": {
+    "mode": "parallel",
+    "maxParallel": 4,
+    "currentWave": 2,
+    "activeWorktrees": [".ql-wt/US-002", ".ql-wt/US-003"]
+  }
 }
