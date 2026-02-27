@@ -43,6 +43,17 @@ For each task in the story's `tasks` array, in order:
 10. Remove duplication, improve names, extract helpers if needed
 11. Run all tests to confirm nothing broke
 
+**Edge Case Tests (required for testFirst tasks):**
+Beyond the happy path, add tests for:
+- **Boundary values:** None/null, empty string, NaN, zero, negative numbers
+- **Type variations:** scalar vs collection vs framework-specific types (e.g., DataFrame vs dict)
+- **Collision scenarios:** same identifier from different sources (e.g., same filename in different dirs)
+- **Scale:** 1 item, 10 items, and if relevant 100+ items
+
+See `references/edge-cases.md` for language-specific gotchas (Python NaN, Go nil, JS undefined, etc.)
+
+If you skip edge cases because "the happy path is enough," you are wrong. Field data: 100% of post-implementation bugs were edge cases that passed happy-path tests.
+
 ### If task.testFirst is FALSE:
 
 1. Implement the change as described in the task

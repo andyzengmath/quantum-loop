@@ -77,6 +77,17 @@ The wiring task MUST specify:
 
 If a story creates something that will be wired by a DEPENDENT story, document this explicitly in the dependent story's first task: "Import and call `X` from the newly completed `US-NNN`."
 
+### Consumer Verification Pattern
+
+When Story A creates a function and Story B (dependent) should call it:
+- Story A's acceptance criteria: "function exists, passes unit tests"
+- Story B's acceptance criteria MUST include: "pipeline calls `<function>` for every `<input>`"
+
+**Bad:** US-007 AC says "validate_plan_item rejects invalid items" (only tests the function in isolation)
+**Good:** US-013 AC says "pipeline calls validate_plan_item() for every generated plan item" (verifies wiring)
+
+The key shift: validation of wiring belongs on the **consumer** story, not the creator.
+
 ### Task Sizing Guide
 
 **Right-sized (2-5 minutes):**
@@ -109,6 +120,18 @@ Set `testFirst: false` when:
 - The task is pure scaffolding (empty component skeleton)
 - The task modifies only type definitions
 - The task is the test itself (when test and implementation are separate tasks)
+
+### Edge Case Test Requirements
+
+When `testFirst: true`, the task description MUST instruct the agent to include tests for:
+- **Boundary values:** None/null, empty string, NaN, zero, negative numbers
+- **Type variations:** scalar vs collection vs framework-specific types (e.g., DataFrame vs dict)
+- **Collision scenarios:** same identifier from different sources (e.g., same filename in different dirs)
+- **Scale:** 1 item (minimum), 10 items (typical), 100+ items (context pollution shows at scale)
+
+See `references/edge-cases.md` for language-specific patterns.
+
+Field data shows 100% of post-implementation bugs were edge cases that passed happy-path tests.
 
 ## Step 4: Generate quantum.json
 
@@ -174,6 +197,8 @@ Before saving, verify:
 - [ ] All statuses are "pending"
 - [ ] Branch name follows `ql/` prefix convention
 - [ ] Priority numbers are sequential with no gaps
+- [ ] Every story that creates a function has a consumer story with a wiring AC
+- [ ] **File-touch conflict check:** No two parallel stories (neither depends on the other) share `filePaths` entries. If conflicts found: add a "Reconcile `<file>` changes from `<other-story>`" task to the later-priority story. This does NOT force sequential execution — it plans for the merge.
 
 Save to: `quantum.json` in the project root.
 

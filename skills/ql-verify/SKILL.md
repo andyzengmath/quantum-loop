@@ -125,3 +125,17 @@ When invoked directly by the user:
 2. Identify the appropriate commands
 3. Run the 5-step gate function
 4. Report results with full evidence
+
+## Integration Verification (for multi-story features)
+
+Before claiming a feature is complete, verify:
+
+1. **All imports resolve:** Run the project's entry point import
+   - Python: `python -c "import <main_module>"`
+   - Node: `node -e "require('./<entry_point>')"`
+   - Go: `go build ./...`
+2. **All new functions have call sites outside tests:** Use LSP "Find References" or grep
+3. **Full test suite passes:** Not just per-story tests — ALL tests
+4. **No type mismatches across story boundaries:** Use LSP "Hover" or manual inspection
+
+This is part of the Iron Law: "it passes unit tests" is NOT evidence that the feature works. Integration evidence is required. "Each story passed its review" is NOT evidence that the stories work together.
