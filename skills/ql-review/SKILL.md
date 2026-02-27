@@ -122,6 +122,55 @@ Present the combined review report:
 [Pass / Fix and re-review / specific guidance]
 ```
 
+## Stage 3: Cross-Story Integration Review
+
+This stage runs when:
+- All stories in a dependency chain have passed Stages 1 and 2
+- OR when all stories are complete (final gate before COMPLETE)
+- OR when explicitly invoked: `/quantum-loop:ql-review --integration`
+
+### Checks (use LSP tools when available, fall back to grep)
+
+1. **Call chain tracing:** For every function created by an upstream story, verify it is **called** (not just imported) in downstream stories.
+   - PREFERRED: LSP "Find References" — returns only actual call sites
+   - FALLBACK: `grep -rn "function_name" --include="*.py" | grep -v test`
+   - Must appear in at least one non-test call site outside its defining file
+
+2. **Type consistency:** Check that return types from upstream stories match parameter types expected downstream.
+   - PREFERRED: LSP "Hover" on call sites to verify argument types
+   - FALLBACK: Read source of caller and callee, compare manually
+   - Flag: list-vs-string, Optional-vs-required, scalar-vs-collection mismatches
+
+3. **Dead code scan:** Every new export must have a caller outside its own file and tests.
+   - PREFERRED: LSP "Find References" returns 0 results = dead code
+   - FALLBACK: grep for function name, exclude test files
+
+4. **Import resolution:** Verify every import statement resolves to an actual file/module.
+   - PREFERRED: LSP diagnostics for "unresolved import" errors (instant)
+   - FALLBACK: `python -c "import main_module"` or equivalent runtime test
+
+### On Integration Failure
+- List specific unwired functions and type mismatches
+- Suggest the exact wiring fix (which file, which line, what call to add)
+- The orchestrator or user implements the fix
+
+### Output Format (Stage 3)
+```markdown
+### Stage 3: Cross-Story Integration
+**Status:** PASSED / FAILED
+
+**Call chains verified:**
+- US-007 validate_plan_item() → called in pipeline.py:45 ✓
+- US-008 generate_stage2() → called in pipeline.py:78 ✓
+
+**Unwired functions:**
+- US-007 validate_plan_item() → NOT called in any pipeline code ✗
+  Fix: Add `validated = validate_plan_item(item, schema)` to pipeline.py:52
+
+**Type mismatches:**
+- US-009 returns List[str] but US-013 expects JSON string at pipeline.py:90
+```
+
 ## Anti-Rationalization Guards
 
 | Excuse | Reality |

@@ -161,12 +161,17 @@ Poll each running agent:
 **After each STORY_PASSED merge:**
 - Run the full test suite to catch semantic merge regressions
 - If tests fail after merge: `git revert -m 1 HEAD` to undo the merge commit, mark story failed
-- Run a quick wiring check on the just-merged story's new exports
+- Run a quick wiring check on the just-merged story's new exports (LSP "Find References" preferred, grep fallback)
+
+**When a dependency chain completes** (a story passes AND all stories that depend on it have also passed):
+- Run a cross-story integration review:
+  1. For each function exported by upstream stories, verify it is **called** (not just imported) in downstream stories. Use LSP "Find References" when available, fall back to grep.
+  2. Check type consistency across story boundaries — if upstream returns a list and downstream expects a string, flag it. Use LSP "Hover" when available.
+  3. If issues found: fix them inline, re-run tests, commit with `fix: wire <module> into <caller>`
 
 **After any completion (pass or fail):**
 - Re-query DAG (Step 2 logic)
 - If new stories are eligible and slots are available: spawn them immediately
-- Run a wiring check on newly merged exports before spawning dependents
 - Log: `[SPAWNED] US-YYY - New Story (wave N+1, newly unblocked)`
 
 **When all agents in the wave finish:**
@@ -211,9 +216,21 @@ If dead code or pipeline breaks are detected:
 
 This step is NOT optional. Components built but never called are wasted work.
 
-## Step 4: Completion
+## Step 4: Final Integration Gate
 
-When DAG query returns no eligible stories:
+When DAG query returns no eligible stories and all stories have passed, run final checks before declaring COMPLETE:
+
+1. **Import smoke test:** verify the project's main module imports cleanly
+   - Python: `python -c "import <main_module>"`
+   - Node: `node -e "require('./<entry_point>')"`
+   - Go: `go build ./...`
+2. **Full test suite:** run ALL tests (not per-story)
+3. **Dead code scan:** every new function/class created during this feature has at least one call site outside its own file and tests. Use LSP "Find References" when available, fall back to grep.
+4. **If any check fails:** create a fix task, implement inline, re-test, commit. Do NOT output COMPLETE until all checks pass.
+
+## Step 5: Completion
+
+When all integration checks pass:
 
 **All passed:**
 ```
