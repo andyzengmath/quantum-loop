@@ -198,7 +198,12 @@ Before saving, verify:
 - [ ] Branch name follows `ql/` prefix convention
 - [ ] Priority numbers are sequential with no gaps
 - [ ] Every story that creates a function has a consumer story with a wiring AC
-- [ ] **File-touch conflict check:** No two parallel stories (neither depends on the other) share `filePaths` entries. If conflicts found: add a "Reconcile `<file>` changes from `<other-story>`" task to the later-priority story. This does NOT force sequential execution — it plans for the merge.
+- [ ] **File-touch conflict check:** No two parallel stories (neither depends on the other) share `filePaths` entries. If conflicts found:
+  - Add a "Reconcile `<file>` changes from `<other-story>`" task as the **last task** of the **higher-priority** (later-executing) story
+  - This task is written directly into `quantum.json` during plan generation — it is NOT added at runtime
+  - The reconciliation task runs AFTER both stories have merged (it depends on the other story implicitly via execution order)
+  - Add the conflict to `quantum.json` metadata: `"fileConflicts": [{"file": "generator.py", "stories": ["US-007", "US-008"]}]` so users see risks before execution
+  - This does NOT force sequential execution — it allows parallel but plans for the merge
 
 Save to: `quantum.json` in the project root.
 

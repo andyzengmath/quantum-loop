@@ -50,7 +50,7 @@ Beyond the happy path, add tests for:
 - **Collision scenarios:** same identifier from different sources (e.g., same filename in different dirs)
 - **Scale:** 1 item, 10 items, and if relevant 100+ items
 
-See `references/edge-cases.md` for language-specific gotchas (Python NaN, Go nil, JS undefined, etc.)
+**ALWAYS read `references/edge-cases.md` before writing tests for any testFirst task.** This is not optional or on-demand — read it at the start of every testFirst task to refresh your awareness of language-specific gotchas (Python NaN, Go nil, JS undefined, etc.)
 
 If you skip edge cases because "the happy path is enough," you are wrong. Field data: 100% of post-implementation bugs were edge cases that passed happy-path tests.
 

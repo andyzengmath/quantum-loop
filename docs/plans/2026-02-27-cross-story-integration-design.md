@@ -122,11 +122,13 @@ Read by implementer on demand during TDD tasks.
 - Real-world validation: run updated quantum-loop on a project, observe agent behavior
 - Anti-regression: code reviewer agent verifies no conflict markers, stale refs, or version mismatches
 
-## Open Questions
+## Design Decisions (resolved from PR review feedback)
 
-- Should the file-touch conflict detection be a hard block or a warning? (Decision: warning + reconciliation task)
-- Should the edge case reference doc be auto-loaded or on-demand? (Decision: on-demand, referenced by implementer)
-- How does LSP availability vary across user setups? (Mitigation: all checks have grep fallbacks)
+- **File-touch reconciliation timing:** The reconciliation task is written into quantum.json at plan time (not runtime). It is the last task of the higher-priority story. Conflicts are stored in `quantum.json` metadata (`fileConflicts` array) so users see risks before execution.
+- **Cross-story review trigger:** Only fires when a COMPLETE dependency chain has all stories passed. Partial chains (with failed/pending stories) are skipped.
+- **Edge case reference loading:** The implementer ALWAYS reads `references/edge-cases.md` at the start of every testFirst task — not on-demand/conditional. This prevents agents from forgetting to check.
+- **LSP availability:** All LSP-based checks have grep fallbacks. LSP is preferred but not required.
+- **CI validation:** Future improvement — add markdownlint + frontmatter schema check as a GitHub Action. Not in this PR.
 
 ## Next Steps
 
