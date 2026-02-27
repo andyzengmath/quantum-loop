@@ -1,6 +1,6 @@
 {
   "name": "quantum-loop",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Spec-driven autonomous development loop with DAG-based execution, parallel worktree agents, two-stage review gates, and Iron Law verification. Turns a feature description into verified, reviewed, autonomously-implemented code.",
   "author": {
     "name": "andyzengmath"

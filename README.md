@@ -226,6 +226,14 @@ Implementation complete
         │
         ▼
      Commit
+        │
+        ▼
+  Stage 3: Cross-Story Integration ── (after dependency chain completes)
+        │                               Traces call chains, type consistency,
+      PASS                              dead code, import resolution (LSP preferred)
+        │
+        ▼
+     COMPLETE
 ```
 
 Stage 2 never runs if Stage 1 fails. Code that doesn't match the spec is waste -- no matter how well-written.
