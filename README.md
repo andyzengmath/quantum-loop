@@ -65,7 +65,7 @@ Clone the repo, then edit three files in `~/.claude/`:
      "name": "quantum-loop",
      "source": { "source": "url", "url": "https://github.com/andyzengmath/quantum-loop.git" },
      "description": "Spec-driven autonomous development loop",
-     "version": "1.0.0",
+     "version": "0.2.2",
      "strict": true
    }
    ```
@@ -74,7 +74,7 @@ Clone the repo, then edit three files in `~/.claude/`:
    "quantum-loop@<marketplace-name>": [{
      "scope": "user",
      "installPath": "/path/to/quantum-loop",
-     "version": "1.0.0",
+     "version": "0.2.2",
      "installedAt": "2026-02-18T00:00:00.000Z",
      "lastUpdated": "2026-02-18T00:00:00.000Z"
    }]
@@ -321,7 +321,17 @@ quantum-loop/
 └── CLAUDE.md             # Agent template (parallel-aware)
 ```
 
-**`quantum-loop.sh`** drives autonomous execution:
+**Two runner scripts** (different purposes):
+
+| Script | For | Dependencies | Granularity |
+|--------|-----|-------------|-------------|
+| `quantum-loop.sh` (root) | Plugin repo development | `jq` + `lib/*.sh` | Story-level |
+| `templates/quantum-loop.sh` | **User projects** (copy this one) | `node` only, self-contained | Task-level |
+
+The root script is used internally by the plugin. For your projects, download the templates version:
+```bash
+curl -sO https://raw.githubusercontent.com/andyzengmath/quantum-loop/main/templates/quantum-loop.sh && chmod +x quantum-loop.sh
+```
 
 **Sequential mode** (default):
 1. Reads quantum.json state
