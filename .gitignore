@@ -22,6 +22,9 @@ archive/
 Thumbs.db
 desktop.ini
 
+# Local Claude Code settings
+.claude/
+
 # Editor files
 .vscode/
 .idea/
