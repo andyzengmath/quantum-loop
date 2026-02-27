@@ -1,7 +1,7 @@
 {
   "name": "quantum-loop",
   "description": "Spec-driven autonomous development loop: brainstorm, spec, plan, execute with TDD, two-stage review gates, and Iron Law verification.",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "author": {
     "name": "andyzengmath"
   }
