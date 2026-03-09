@@ -99,6 +99,42 @@ function Show-Summary {
     Write-Host "Result: $passed/$total stories passed"
 }
 
+# ─── Final Verification Sweep ───
+function Final-VerificationSweep {
+    Write-Host "`n[FINAL SWEEP] Running test suite before declaring COMPLETE..." -ForegroundColor Cyan
+    $testCmd = $null
+    if (Test-Path "package.json") { $testCmd = "npm test" }
+    elseif (Test-Path "pyproject.toml") { $testCmd = "python -m pytest -x -q" }
+    elseif (Test-Path "Cargo.toml") { $testCmd = "cargo test" }
+    elseif (Test-Path "go.mod") { $testCmd = "go test ./..." }
+
+    if ($testCmd) {
+        try {
+            Invoke-Expression $testCmd 2>&1 | Out-Null
+            Write-Host "[FINAL SWEEP] Test suite passed." -ForegroundColor Green
+        } catch {
+            Write-Host "[FINAL SWEEP] FAILED: test suite. Cannot declare COMPLETE." -ForegroundColor Red
+            Show-Summary
+            exit 1
+        }
+    } else {
+        Write-Host "[FINAL SWEEP] No test suite detected, skipping." -ForegroundColor Yellow
+    }
+
+    # Import smoke test (warning only)
+    if (Test-Path "package.json") {
+        $entry = jq -r '.main // empty' package.json 2>$null
+        if ($entry) {
+            try {
+                node -e "require('./$entry')" 2>&1 | Out-Null
+                Write-Host "[FINAL SWEEP] Import smoke test passed." -ForegroundColor Green
+            } catch {
+                Write-Host "[FINAL SWEEP] WARNING: Import smoke test failed (non-blocking)." -ForegroundColor Yellow
+            }
+        }
+    }
+}
+
 # ─── Stale Story Detection ───
 function Detect-StaleStories {
     $staleIds = jq -r --argjson threshold $StaleTimeout '
@@ -151,6 +187,7 @@ for ($iteration = 1; $iteration -le $MaxIterations; $iteration++) {
     if ([string]::IsNullOrWhiteSpace($storyId) -or $storyId -eq "null") {
         $allPassed = jq '[.stories[].status] | all(. == "passed")' quantum.json
         if ($allPassed -eq "true") {
+            Final-VerificationSweep
             Write-Host ""
             Write-Host "===========================================" -ForegroundColor Green
             Write-Host "  COMPLETE - All stories passed!" -ForegroundColor Green
@@ -201,6 +238,7 @@ for ($iteration = 1; $iteration -le $MaxIterations; $iteration++) {
 
     # Process output signals
     if ($output -match "<quantum>COMPLETE</quantum>") {
+        Final-VerificationSweep
         Write-Host ""
         Write-Host "===========================================" -ForegroundColor Green
         Write-Host "  COMPLETE - All stories passed!" -ForegroundColor Green

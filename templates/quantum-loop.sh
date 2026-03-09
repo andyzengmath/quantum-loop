@@ -711,6 +711,41 @@ main() {
     done
   fi
 
+  # ─── Final Verification Sweep ───
+  log ""
+  log "[FINAL SWEEP] Running test suite before declaring complete..."
+
+  local test_cmd=""
+  if [[ -f "package.json" ]]; then test_cmd="npm test"
+  elif [[ -f "pyproject.toml" ]] || [[ -f "setup.py" ]]; then test_cmd="python -m pytest -x -q"
+  elif [[ -f "Cargo.toml" ]]; then test_cmd="cargo test"
+  elif [[ -f "go.mod" ]]; then test_cmd="go test ./..."
+  fi
+
+  if [[ -n "$test_cmd" ]]; then
+    if eval "$test_cmd" >/dev/null 2>&1; then
+      log "[FINAL SWEEP] Test suite passed."
+    else
+      log "[FINAL SWEEP] FAILED: test suite. Cannot declare complete."
+      exit 1
+    fi
+  else
+    log "[FINAL SWEEP] No test suite detected, skipping."
+  fi
+
+  # Import smoke test (warning only)
+  if [[ -f "package.json" ]]; then
+    local entry
+    entry=$(node -e "const p=JSON.parse(require('fs').readFileSync('package.json','utf8')); console.log(p.main||'')" 2>/dev/null)
+    if [[ -n "$entry" ]]; then
+      if node -e "require('./$entry')" >/dev/null 2>&1; then
+        log "[FINAL SWEEP] Import smoke test passed."
+      else
+        log "[FINAL SWEEP] WARNING: Import smoke test failed for $entry (non-blocking)."
+      fi
+    fi
+  fi
+
   # ─── Summary ───
   log ""
   log "═══════════════════════════════════════════"

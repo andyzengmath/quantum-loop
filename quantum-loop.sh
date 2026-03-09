@@ -201,6 +201,53 @@ detect_stale_stories() {
 }
 
 # =============================================================================
+# Final verification sweep before declaring COMPLETE
+# =============================================================================
+
+final_verification_sweep() {
+  printf "\n[FINAL SWEEP] Running test suite before declaring COMPLETE...\n"
+
+  # Detect test command
+  local TEST_CMD=""
+  if [[ -f "package.json" ]]; then TEST_CMD="npm test"
+  elif [[ -f "pyproject.toml" ]] || [[ -f "setup.py" ]]; then TEST_CMD="python -m pytest -x -q"
+  elif [[ -f "Cargo.toml" ]]; then TEST_CMD="cargo test"
+  elif [[ -f "go.mod" ]]; then TEST_CMD="go test ./..."
+  fi
+
+  if [[ -n "$TEST_CMD" ]]; then
+    if eval "$TEST_CMD" >/dev/null 2>&1; then
+      printf "[FINAL SWEEP] Test suite passed.\n"
+    else
+      printf "[FINAL SWEEP] FAILED: test suite. Cannot declare COMPLETE.\n"
+      print_summary_table
+      exit 1
+    fi
+  else
+    printf "[FINAL SWEEP] No test suite detected, skipping.\n"
+  fi
+
+  # Import smoke test (warning only)
+  if [[ -f "package.json" ]]; then
+    local entry
+    entry=$(jq -r '.main // empty' package.json 2>/dev/null)
+    if [[ -n "$entry" ]]; then
+      if node -e "require('./$entry')" >/dev/null 2>&1; then
+        printf "[FINAL SWEEP] Import smoke test passed.\n"
+      else
+        printf "[FINAL SWEEP] WARNING: Import smoke test failed for %s (non-blocking).\n" "$entry"
+      fi
+    fi
+  elif [[ -f "go.mod" ]]; then
+    if go build ./... >/dev/null 2>&1; then
+      printf "[FINAL SWEEP] Go build passed.\n"
+    else
+      printf "[FINAL SWEEP] WARNING: go build failed (non-blocking).\n"
+    fi
+  fi
+}
+
+# =============================================================================
 # Main header
 # =============================================================================
 
@@ -254,6 +301,7 @@ if [[ "$PARALLEL_MODE" == "true" ]]; then
     EXECUTABLE=$(get_executable_stories "$REPO_ROOT/quantum.json")
 
     if [[ "$EXECUTABLE" == "COMPLETE" ]]; then
+      final_verification_sweep
       printf "\n===========================================\n"
       printf "  <quantum>COMPLETE</quantum>\n"
       printf "  All stories passed! Feature is done.\n"
@@ -593,6 +641,7 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
     # Check if all stories are passed
     ALL_PASSED=$(jq '[.stories[].status] | all(. == "passed")' quantum.json)
     if [[ "$ALL_PASSED" == "true" ]]; then
+      final_verification_sweep
       printf "\n===========================================\n"
       printf "  <quantum>COMPLETE</quantum>\n"
       printf "  All stories passed! Feature is done.\n"
@@ -651,6 +700,7 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
   # -------------------------------------------------------------------------
 
   if echo "$OUTPUT" | grep -q "<quantum>COMPLETE</quantum>"; then
+    final_verification_sweep
     printf "\n===========================================\n"
     printf "  <quantum>COMPLETE</quantum>\n"
     printf "  All stories passed! Feature is done.\n"
