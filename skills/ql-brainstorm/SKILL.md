@@ -27,6 +27,11 @@ Then ask clarifying questions to understand the problem space:
   4. What are the CONSTRAINTS? (time, tech stack, existing code, team size)
   5. What is explicitly OUT OF SCOPE?
   6. Are there EXISTING solutions that partially solve this?
+  7. LIFECYCLE: What happens beyond the happy path?
+     - A) One-shot tool (run once, get output, done)
+     - B) Returning users (state persists, users come back)
+     - C) Integrates into an existing system (middleware, plugin, library)
+     - D) Multiple of the above
 
 ### What NOT to ask
 - Implementation details (that comes later)
