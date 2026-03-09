@@ -102,6 +102,15 @@ If a task's output is listed in a dependent story's acceptance criteria, the tas
 
 This prevents the consumer story's agent from re-implementing something that already exists. The `consumedBy` field is the signal: "Don't build this yourself — it will exist when your dependencies are satisfied."
 
+### coverageThreshold Generation
+
+Set the top-level `coverageThreshold` field in quantum.json:
+1. **Ask the user** for their desired coverage threshold, OR
+2. **Infer from project config:** check `.nycrc`, `jest.config.*`, `pyproject.toml [tool.coverage]`, `.coveragerc`, `go test` flags for an existing threshold
+3. **Default:** 80 (percent). Set to `null` to report coverage without blocking.
+
+The quality-reviewer will enforce this threshold during review. If the project has no coverage tooling, the reviewer will skip enforcement on the first story and enforce after first successful measurement.
+
 ## Step 3: Decompose Stories into Tasks
 
 For each story, break it into granular tasks. Each task should take 2-5 minutes for an AI agent.
@@ -165,18 +174,23 @@ The key shift: validation of wiring belongs on the **consumer** story, not the c
 - "Add an import statement"
 - "Fix a typo in a comment"
 
-### TDD Flag Rules
-Set `testFirst: true` when:
-- The task implements business logic
-- The task adds an API endpoint
-- The task creates a data transformation
-- The task adds user-facing behavior
+### testFirst Mandate
 
-Set `testFirst: false` when:
-- The task creates config files (migrations, package.json changes)
-- The task is pure scaffolding (empty component skeleton)
-- The task modifies only type definitions
-- The task is the test itself (when test and implementation are separate tasks)
+**`testFirst: true` is the default for ALL tasks.** TDD is a mandate, not a suggestion.
+
+**Exempt categories** (the ONLY cases where `testFirst: false` is allowed):
+- Config/scaffold files (migrations, package.json, tsconfig changes)
+- Pure type definitions (interfaces, type aliases, enums with no logic)
+- Documentation-only tasks (README, comments, markdown files)
+- The test task itself (when test and implementation are separate tasks)
+
+**For any exempt task**, the planner **MUST** add a `notes` field with justification:
+```json
+"testFirst": false,
+"notes": "testFirst: false — pure type definition, no runtime logic"
+```
+
+**Anti-rationalization line:** If a task has an `if`, a loop, a data transformation, or calls an external API, it is NOT config. Set `testFirst: true`.
 
 ### Edge Case Test Requirements
 
