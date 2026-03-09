@@ -39,6 +39,7 @@ MAX_RETRIES=3
 TOOL="claude"
 PARALLEL_MODE=false
 MAX_PARALLEL=4
+STALE_TIMEOUT=20
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Parse arguments
@@ -62,6 +63,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --max-parallel)
       MAX_PARALLEL="$2"
+      shift 2
+      ;;
+    --stale-timeout)
+      STALE_TIMEOUT="$2"
       shift 2
       ;;
     --help)
@@ -158,6 +163,44 @@ print_summary_table() {
 }
 
 # =============================================================================
+# Stale story detection
+# =============================================================================
+
+detect_stale_stories() {
+  local threshold="${STALE_TIMEOUT:-20}"
+  local now_epoch
+  now_epoch=$(date +%s)
+
+  # Find all in_progress stories with startedAt set
+  local stale_ids
+  stale_ids=$(jq -r --argjson threshold "$threshold" '
+    .stories[] |
+    select(.status == "in_progress" and .startedAt != null) |
+    select(
+      ((now | floor) - (.startedAt | fromdateiso8601)) > ($threshold * 60)
+    ) |
+    .id
+  ' quantum.json 2>/dev/null) || return 0
+
+  if [[ -z "$stale_ids" ]]; then
+    return 0
+  fi
+
+  while IFS= read -r sid; do
+    [[ -z "$sid" ]] && continue
+    printf "[STALE] %s - resetting to failed (exceeded %d minute threshold)\n" "$sid" "$threshold"
+    jq --arg id "$sid" --argjson threshold "$threshold" '
+      .stories |= map(if .id == $id then
+        .status = (if .retries.attempts + 1 >= .retries.maxAttempts then "blocked" else "failed" end) |
+        .startedAt = null |
+        .retries.attempts += 1 |
+        .retries.failureLog += [{"phase": "stale_detection", "timestamp": (now | todate), "error": ("Story exceeded " + ($threshold | tostring) + " minute stale threshold")}]
+      else . end)
+    ' quantum.json > quantum.json.tmp && mv quantum.json.tmp quantum.json
+  done <<< "$stale_ids"
+}
+
+# =============================================================================
 # Main header
 # =============================================================================
 
@@ -203,6 +246,9 @@ if [[ "$PARALLEL_MODE" == "true" ]]; then
 
   for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
     printf "\n=== Iteration %d / %d ===\n\n" "$ITERATION" "$MAX_ITERATIONS"
+
+    # Detect stale stories before DAG query
+    detect_stale_stories
 
     # Get executable stories from DAG
     EXECUTABLE=$(get_executable_stories "$REPO_ROOT/quantum.json")
@@ -521,6 +567,9 @@ fi
 
 for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
   printf "\n=== Iteration %d / %d ===\n\n" "$ITERATION" "$MAX_ITERATIONS"
+
+  # Detect stale stories before DAG query
+  detect_stale_stories
 
   # -------------------------------------------------------------------------
   # Select next executable story from the dependency DAG

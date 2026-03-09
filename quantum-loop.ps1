@@ -27,6 +27,7 @@
 param(
     [int]$MaxIterations = 20,
     [int]$MaxRetries = 3,
+    [int]$StaleTimeout = 20,
     [switch]$SkipPermissions,
     [string]$Model = ""
 )
@@ -98,10 +99,39 @@ function Show-Summary {
     Write-Host "Result: $passed/$total stories passed"
 }
 
+# ─── Stale Story Detection ───
+function Detect-StaleStories {
+    $staleIds = jq -r --argjson threshold $StaleTimeout '
+        .stories[] |
+        select(.status == "in_progress" and .startedAt != null) |
+        select(((now | floor) - (.startedAt | fromdateiso8601)) > ($threshold * 60)) |
+        .id
+    ' quantum.json 2>$null
+
+    if ($staleIds) {
+        foreach ($sid in $staleIds) {
+            if ([string]::IsNullOrWhiteSpace($sid)) { continue }
+            Write-Host "[STALE] $sid - resetting to failed (exceeded $StaleTimeout minute threshold)" -ForegroundColor Yellow
+            $tmp = jq --arg id $sid --argjson threshold $StaleTimeout '
+                .stories |= map(if .id == $id then
+                    .status = (if .retries.attempts + 1 >= .retries.maxAttempts then "blocked" else "failed" end) |
+                    .startedAt = null |
+                    .retries.attempts += 1 |
+                    .retries.failureLog += [{"phase": "stale_detection", "timestamp": (now | todate), "error": ("Story exceeded " + ($threshold | tostring) + " minute stale threshold")}]
+                else . end)
+            ' quantum.json
+            $tmp | Set-Content -Path quantum.json -Encoding UTF8 -NoNewline
+        }
+    }
+}
+
 # ─── Main Loop ───
 for ($iteration = 1; $iteration -le $MaxIterations; $iteration++) {
     Write-Host "`n=== Iteration $iteration / $MaxIterations ===" -ForegroundColor Green
     Write-Host ""
+
+    # Detect stale stories before DAG query
+    Detect-StaleStories
 
     # Select next executable story from DAG
     $storyId = jq -r '

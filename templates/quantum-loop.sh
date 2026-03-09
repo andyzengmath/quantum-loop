@@ -149,6 +149,37 @@ clear_story_started_at() {
   "
 }
 
+# Detect stale stories (in_progress too long) and reset to failed
+detect_stale_stories() {
+  local threshold="${STALE_TIMEOUT:-20}"
+  node -e "
+    const fs = require('fs');
+    const q = JSON.parse(fs.readFileSync('$PLAN_FILE', 'utf8'));
+    const threshold = $threshold * 60 * 1000; // minutes to ms
+    const now = Date.now();
+    let changed = false;
+    for (const s of q.stories) {
+      if (s.status === 'in_progress' && s.startedAt) {
+        const elapsed = now - new Date(s.startedAt).getTime();
+        if (elapsed > threshold) {
+          const elapsedMin = Math.round(elapsed / 60000);
+          console.log('[STALE] ' + s.id + ' - resetting to failed after ' + elapsedMin + ' minutes');
+          s.retries.attempts += 1;
+          s.retries.failureLog.push({phase: 'stale_detection', timestamp: new Date().toISOString(), error: 'Story exceeded $threshold minute stale threshold'});
+          s.status = s.retries.attempts >= s.retries.maxAttempts ? 'blocked' : 'failed';
+          s.startedAt = null;
+          changed = true;
+        }
+      }
+    }
+    if (changed) {
+      const tmp = '$PLAN_FILE' + '.tmp';
+      fs.writeFileSync(tmp, JSON.stringify(q, null, 2) + '\n');
+      fs.renameSync(tmp, '$PLAN_FILE');
+    }
+  "
+}
+
 # Check if all tasks in a story are completed
 is_story_complete() {
   local story_id="$1"
@@ -427,6 +458,9 @@ main() {
     local wave=0
 
     while [[ $iteration -lt $MAX_ITERATIONS ]]; do
+      # Detect stale stories before querying tasks
+      detect_stale_stories
+
       local tasks_json
       tasks_json=$(get_next_tasks)
       local task_count
@@ -650,6 +684,9 @@ main() {
     local failed_tasks=()
 
     while [[ $iteration -lt $MAX_ITERATIONS ]]; do
+      # Detect stale stories before querying tasks
+      detect_stale_stories
+
       local tasks_json
       tasks_json=$(get_next_tasks)
       local task_count

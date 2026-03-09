@@ -22,6 +22,22 @@ You manage the full execution lifecycle for quantum-loop. You read quantum.json,
    ```
 7. Count stories by status and report summary to user
 
+## Step 1B: Detect Stale Stories
+
+After initialization and before querying the DAG, check for stories stuck in `in_progress`:
+
+1. Read `staleThresholdMinutes` from quantum.json (default: 20). This can be overridden by the CLI flag `--stale-timeout`.
+2. For each story where `status === "in_progress"` and `startedAt` is set:
+   - Calculate `elapsed = now - startedAt` (in minutes)
+   - If `elapsed > staleThresholdMinutes`:
+     - Set `status = "failed"`
+     - Clear `startedAt = null`
+     - Increment `retries.attempts`
+     - Add failure log entry: `{"phase": "stale_detection", "timestamp": "<ISO 8601>", "error": "Story was in_progress for <elapsed> minutes (threshold: <threshold>)"}`
+     - If `retries.attempts >= retries.maxAttempts`: set `status = "blocked"`
+     - Log: `[STALE] US-XXX - reset to failed after <elapsed> minutes`
+3. Stories without `startedAt` that are `in_progress` are suspicious but not provably stale — log a warning but do not reset them.
+
 ## Step 2: Query DAG
 
 Find all eligible stories. A story is eligible when ALL of:
