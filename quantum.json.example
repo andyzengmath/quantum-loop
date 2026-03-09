@@ -25,8 +25,12 @@
           "id": "T-001",
           "title": "Write migration test",
           "description": "Write a test that verifies the priority column exists with correct type and default value.",
-          "filePaths": ["tests/migrations/test_add_priority.py"],
-          "commands": ["pytest tests/migrations/test_add_priority.py -v"],
+          "filePaths": [
+            "tests/migrations/test_add_priority.py"
+          ],
+          "commands": [
+            "pytest tests/migrations/test_add_priority.py -v"
+          ],
           "testFirst": true,
           "status": "pending"
         },
@@ -34,8 +38,13 @@
           "id": "T-002",
           "title": "Create migration file",
           "description": "Generate Alembic migration adding 'priority' column (VARCHAR, default 'medium') to tasks table.",
-          "filePaths": ["alembic/versions/add_priority_column.py"],
-          "commands": ["alembic upgrade head", "pytest tests/migrations/ -v"],
+          "filePaths": [
+            "alembic/versions/add_priority_column.py"
+          ],
+          "commands": [
+            "alembic upgrade head",
+            "pytest tests/migrations/ -v"
+          ],
           "testFirst": false,
           "status": "pending"
         },
@@ -43,8 +52,14 @@
           "id": "T-003",
           "title": "Update model and type definitions",
           "description": "Add priority field to Task model and TaskPriority type ('high' | 'medium' | 'low').",
-          "filePaths": ["models/task.py", "types/task.py"],
-          "commands": ["pyright", "pytest tests/models/ -v"],
+          "filePaths": [
+            "models/task.py",
+            "types/task.py"
+          ],
+          "commands": [
+            "pyright",
+            "pytest tests/models/ -v"
+          ],
           "testFirst": false,
           "status": "pending"
         }
@@ -66,7 +81,8 @@
         "maxAttempts": 3,
         "failureLog": []
       },
-      "notes": ""
+      "notes": "",
+      "startedAt": null
     },
     {
       "id": "US-002",
@@ -81,14 +97,20 @@
       ],
       "priority": 2,
       "status": "pending",
-      "dependsOn": ["US-001"],
+      "dependsOn": [
+        "US-001"
+      ],
       "tasks": [
         {
           "id": "T-004",
           "title": "Write PriorityBadge component test",
           "description": "Test that PriorityBadge renders correct color and label for each priority level.",
-          "filePaths": ["tests/components/test_priority_badge.tsx"],
-          "commands": ["jest tests/components/test_priority_badge.tsx"],
+          "filePaths": [
+            "tests/components/test_priority_badge.tsx"
+          ],
+          "commands": [
+            "jest tests/components/test_priority_badge.tsx"
+          ],
           "testFirst": true,
           "status": "pending"
         },
@@ -96,21 +118,38 @@
           "id": "T-005",
           "title": "Implement PriorityBadge component",
           "description": "Create PriorityBadge component with red/yellow/gray variants. Use existing Badge component as base.",
-          "filePaths": ["components/PriorityBadge.tsx", "components/PriorityBadge.css"],
-          "commands": ["jest tests/components/test_priority_badge.tsx", "tsc --noEmit"],
+          "filePaths": [
+            "components/PriorityBadge.tsx",
+            "components/PriorityBadge.css"
+          ],
+          "commands": [
+            "jest tests/components/test_priority_badge.tsx",
+            "tsc --noEmit"
+          ],
           "testFirst": false,
           "status": "pending",
           "wiring_verification": {
             "file": "components/TaskCard.tsx",
-            "must_contain": ["import { PriorityBadge }", "PriorityBadge"]
-          }
+            "must_contain": [
+              "import { PriorityBadge }",
+              "PriorityBadge"
+            ]
+          },
+          "consumedBy": [
+            "US-003"
+          ]
         },
         {
           "id": "T-006",
           "title": "Integrate badge into TaskCard",
           "description": "Add PriorityBadge to TaskCard component, passing task.priority as prop.",
-          "filePaths": ["components/TaskCard.tsx"],
-          "commands": ["jest tests/components/ --passWithNoTests", "tsc --noEmit"],
+          "filePaths": [
+            "components/TaskCard.tsx"
+          ],
+          "commands": [
+            "jest tests/components/ --passWithNoTests",
+            "tsc --noEmit"
+          ],
           "testFirst": false,
           "status": "pending"
         }
@@ -132,7 +171,8 @@
         "maxAttempts": 3,
         "failureLog": []
       },
-      "notes": ""
+      "notes": "",
+      "startedAt": null
     },
     {
       "id": "US-003",
@@ -147,14 +187,21 @@
       ],
       "priority": 3,
       "status": "pending",
-      "dependsOn": ["US-001", "US-002"],
+      "dependsOn": [
+        "US-001",
+        "US-002"
+      ],
       "tasks": [
         {
           "id": "T-007",
           "title": "Write filter API test",
           "description": "Test that GET /tasks?priority=high returns only high-priority tasks.",
-          "filePaths": ["tests/api/test_task_filter.py"],
-          "commands": ["pytest tests/api/test_task_filter.py -v"],
+          "filePaths": [
+            "tests/api/test_task_filter.py"
+          ],
+          "commands": [
+            "pytest tests/api/test_task_filter.py -v"
+          ],
           "testFirst": true,
           "status": "pending"
         },
@@ -162,8 +209,13 @@
           "id": "T-008",
           "title": "Add priority filter to tasks endpoint",
           "description": "Add optional 'priority' query param to GET /tasks. Filter by priority column when present.",
-          "filePaths": ["api/routes/tasks.py"],
-          "commands": ["pytest tests/api/test_task_filter.py -v", "pyright"],
+          "filePaths": [
+            "api/routes/tasks.py"
+          ],
+          "commands": [
+            "pytest tests/api/test_task_filter.py -v",
+            "pyright"
+          ],
           "testFirst": false,
           "status": "pending"
         },
@@ -171,8 +223,12 @@
           "id": "T-009",
           "title": "Write PriorityFilter component test",
           "description": "Test that PriorityFilter renders dropdown and calls onChange with selected value.",
-          "filePaths": ["tests/components/test_priority_filter.tsx"],
-          "commands": ["jest tests/components/test_priority_filter.tsx"],
+          "filePaths": [
+            "tests/components/test_priority_filter.tsx"
+          ],
+          "commands": [
+            "jest tests/components/test_priority_filter.tsx"
+          ],
           "testFirst": true,
           "status": "pending"
         },
@@ -180,8 +236,14 @@
           "id": "T-010",
           "title": "Implement PriorityFilter and integrate",
           "description": "Create PriorityFilter dropdown. Wire to URL params. Show empty state when no results.",
-          "filePaths": ["components/PriorityFilter.tsx", "pages/TaskList.tsx"],
-          "commands": ["jest tests/components/ --passWithNoTests", "tsc --noEmit"],
+          "filePaths": [
+            "components/PriorityFilter.tsx",
+            "pages/TaskList.tsx"
+          ],
+          "commands": [
+            "jest tests/components/ --passWithNoTests",
+            "tsc --noEmit"
+          ],
           "testFirst": false,
           "status": "pending"
         }
@@ -203,25 +265,41 @@
         "maxAttempts": 3,
         "failureLog": []
       },
-      "notes": ""
+      "notes": "",
+      "startedAt": null
     }
   ],
   "progress": [],
   "contracts": {
     "secret_keys": {
-      "openai": { "value": "openai-api-key", "pattern": "^[a-z][a-z0-9-]*$" },
-      "db_password": { "value": "DATABASE_PASSWORD" }
+      "openai": {
+        "value": "openai-api-key",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "db_password": {
+        "value": "DATABASE_PASSWORD"
+      }
     },
     "shared_types": {
-      "priority_enum": { "value": "Priority", "pattern": "^[A-Z][a-zA-Z]*$" },
-      "task_status": { "value": "TaskStatus" }
+      "priority_enum": {
+        "value": "Priority",
+        "pattern": "^[A-Z][a-zA-Z]*$"
+      },
+      "task_status": {
+        "value": "TaskStatus"
+      }
     }
   },
+  "coverageThreshold": 80,
+  "staleThresholdMinutes": 20,
   "codebasePatterns": [],
   "fileConflicts": [
     {
       "file": "src/generator.py",
-      "stories": ["US-007", "US-008"],
+      "stories": [
+        "US-007",
+        "US-008"
+      ],
       "reconciliationTask": "US-008 T-004: Reconcile generator.py changes from US-007"
     }
   ],
@@ -230,6 +308,9 @@
     "mode": "parallel",
     "maxParallel": 4,
     "currentWave": 2,
-    "activeWorktrees": [".ql-wt/US-002", ".ql-wt/US-003"]
+    "activeWorktrees": [
+      ".ql-wt/US-002",
+      ".ql-wt/US-003"
+    ]
   }
 }
