@@ -203,6 +203,16 @@
     }
   ],
   "progress": [],
+  "contracts": {
+    "secret_keys": {
+      "openai": { "value": "openai-api-key", "pattern": "^[a-z][a-z0-9-]*$" },
+      "db_password": { "value": "DATABASE_PASSWORD" }
+    },
+    "shared_types": {
+      "priority_enum": { "value": "Priority", "pattern": "^[A-Z][a-zA-Z]*$" },
+      "task_status": { "value": "TaskStatus" }
+    }
+  },
   "codebasePatterns": [],
   "fileConflicts": [
     {
