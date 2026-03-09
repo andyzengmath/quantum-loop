@@ -75,6 +75,33 @@ Example contracts block:
 
 Add the `contracts` object to quantum.json at the top level, after `codebasePatterns`.
 
+### wiring_verification Generation
+
+Tasks that create new modules, handlers, or components **SHOULD** have a `wiring_verification` object unless wiring is handled by a dependent story via `consumedBy`.
+
+**Rule:** If a task creates a new file (function, class, component, handler) that must be imported by an existing file, add:
+```json
+"wiring_verification": {
+  "file": "path/to/caller.ts",
+  "must_contain": ["import { NewThing }", "NewThing"]
+}
+```
+
+- `file`: The existing file that should import/call the new code
+- `must_contain`: Array of exact strings that must appear in that file after implementation
+
+**Exception:** If the task's output will be consumed by a dependent story (the dependent story is responsible for the import), use `consumedBy` instead of `wiring_verification`. Both on the same task is redundant.
+
+### consumedBy Generation
+
+If a task's output is listed in a dependent story's acceptance criteria, the task **MUST** have a `consumedBy` field listing the consuming story IDs.
+
+**Rule:** When Story A creates a component/module and Story B's acceptance criteria reference it:
+1. Add `"consumedBy": ["US-B"]` to the task in Story A
+2. Add to Story B's **first task** description: `"Import <component> from <path> (created by <Story A ID>). Do NOT create an inline replacement."`
+
+This prevents the consumer story's agent from re-implementing something that already exists. The `consumedBy` field is the signal: "Don't build this yourself — it will exist when your dependencies are satisfied."
+
 ## Step 3: Decompose Stories into Tasks
 
 For each story, break it into granular tasks. Each task should take 2-5 minutes for an AI agent.
