@@ -129,6 +129,26 @@ update_story_status() {
   "
 }
 
+# Set startedAt timestamp on a story (ISO 8601 UTC)
+set_story_started_at() {
+  local story_id="$1"
+  atomic_json_update "
+    for (const story of q.stories) {
+      if (story.id === '$story_id') story.startedAt = new Date().toISOString();
+    }
+  "
+}
+
+# Clear startedAt on a story (set to null)
+clear_story_started_at() {
+  local story_id="$1"
+  atomic_json_update "
+    for (const story of q.stories) {
+      if (story.id === '$story_id') story.startedAt = null;
+    }
+  "
+}
+
 # Check if all tasks in a story are completed
 is_story_complete() {
   local story_id="$1"
@@ -206,6 +226,8 @@ execute_task() {
 
   log "▶ Starting task $task_id (story $story_id)"
   update_task_status "$task_id" "in_progress"
+  # Write startedAt if this is the first task starting for this story
+  set_story_started_at "$story_id"
 
   prompt=$(build_prompt "$task_json")
 
@@ -233,10 +255,12 @@ execute_task() {
     if is_story_complete "$story_id"; then
       log "[STORY DONE] $story_id"
       update_story_status "$story_id" "passed"
+      clear_story_started_at "$story_id"
     fi
   else
     log "[FAILED] Task $task_id (exit code $exit_code)"
     update_task_status "$task_id" "failed"
+    clear_story_started_at "$story_id"
     [[ "$VERBOSE" != "true" ]] && echo "  See log: $log_file"
     [[ "$VERBOSE" == "true" ]] && cat "$log_file"
     return 1
@@ -452,8 +476,9 @@ main() {
           continue
         }
 
-        # Mark task in_progress
+        # Mark task in_progress and set startedAt
         update_task_status "$tid" "in_progress"
+        set_story_started_at "$sid"
 
         # Spawn agent
         local pid

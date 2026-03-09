@@ -263,8 +263,8 @@ if [[ "$PARALLEL_MODE" == "true" ]]; then
 
       # Update quantum.json
       set_story_worktree "$REPO_ROOT/quantum.json" "$SID" ".ql-wt/$SID" || true
-      jq --arg id "$SID" '
-        .stories |= map(if .id == $id then .status = "in_progress" else . end)
+      jq --arg id "$SID" --arg now "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" '
+        .stories |= map(if .id == $id then .status = "in_progress" | .startedAt = $now else . end)
       ' "$REPO_ROOT/quantum.json" > "$REPO_ROOT/quantum.json.tmp" \
         && mv "$REPO_ROOT/quantum.json.tmp" "$REPO_ROOT/quantum.json"
 
@@ -308,6 +308,7 @@ if [[ "$PARALLEL_MODE" == "true" ]]; then
           jq --arg id "$SID" '
             .stories |= map(if .id == $id then
               .status = "failed" |
+              .startedAt = null |
               .retries.attempts += 1 |
               .retries.failureLog += [{"phase": "timeout", "timestamp": (now | todate)}]
             else . end)
@@ -372,6 +373,7 @@ if [[ "$PARALLEL_MODE" == "true" ]]; then
                   jq --arg id "$SID" '
                     .stories |= map(if .id == $id then
                       .status = "failed" |
+                      .startedAt = null |
                       .retries.attempts += 1 |
                       .retries.failureLog += [{"phase": "merge_regression", "timestamp": (now | todate)}]
                     else . end)
@@ -383,7 +385,7 @@ if [[ "$PARALLEL_MODE" == "true" ]]; then
               if [[ "$STATUS_MERGE" -eq 0 ]]; then
                 printf "[PASSED] %s\n" "$SID"
                 jq --arg id "$SID" --argjson wave "$WAVE" '
-                  .stories |= map(if .id == $id then .status = "passed" else . end)
+                  .stories |= map(if .id == $id then .status = "passed" | .startedAt = null else . end)
                 ' "$REPO_ROOT/quantum.json" > "$REPO_ROOT/quantum.json.tmp" \
                   && mv "$REPO_ROOT/quantum.json.tmp" "$REPO_ROOT/quantum.json"
               fi
@@ -395,6 +397,7 @@ if [[ "$PARALLEL_MODE" == "true" ]]; then
               jq --arg id "$SID" --arg files "$CONFLICT_FILES" '
                 .stories |= map(if .id == $id then
                   .status = "failed" |
+                  .startedAt = null |
                   .retries.attempts += 1 |
                   .retries.failureLog += [{"phase": "merge_conflict", "files": $files, "timestamp": (now | todate)}]
                 else . end)
@@ -417,6 +420,7 @@ if [[ "$PARALLEL_MODE" == "true" ]]; then
             jq --arg id "$SID" '
               .stories |= map(if .id == $id then
                 .status = "failed" |
+                .startedAt = null |
                 .retries.attempts += 1 |
                 .retries.failureLog += [{"phase": "agent_failed", "timestamp": (now | todate)}]
               else . end)
@@ -431,6 +435,7 @@ if [[ "$PARALLEL_MODE" == "true" ]]; then
             jq --arg id "$SID" '
               .stories |= map(if .id == $id then
                 .status = "failed" |
+                .startedAt = null |
                 .retries.attempts += 1 |
                 .retries.failureLog += [{"phase": "crash", "timestamp": (now | todate)}]
               else . end)
@@ -477,8 +482,8 @@ if [[ "$PARALLEL_MODE" == "true" ]]; then
             fi
 
             set_story_worktree "$REPO_ROOT/quantum.json" "$NSID" ".ql-wt/$NSID" || true
-            jq --arg id "$NSID" '
-              .stories |= map(if .id == $id then .status = "in_progress" else . end)
+            jq --arg id "$NSID" --arg now "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" '
+              .stories |= map(if .id == $id then .status = "in_progress" | .startedAt = $now else . end)
             ' "$REPO_ROOT/quantum.json" > "$REPO_ROOT/quantum.json.tmp" \
               && mv "$REPO_ROOT/quantum.json.tmp" "$REPO_ROOT/quantum.json"
 
@@ -577,6 +582,10 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
     PROMPT_FILE="$SCRIPT_DIR/prompt.md"
   fi
 
+  # Write startedAt timestamp before spawning
+  now=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+  json_atomic_update ".stories |= map(if .id == \"$STORY_ID\" then .startedAt = \"$now\" else . end)"
+
   printf "Spawning %s for story %s...\n" "$TOOL" "$STORY_ID"
 
   if [[ "$TOOL" == "claude" ]]; then
@@ -602,9 +611,13 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
 
   elif echo "$OUTPUT" | grep -q "<quantum>STORY_PASSED</quantum>"; then
     printf "Story %s PASSED. Continuing to next story...\n" "$STORY_ID"
+    # Clear startedAt on completion
+    json_atomic_update ".stories |= map(if .id == \"$STORY_ID\" then .startedAt = null else . end)"
 
   elif echo "$OUTPUT" | grep -q "<quantum>STORY_FAILED</quantum>"; then
     printf "Story %s FAILED (attempt %d). Will retry if attempts remain.\n" "$STORY_ID" "$((STORY_ATTEMPT + 1))"
+    # Clear startedAt on failure
+    json_atomic_update ".stories |= map(if .id == \"$STORY_ID\" then .startedAt = null else . end)"
 
   elif echo "$OUTPUT" | grep -q "<quantum>BLOCKED</quantum>"; then
     printf "\n===========================================\n"

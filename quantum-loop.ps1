@@ -144,9 +144,10 @@ for ($iteration = 1; $iteration -le $MaxIterations; $iteration++) {
     Write-Host "Attempt: $([int]$storyAttempt + 1)"
     Write-Host ""
 
-    # Mark story as in_progress
-    $tmp = jq --arg id $storyId '
-        .stories |= map(if .id == $id then .status = "in_progress" else . end) |
+    # Mark story as in_progress and set startedAt
+    $now = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+    $tmp = jq --arg id $storyId --arg now $now '
+        .stories |= map(if .id == $id then .status = "in_progress" | .startedAt = $now else . end) |
         .updatedAt = (now | todate)
     ' quantum.json
     $tmp | Set-Content -Path quantum.json -Encoding UTF8 -NoNewline
@@ -179,9 +180,15 @@ for ($iteration = 1; $iteration -le $MaxIterations; $iteration++) {
     }
     elseif ($output -match "<quantum>STORY_PASSED</quantum>") {
         Write-Host "Story $storyId PASSED. Continuing..." -ForegroundColor Green
+        # Clear startedAt on completion
+        $tmp = jq --arg id $storyId '.stories |= map(if .id == $id then .startedAt = null else . end)' quantum.json
+        $tmp | Set-Content -Path quantum.json -Encoding UTF8 -NoNewline
     }
     elseif ($output -match "<quantum>STORY_FAILED</quantum>") {
         Write-Host "Story $storyId FAILED (attempt $([int]$storyAttempt + 1)). Will retry if attempts remain." -ForegroundColor Yellow
+        # Clear startedAt on failure
+        $tmp = jq --arg id $storyId '.stories |= map(if .id == $id then .startedAt = null else . end)' quantum.json
+        $tmp | Set-Content -Path quantum.json -Encoding UTF8 -NoNewline
     }
     elseif ($output -match "<quantum>BLOCKED</quantum>") {
         Write-Host ""

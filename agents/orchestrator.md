@@ -45,7 +45,8 @@ For the highest-priority eligible story:
 ### 3A.1: Setup
 1. Record `BASE_SHA` = current git HEAD
 2. Mark story `status: "in_progress"` in quantum.json
-3. Present story details to user:
+3. Set `story.startedAt` = `new Date().toISOString()` in quantum.json (ISO 8601 UTC)
+4. Present story details to user:
    ```
    Story:   US-002 - Display priority indicator
    Deps:    US-001 (passed)
@@ -105,6 +106,7 @@ git commit -m "feat: <Story ID> - <Story Title>"
 
 Update quantum.json:
 - Set story `status: "passed"`
+- Clear `story.startedAt` = `null`
 - Set `review.specCompliance.status: "passed"` with timestamp
 - Set `review.codeQuality.status: "passed"` with timestamp
 - Add progress entry with `filesChanged` and `learnings`
@@ -116,6 +118,7 @@ Return to Step 2.
 - Increment `retries.attempts`
 - Add entry to `retries.failureLog` with timestamp, error, phase
 - Set story `status: "failed"`
+- Clear `story.startedAt` = `null`
 - Return to Step 2 (other stories may still be eligible)
 
 ## Step 3B: Parallel Execution
@@ -127,7 +130,8 @@ When 2+ stories are eligible, spawn implementer subagents in parallel using Clau
 For each eligible story (up to 4 concurrent):
 
 1. Mark story `status: "in_progress"` in quantum.json
-2. Spawn a background Task subagent:
+2. Set `story.startedAt` = `new Date().toISOString()` in quantum.json (ISO 8601 UTC)
+3. Spawn a background Task subagent:
    ```
    Task tool with:
      subagent_type: "quantum-loop:implementer"
@@ -150,13 +154,13 @@ Poll each running agent:
 
 **On STORY_PASSED:**
 - Log: `[PASSED] US-XXX - Story Title`
-- Update quantum.json: story `status: "passed"`, add progress entry
+- Update quantum.json: story `status: "passed"`, clear `startedAt` = `null`, add progress entry
 - The worktree merge is handled automatically by Claude Code's isolation mode
 
 **On STORY_FAILED:**
 - Log: `[FAILED] US-XXX - Story Title`
 - Increment `retries.attempts`, add to `failureLog`
-- Set story `status: "failed"`
+- Set story `status: "failed"`, clear `startedAt` = `null`
 
 **After each STORY_PASSED merge:**
 - Run the full test suite to catch semantic merge regressions
