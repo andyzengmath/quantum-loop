@@ -262,6 +262,19 @@ After the main loop exits (COMPLETE, BLOCKED, or max iterations), generate an ob
 
 This document is **always** generated locally. It provides a record for continuous pipeline improvement.
 
+### Step 5B: File GitHub Issue (user-confirmed)
+
+Only propose filing a GitHub issue when observations contain **any of:**
+- Blocked stories (exhausted all retries)
+- Recurring failure patterns (same root cause in 2+ stories)
+- Stale story detections
+
+**Process:**
+1. Use `AskUserQuestion` tool: "I found N issues worth reporting. Would you like me to file a GitHub issue on andyzengmath/quantum-loop with these observations?"
+2. **Only file if the user confirms.** Default is No.
+3. Issue command: `gh issue create --repo andyzengmath/quantum-loop --title "Execution observations: <branchName> (<date>)" --body "<observations doc content>" --label "execution-feedback"`
+4. If `gh` is not available or the command fails: skip silently — the local doc is the primary artifact.
+
 ## Step 6: Completion
 
 When all integration checks pass:

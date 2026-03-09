@@ -69,6 +69,10 @@ while [[ $# -gt 0 ]]; do
       STALE_TIMEOUT="$2"
       shift 2
       ;;
+    --non-interactive)
+      NON_INTERACTIVE=true
+      shift
+      ;;
     --help)
       head -24 "$0" | tail -19
       exit 0
@@ -301,6 +305,34 @@ generate_observations() {
 
   git add "$obs_file" && git commit -m "docs: execution observations for $branch" >/dev/null 2>&1 || true
   printf "[OBSERVATIONS] Generated %s\n" "$obs_file"
+
+  # Check if observations contain issues worth reporting
+  local has_blocked has_recurring
+  has_blocked=$(jq '[.stories[] | select(.status == "blocked" or .status == "failed")] | length' quantum.json)
+  has_recurring=$(jq '[.stories[].retries.failureLog[] | .phase] | group_by(.) | map(select(length > 1)) | length' quantum.json 2>/dev/null || echo "0")
+
+  if [[ "$has_blocked" -gt 0 || "$has_recurring" -gt 0 ]]; then
+    # Skip prompt if non-interactive
+    if [[ ! -t 0 ]] || [[ "${NON_INTERACTIVE:-false}" == "true" ]]; then
+      printf "[OBSERVATIONS] Skipping GitHub issue prompt (non-interactive mode).\n"
+      return
+    fi
+
+    printf "\n[OBSERVATIONS] Found issues worth reporting (%d blocked/failed, %d recurring patterns).\n" "$has_blocked" "$has_recurring"
+    read -rp "File observations as GitHub issue on quantum-loop? [y/N] " response
+    if [[ "$response" =~ ^[Yy]$ ]]; then
+      if command -v gh >/dev/null 2>&1; then
+        gh issue create --repo andyzengmath/quantum-loop \
+          --title "Execution observations: $branch ($date_str)" \
+          --body "$(cat "$obs_file")" \
+          --label "execution-feedback" 2>/dev/null && \
+          printf "[OBSERVATIONS] GitHub issue filed.\n" || \
+          printf "[OBSERVATIONS] Failed to file GitHub issue (gh error). Local doc is available.\n"
+      else
+        printf "[OBSERVATIONS] gh CLI not found. Local doc is available at %s\n" "$obs_file"
+      fi
+    fi
+  fi
 }
 
 # =============================================================================

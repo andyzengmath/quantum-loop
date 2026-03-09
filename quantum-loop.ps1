@@ -317,6 +317,30 @@ $(jq '.progress' quantum.json)
     git add $obsFile 2>$null
     git commit -m "docs: execution observations for $branch" 2>$null
     Write-Host "[OBSERVATIONS] Generated $obsFile" -ForegroundColor Cyan
+
+    # Check if observations contain issues worth reporting
+    $hasBlocked = [int](jq '[.stories[] | select(.status == "blocked" or .status == "failed")] | length' quantum.json)
+    if ($hasBlocked -gt 0) {
+        # Skip if non-interactive (piped input)
+        if ([Environment]::UserInteractive -eq $false) {
+            Write-Host "[OBSERVATIONS] Skipping GitHub issue prompt (non-interactive)." -ForegroundColor Yellow
+            return
+        }
+        $response = Read-Host "File observations as GitHub issue on quantum-loop? [y/N]"
+        if ($response -match '^[Yy]$') {
+            if (Get-Command "gh" -ErrorAction SilentlyContinue) {
+                try {
+                    $body = Get-Content $obsFile -Raw
+                    gh issue create --repo andyzengmath/quantum-loop --title "Execution observations: $branch ($dateStr)" --body $body --label "execution-feedback" 2>$null
+                    Write-Host "[OBSERVATIONS] GitHub issue filed." -ForegroundColor Green
+                } catch {
+                    Write-Host "[OBSERVATIONS] Failed to file GitHub issue. Local doc available." -ForegroundColor Yellow
+                }
+            } else {
+                Write-Host "[OBSERVATIONS] gh CLI not found. Local doc available at $obsFile" -ForegroundColor Yellow
+            }
+        }
+    }
 }
 
 Write-Host ""
