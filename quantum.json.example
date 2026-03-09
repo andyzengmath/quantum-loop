@@ -99,7 +99,11 @@
           "filePaths": ["components/PriorityBadge.tsx", "components/PriorityBadge.css"],
           "commands": ["jest tests/components/test_priority_badge.tsx", "tsc --noEmit"],
           "testFirst": false,
-          "status": "pending"
+          "status": "pending",
+          "wiring_verification": {
+            "file": "components/TaskCard.tsx",
+            "must_contain": ["import { PriorityBadge }", "PriorityBadge"]
+          }
         },
         {
           "id": "T-006",
