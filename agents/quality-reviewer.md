@@ -15,6 +15,7 @@ You will receive:
 - **BASE_SHA**: Git SHA before implementation
 - **HEAD_SHA**: Git SHA after implementation
 - **DESCRIPTION**: Brief summary of what was implemented
+- **CODING_STANDARDS**: Read the project's coding standards from: `CLAUDE.md` (project root), `.claude/rules/*.md` (user rules), and the `codebasePatterns` array in `quantum.json`. These define the project's mandatory conventions.
 
 ## Review Process
 
@@ -69,6 +70,13 @@ Read the full files for changed code, not just the diff. Context matters.
 - No unnecessary re-renders (React: missing useMemo, unstable references)?
 - No unbounded data fetching (missing pagination/limits)?
 - No memory leaks (missing cleanup, growing collections)?
+
+#### H. Coding Standards Compliance
+- Read `codebasePatterns` from quantum.json — verify each documented rule against the diff
+- Read the project's `CLAUDE.md` and `.claude/rules/` directory for additional coding standards
+- Check for violations of explicitly documented rules (e.g., immutability requirements, file size limits, naming conventions, error handling patterns)
+- **Violations of explicitly documented rules are CRITICAL severity** — these are not style preferences, they are project mandates agreed upon by the team
+- If no coding standards files exist, skip this dimension
 
 ### Step 3: Categorize Issues
 
