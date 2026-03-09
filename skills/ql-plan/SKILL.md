@@ -45,6 +45,36 @@ After building the dependency graph, verify there are no cycles. If you detect a
 2. Explain which stories form the cycle
 3. Ask how to break the cycle (usually by splitting a story)
 
+### Contracts Generation (after dependency DAG)
+
+After building the dependency graph, scan for values that appear in 2+ stories' acceptance criteria or task descriptions. These are **contract candidates** — shared constants that parallel agents must agree on.
+
+1. **Identify candidates:** Look for repeated references to the same entity across stories — secret key names, environment variable names, type/class names, API route paths, event names, CSS class names
+2. **Group by category:** Organize candidates into logical categories:
+   - `secret_keys` — shared secret/config key names
+   - `env_vars` — environment variable names
+   - `shared_types` — type names, class names, enum values
+   - `api_routes` — API endpoint paths
+   - `event_names` — event/signal names
+   - `css_classes` — shared CSS class names or design tokens
+3. **Rule: When in doubt, add it** — an unused contract entry costs nothing; a missing contract causes cross-story mismatches that require manual fixes
+4. **Optional `pattern` field:** For values with a naming convention, add a `pattern` regex so the implementer can validate at runtime (e.g., `"pattern": "^[a-z][a-z0-9-]*$"`)
+
+Example contracts block:
+```json
+"contracts": {
+  "secret_keys": {
+    "openai": { "value": "openai-api-key", "pattern": "^[a-z][a-z0-9-]*$" },
+    "db_password": { "value": "DATABASE_PASSWORD" }
+  },
+  "shared_types": {
+    "priority_enum": { "value": "Priority" }
+  }
+}
+```
+
+Add the `contracts` object to quantum.json at the top level, after `codebasePatterns`.
+
 ## Step 3: Decompose Stories into Tasks
 
 For each story, break it into granular tasks. Each task should take 2-5 minutes for an AI agent.
