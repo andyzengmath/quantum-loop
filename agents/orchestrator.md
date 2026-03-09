@@ -248,7 +248,21 @@ When DAG query returns no eligible stories and all stories have passed, run fina
 3. **Dead code scan:** every new function/class created during this feature has at least one call site outside its own file and tests. Use LSP "Find References" when available, fall back to grep.
 4. **If any check fails:** create a fix task, implement inline, re-test, commit. Do NOT output COMPLETE until all checks pass.
 
-## Step 5: Completion
+## Step 5: Generate Execution Observations
+
+After the main loop exits (COMPLETE, BLOCKED, or max iterations), generate an observations document:
+
+1. **File path:** `docs/post-mortems/YYYY-MM-DD-<branchName>-observations.md`
+2. **Content:**
+   - **Header:** Date, story counts (passed/failed/blocked/total), execution mode (sequential/parallel), number of iterations, approximate wall-clock time
+   - **Failure summary table:** For each failed or blocked story, show story ID, title, failure phase, error message, retry count
+   - **Patterns observed:** Recurring failure modes (same root cause in 2+ stories), what worked well, suggested improvements for the pipeline
+   - **Raw data:** Full progress log and failure logs in collapsed `<details>` sections
+3. **Commit:** `git add <file> && git commit -m "docs: execution observations for <branchName>"`
+
+This document is **always** generated locally. It provides a record for continuous pipeline improvement.
+
+## Step 6: Completion
 
 When all integration checks pass:
 

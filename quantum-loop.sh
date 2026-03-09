@@ -248,6 +248,62 @@ final_verification_sweep() {
 }
 
 # =============================================================================
+# Generate execution observations document
+# =============================================================================
+
+generate_observations() {
+  local branch
+  branch=$(jq -r '.branchName' quantum.json)
+  local date_str
+  date_str=$(date +%Y-%m-%d)
+  local obs_file="docs/post-mortems/${date_str}-${branch//\//-}-observations.md"
+
+  mkdir -p docs/post-mortems
+
+  local total passed failed blocked
+  total=$(jq '.stories | length' quantum.json)
+  passed=$(jq '[.stories[] | select(.status == "passed")] | length' quantum.json)
+  failed=$(jq '[.stories[] | select(.status == "failed")] | length' quantum.json)
+  blocked=$(jq '[.stories[] | select(.status == "blocked")] | length' quantum.json)
+
+  {
+    printf "# Execution Observations: %s\n\n" "$branch"
+    printf "**Date:** %s\n" "$date_str"
+    printf "**Stories:** %d passed, %d failed, %d blocked (of %d total)\n" "$passed" "$failed" "$blocked" "$total"
+    printf "**Mode:** %s\n\n" "$(if $PARALLEL_MODE; then echo 'parallel'; else echo 'sequential'; fi)"
+
+    printf "## Failure Summary\n\n"
+    local failures
+    failures=$(jq -r '.stories[] | select(.status == "failed" or .status == "blocked") | "\(.id)|\(.title)|\(.status)|\(.retries.attempts)/\(.retries.maxAttempts)"' quantum.json 2>/dev/null)
+    if [[ -n "$failures" ]]; then
+      printf "| Story | Title | Status | Retries |\n"
+      printf "|-------|-------|--------|--------|\n"
+      while IFS='|' read -r sid title status retries; do
+        printf "| %s | %s | %s | %s |\n" "$sid" "${title:0:40}" "$status" "$retries"
+      done <<< "$failures"
+    else
+      printf "No failures.\n"
+    fi
+
+    printf "\n## Raw Data\n\n"
+    printf "<details>\n<summary>Progress Log</summary>\n\n"
+    printf '```json\n'
+    jq '.progress' quantum.json
+    printf '```\n\n'
+    printf "</details>\n\n"
+
+    printf "<details>\n<summary>Failure Logs</summary>\n\n"
+    printf '```json\n'
+    jq '[.stories[] | select(.retries.failureLog | length > 0) | {id, failureLog: .retries.failureLog}]' quantum.json
+    printf '```\n\n'
+    printf "</details>\n"
+  } > "$obs_file"
+
+  git add "$obs_file" && git commit -m "docs: execution observations for $branch" >/dev/null 2>&1 || true
+  printf "[OBSERVATIONS] Generated %s\n" "$obs_file"
+}
+
+# =============================================================================
 # Main header
 # =============================================================================
 
@@ -741,4 +797,5 @@ printf "  <quantum>MAX_ITERATIONS</quantum>\n"
 printf "  Reached maximum of %d iterations.\n" "$MAX_ITERATIONS"
 printf "===========================================\n"
 print_summary_table
+generate_observations
 exit 2

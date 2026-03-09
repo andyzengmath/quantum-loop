@@ -276,9 +276,53 @@ for ($iteration = 1; $iteration -le $MaxIterations; $iteration++) {
     Start-Sleep -Seconds 2
 }
 
+# ─── Generate Observations ───
+function Generate-Observations {
+    $branch = jq -r '.branchName' quantum.json
+    $dateStr = (Get-Date -Format "yyyy-MM-dd")
+    $safeBranch = $branch -replace '/', '-'
+    $obsFile = "docs/post-mortems/$dateStr-$safeBranch-observations.md"
+
+    if (-not (Test-Path "docs/post-mortems")) { New-Item -ItemType Directory -Path "docs/post-mortems" -Force | Out-Null }
+
+    $total = jq '.stories | length' quantum.json
+    $passed = jq '[.stories[] | select(.status == "passed")] | length' quantum.json
+    $failed = jq '[.stories[] | select(.status == "failed")] | length' quantum.json
+    $blocked = jq '[.stories[] | select(.status == "blocked")] | length' quantum.json
+
+    $content = @"
+# Execution Observations: $branch
+
+**Date:** $dateStr
+**Stories:** $passed passed, $failed failed, $blocked blocked (of $total total)
+**Mode:** Sequential (PowerShell)
+
+## Failure Summary
+
+$(jq -r '.stories[] | select(.status == "failed" or .status == "blocked") | "- **\(.id)** \(.title) — \(.status) (\(.retries.attempts)/\(.retries.maxAttempts) retries)"' quantum.json 2>$null)
+
+## Raw Data
+
+<details>
+<summary>Progress Log</summary>
+
+``````json
+$(jq '.progress' quantum.json)
+``````
+
+</details>
+"@
+
+    $content | Set-Content -Path $obsFile -Encoding UTF8
+    git add $obsFile 2>$null
+    git commit -m "docs: execution observations for $branch" 2>$null
+    Write-Host "[OBSERVATIONS] Generated $obsFile" -ForegroundColor Cyan
+}
+
 Write-Host ""
 Write-Host "===========================================" -ForegroundColor Yellow
 Write-Host "  MAX_ITERATIONS reached ($MaxIterations)." -ForegroundColor Yellow
 Write-Host "===========================================" -ForegroundColor Yellow
 Show-Summary
+Generate-Observations
 exit 2
