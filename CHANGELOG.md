@@ -7,6 +7,27 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.3.1] - 2026-03-09
+
+### Added
+- **Cross-story contracts** — `contracts` field in quantum.json for shared values (secret keys, env vars, types) across parallel stories. ql-plan generates them; implementer reads and enforces them with propose-and-wait on disagreements.
+- **Wiring verification** — `wiring_verification` field on tasks with grep-based mechanical check in spec-reviewer. No agent judgment: missing string = fail, present = pass.
+- **`consumedBy` field** — declares cross-story consumption so implementers import existing components instead of inlining duplicates.
+- **Coverage gate** — configurable `coverageThreshold` in quantum.json; quality-reviewer runs coverage tool and fails stories below threshold (tool detection: c8 → nyc → pytest-cov → go test → JaCoCo).
+- **Coding standards enforcement** — quality-reviewer reads CLAUDE.md, `.claude/rules/`, and `codebasePatterns`; violations of documented rules are CRITICAL severity.
+- **Stale story detection** — `startedAt` timestamp + `staleThresholdMinutes` (default 20, CLI-overridable). Implemented in orchestrator, quantum-loop.sh, quantum-loop.ps1, and templates/quantum-loop.sh.
+- **Final verification sweep** — scripts run full test suite + import smoke test before declaring COMPLETE. Test failure blocks COMPLETE.
+- **Execution observations** — auto-generated post-mortem doc after every run with failure summary, patterns, and raw data. Optional GitHub issue filing with user confirmation.
+- **CLAUDE.md defensive check** — Step 3 warns and skips stories that are in_progress but not assigned to the current agent.
+- **Lifecycle awareness** — ql-brainstorm question #7 (LIFECYCLE) and ql-spec Pre-Save lifecycle checklist (first-run, returning-user, update, error recovery, empty state, uninstall).
+- **`testFirst` mandate** — ql-plan defaults `testFirst: true` for all tasks; exempt tasks require `notes` justification.
+- Shell tests for stale detection, startedAt, final sweep, and observations (4 new test files, 14 tests)
+
+### Fixed
+- **Atomic in_progress + startedAt write** — single jq operation prevents crash window where story is in_progress without startedAt
+- **startedAt cleared on all exit paths** — BLOCKED, unrecognized signal, timeout, merge conflict, non-zero exit, and crash recovery
+- **Null-guard failureLog** — observations jq uses `(.retries.failureLog // [])[]` to handle null vs empty array
+
 ## [0.3.0] - 2026-02-27
 
 ### Added
