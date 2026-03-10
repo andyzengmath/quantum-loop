@@ -141,31 +141,57 @@ Return to Step 2.
 
 When 2+ stories are eligible, spawn implementer subagents in parallel using Claude Code's native worktree isolation.
 
-### 3B.1: Spawn Agents
+### 3B.1: Mark Stories and Update quantum.json
 
-For each eligible story (up to 4 concurrent):
+Before spawning any agents, mark ALL eligible stories as `in_progress` in a single atomic update:
 
-1. Mark story `status: "in_progress"` in quantum.json
-2. Set `story.startedAt` = `new Date().toISOString()` in quantum.json (ISO 8601 UTC)
-3. Spawn a background Task subagent:
-   ```
-   Task tool with:
-     subagent_type: "quantum-loop:implementer"
-     isolation: "worktree"
-     run_in_background: true
-     prompt: "Implement story <STORY_ID> from quantum.json.
-              You are in an isolated worktree. Read quantum.json for context.
-              Follow the implementer agent protocol in agents/implementer.md.
-              You MUST commit your changes: git add -A && git commit -m 'feat: <STORY_ID> - <Title>'
-              Signal completion: <quantum>STORY_PASSED</quantum> or <quantum>STORY_FAILED</quantum>"
-   ```
-3. Log: `[SPAWNED] US-XXX - Story Title (wave N)`
-4. Record the task_id and start time
+```bash
+# Use Python or jq to update all eligible stories in one write
+python -c "
+import json, sys
+from datetime import datetime, timezone
+data = json.load(open('quantum.json'))
+now = datetime.now(timezone.utc).isoformat()
+for s in data['stories']:
+    if s['id'] in (<ELIGIBLE_IDS>):
+        s['status'] = 'in_progress'
+        s['startedAt'] = now
+data['updatedAt'] = now
+json.dump(data, open('quantum.json', 'w'), indent=2)
+"
+```
 
-### 3B.2: Monitor Loop
+This prevents race conditions from parallel agents editing quantum.json simultaneously.
 
-Poll each running agent:
-1. Use TaskOutput with `block: false, timeout: 5000`
+### 3B.2: Spawn Agents
+
+For each eligible story (up to 4 concurrent), spawn using the **Agent tool** (NOT the Task tool):
+
+```
+Agent tool with:
+  subagent_type: "quantum-loop:implementer"
+  isolation: "worktree"          ← MANDATORY for parallel execution
+  run_in_background: true
+  mode: "auto"
+  prompt: "Implement story <STORY_ID> from quantum.json.
+           You are in an isolated worktree. Read quantum.json for context.
+           Follow the implementer agent protocol in agents/implementer.md.
+           You MUST commit your changes: git add -A && git commit -m 'feat: <STORY_ID> - <Title>'
+           Signal completion: <quantum>STORY_PASSED</quantum> or <quantum>STORY_FAILED</quantum>"
+```
+
+**`isolation: "worktree"` is NOT optional.** Without it, parallel agents write to the same working directory, causing:
+- File conflicts when multiple stories touch the same file
+- Bash command contention (commands routed to background, agents stuck in polling loops)
+- quantum.json race conditions from concurrent Edit tool calls
+
+Log: `[SPAWNED] US-XXX - Story Title (wave N)`
+Record the agent_id and start time.
+
+### 3B.3: Monitor Loop
+
+Wait for agent completion notifications. Do NOT poll in a loop — Claude Code automatically notifies when background agents complete. If you need to check status proactively:
+1. Use `TaskOutput` with `block: false, timeout: 5000`
 2. Check output for `<quantum>STORY_PASSED</quantum>` or `<quantum>STORY_FAILED</quantum>`
 
 **On STORY_PASSED:**
@@ -307,11 +333,15 @@ US-004     Integration tests              BLOCKED  3/3
 - Use the Read tool, not cached values
 
 ### Writing quantum.json
-- Use Bash with jq for atomic updates:
+- **Only the orchestrator writes quantum.json** — implementer subagents in worktrees should NOT edit the main quantum.json (their copy is isolated)
+- Use Bash with Python or jq for atomic updates (never use the Edit tool on quantum.json — string matching hits duplicates in large JSON):
   ```bash
+  python -c "import json; d=json.load(open('quantum.json')); <mutations>; json.dump(d, open('quantum.json','w'), indent=2)"
+  # Or with jq:
   jq '<expression>' quantum.json > quantum.json.tmp && mv quantum.json.tmp quantum.json
   ```
 - Always update `updatedAt` timestamp
+- When updating multiple stories (e.g., marking a wave as passed), do it in ONE write, not one write per story
 
 ### Progress Entries
 After each story (pass or fail):
@@ -342,6 +372,8 @@ After each story (pass or fail):
 
 | Excuse | Reality |
 |--------|---------|
+| "Skip worktree isolation, these stories don't conflict" | You cannot predict implicit file conflicts. Worktree isolation is MANDATORY for parallel execution. Without it: bash contention, quantum.json races, file overwrites. |
+| "Worktrees won't work on this OS/path" | Test it first: `git worktree add --detach /tmp/test-wt HEAD && git worktree remove /tmp/test-wt`. Only fall back to sequential if this actually fails. |
 | "Skip review, this story is simple" | Simple stories have the most unexamined assumptions. Review everything. |
 | "Run two stories in one context to save time" | One story per context. Always. Context contamination causes subtle bugs. |
 | "Tests passed so the feature works" | Tests might not cover the acceptance criteria. Verify each criterion. |
