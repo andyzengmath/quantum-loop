@@ -39,6 +39,7 @@ MAX_RETRIES=3
 TOOL="claude"
 PARALLEL_MODE=false
 MAX_PARALLEL=4
+STALE_TIMEOUT=20
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Parse arguments
@@ -63,6 +64,14 @@ while [[ $# -gt 0 ]]; do
     --max-parallel)
       MAX_PARALLEL="$2"
       shift 2
+      ;;
+    --stale-timeout)
+      STALE_TIMEOUT="$2"
+      shift 2
+      ;;
+    --non-interactive)
+      NON_INTERACTIVE=true
+      shift
       ;;
     --help)
       head -24 "$0" | tail -19
@@ -158,6 +167,175 @@ print_summary_table() {
 }
 
 # =============================================================================
+# Stale story detection
+# =============================================================================
+
+detect_stale_stories() {
+  local threshold="${STALE_TIMEOUT:-20}"
+  local now_epoch
+  now_epoch=$(date +%s)
+
+  # Find all in_progress stories with startedAt set
+  local stale_ids
+  stale_ids=$(jq -r --argjson threshold "$threshold" '
+    .stories[] |
+    select(.status == "in_progress" and .startedAt != null) |
+    select(
+      ((now | floor) - (.startedAt | fromdateiso8601)) > ($threshold * 60)
+    ) |
+    .id
+  ' quantum.json 2>/dev/null) || return 0
+
+  if [[ -z "$stale_ids" ]]; then
+    return 0
+  fi
+
+  while IFS= read -r sid; do
+    [[ -z "$sid" ]] && continue
+    printf "[STALE] %s - resetting to failed (exceeded %d minute threshold)\n" "$sid" "$threshold"
+    jq --arg id "$sid" --argjson threshold "$threshold" '
+      .stories |= map(if .id == $id then
+        .status = (if .retries.attempts + 1 >= .retries.maxAttempts then "blocked" else "failed" end) |
+        .startedAt = null |
+        .retries.attempts += 1 |
+        .retries.failureLog += [{"phase": "stale_detection", "timestamp": (now | todate), "error": ("Story exceeded " + ($threshold | tostring) + " minute stale threshold")}]
+      else . end)
+    ' quantum.json > quantum.json.tmp && mv quantum.json.tmp quantum.json
+  done <<< "$stale_ids"
+}
+
+# =============================================================================
+# Final verification sweep before declaring COMPLETE
+# =============================================================================
+
+final_verification_sweep() {
+  printf "\n[FINAL SWEEP] Running test suite before declaring COMPLETE...\n"
+
+  # Detect test command
+  local TEST_CMD=""
+  if [[ -f "package.json" ]]; then TEST_CMD="npm test"
+  elif [[ -f "pyproject.toml" ]] || [[ -f "setup.py" ]]; then TEST_CMD="python -m pytest -x -q"
+  elif [[ -f "Cargo.toml" ]]; then TEST_CMD="cargo test"
+  elif [[ -f "go.mod" ]]; then TEST_CMD="go test ./..."
+  fi
+
+  if [[ -n "$TEST_CMD" ]]; then
+    if eval "$TEST_CMD" >/dev/null 2>&1; then
+      printf "[FINAL SWEEP] Test suite passed.\n"
+    else
+      printf "[FINAL SWEEP] FAILED: test suite. Cannot declare COMPLETE.\n"
+      print_summary_table
+      exit 1
+    fi
+  else
+    printf "[FINAL SWEEP] No test suite detected, skipping.\n"
+  fi
+
+  # Import smoke test (warning only)
+  if [[ -f "package.json" ]]; then
+    local entry
+    entry=$(jq -r '.main // empty' package.json 2>/dev/null)
+    if [[ -n "$entry" ]]; then
+      if node -e "require('./$entry')" >/dev/null 2>&1; then
+        printf "[FINAL SWEEP] Import smoke test passed.\n"
+      else
+        printf "[FINAL SWEEP] WARNING: Import smoke test failed for %s (non-blocking).\n" "$entry"
+      fi
+    fi
+  elif [[ -f "go.mod" ]]; then
+    if go build ./... >/dev/null 2>&1; then
+      printf "[FINAL SWEEP] Go build passed.\n"
+    else
+      printf "[FINAL SWEEP] WARNING: go build failed (non-blocking).\n"
+    fi
+  fi
+}
+
+# =============================================================================
+# Generate execution observations document
+# =============================================================================
+
+generate_observations() {
+  local branch
+  branch=$(jq -r '.branchName' quantum.json)
+  local date_str
+  date_str=$(date +%Y-%m-%d)
+  local obs_file="docs/post-mortems/${date_str}-${branch//\//-}-observations.md"
+
+  mkdir -p docs/post-mortems
+
+  local total passed failed blocked
+  total=$(jq '.stories | length' quantum.json)
+  passed=$(jq '[.stories[] | select(.status == "passed")] | length' quantum.json)
+  failed=$(jq '[.stories[] | select(.status == "failed")] | length' quantum.json)
+  blocked=$(jq '[.stories[] | select(.status == "blocked")] | length' quantum.json)
+
+  {
+    printf "# Execution Observations: %s\n\n" "$branch"
+    printf "**Date:** %s\n" "$date_str"
+    printf "**Stories:** %d passed, %d failed, %d blocked (of %d total)\n" "$passed" "$failed" "$blocked" "$total"
+    printf "**Mode:** %s\n\n" "$(if $PARALLEL_MODE; then echo 'parallel'; else echo 'sequential'; fi)"
+
+    printf "## Failure Summary\n\n"
+    local failures
+    failures=$(jq -r '.stories[] | select(.status == "failed" or .status == "blocked") | "\(.id)|\(.title)|\(.status)|\(.retries.attempts)/\(.retries.maxAttempts)"' quantum.json 2>/dev/null)
+    if [[ -n "$failures" ]]; then
+      printf "| Story | Title | Status | Retries |\n"
+      printf "|-------|-------|--------|--------|\n"
+      while IFS='|' read -r sid title status retries; do
+        printf "| %s | %s | %s | %s |\n" "$sid" "${title:0:40}" "$status" "$retries"
+      done <<< "$failures"
+    else
+      printf "No failures.\n"
+    fi
+
+    printf "\n## Raw Data\n\n"
+    printf "<details>\n<summary>Progress Log</summary>\n\n"
+    printf '```json\n'
+    jq '.progress' quantum.json
+    printf '```\n\n'
+    printf "</details>\n\n"
+
+    printf "<details>\n<summary>Failure Logs</summary>\n\n"
+    printf '```json\n'
+    jq '[.stories[] | select(.retries.failureLog | length > 0) | {id, failureLog: .retries.failureLog}]' quantum.json
+    printf '```\n\n'
+    printf "</details>\n"
+  } > "$obs_file"
+
+  git add "$obs_file" && git commit -m "docs: execution observations for $branch" >/dev/null 2>&1 || true
+  printf "[OBSERVATIONS] Generated %s\n" "$obs_file"
+
+  # Check if observations contain issues worth reporting
+  local has_blocked has_recurring
+  has_blocked=$(jq '[.stories[] | select(.status == "blocked" or .status == "failed")] | length' quantum.json)
+  has_recurring=$(jq '[.stories[] | (.retries.failureLog // [])[] | .phase] | group_by(.) | map(select(length > 1)) | length' quantum.json 2>/dev/null || echo "0")
+
+  if [[ "$has_blocked" -gt 0 || "$has_recurring" -gt 0 ]]; then
+    # Skip prompt if non-interactive
+    if [[ ! -t 0 ]] || [[ "${NON_INTERACTIVE:-false}" == "true" ]]; then
+      printf "[OBSERVATIONS] Skipping GitHub issue prompt (non-interactive mode).\n"
+      return
+    fi
+
+    printf "\n[OBSERVATIONS] Found issues worth reporting (%d blocked/failed, %d recurring patterns).\n" "$has_blocked" "$has_recurring"
+    read -rp "File observations as GitHub issue on quantum-loop? [y/N] " response
+    if [[ "$response" =~ ^[Yy]$ ]]; then
+      if command -v gh >/dev/null 2>&1; then
+        gh issue create --repo andyzengmath/quantum-loop \
+          --title "Execution observations: $branch ($date_str)" \
+          --body "$(cat "$obs_file")" \
+          --label "execution-feedback" 2>/dev/null && \
+          printf "[OBSERVATIONS] GitHub issue filed.\n" || \
+          printf "[OBSERVATIONS] Failed to file GitHub issue (gh error). Local doc is available.\n"
+      else
+        printf "[OBSERVATIONS] gh CLI not found. Local doc is available at %s\n" "$obs_file"
+      fi
+    fi
+  fi
+}
+
+# =============================================================================
 # Main header
 # =============================================================================
 
@@ -204,10 +382,14 @@ if [[ "$PARALLEL_MODE" == "true" ]]; then
   for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
     printf "\n=== Iteration %d / %d ===\n\n" "$ITERATION" "$MAX_ITERATIONS"
 
+    # Detect stale stories before DAG query
+    detect_stale_stories
+
     # Get executable stories from DAG
     EXECUTABLE=$(get_executable_stories "$REPO_ROOT/quantum.json")
 
     if [[ "$EXECUTABLE" == "COMPLETE" ]]; then
+      final_verification_sweep
       printf "\n===========================================\n"
       printf "  <quantum>COMPLETE</quantum>\n"
       printf "  All stories passed! Feature is done.\n"
@@ -263,8 +445,8 @@ if [[ "$PARALLEL_MODE" == "true" ]]; then
 
       # Update quantum.json
       set_story_worktree "$REPO_ROOT/quantum.json" "$SID" ".ql-wt/$SID" || true
-      jq --arg id "$SID" '
-        .stories |= map(if .id == $id then .status = "in_progress" else . end)
+      jq --arg id "$SID" --arg now "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" '
+        .stories |= map(if .id == $id then .status = "in_progress" | .startedAt = $now else . end)
       ' "$REPO_ROOT/quantum.json" > "$REPO_ROOT/quantum.json.tmp" \
         && mv "$REPO_ROOT/quantum.json.tmp" "$REPO_ROOT/quantum.json"
 
@@ -308,6 +490,7 @@ if [[ "$PARALLEL_MODE" == "true" ]]; then
           jq --arg id "$SID" '
             .stories |= map(if .id == $id then
               .status = "failed" |
+              .startedAt = null |
               .retries.attempts += 1 |
               .retries.failureLog += [{"phase": "timeout", "timestamp": (now | todate)}]
             else . end)
@@ -372,6 +555,7 @@ if [[ "$PARALLEL_MODE" == "true" ]]; then
                   jq --arg id "$SID" '
                     .stories |= map(if .id == $id then
                       .status = "failed" |
+                      .startedAt = null |
                       .retries.attempts += 1 |
                       .retries.failureLog += [{"phase": "merge_regression", "timestamp": (now | todate)}]
                     else . end)
@@ -383,7 +567,7 @@ if [[ "$PARALLEL_MODE" == "true" ]]; then
               if [[ "$STATUS_MERGE" -eq 0 ]]; then
                 printf "[PASSED] %s\n" "$SID"
                 jq --arg id "$SID" --argjson wave "$WAVE" '
-                  .stories |= map(if .id == $id then .status = "passed" else . end)
+                  .stories |= map(if .id == $id then .status = "passed" | .startedAt = null else . end)
                 ' "$REPO_ROOT/quantum.json" > "$REPO_ROOT/quantum.json.tmp" \
                   && mv "$REPO_ROOT/quantum.json.tmp" "$REPO_ROOT/quantum.json"
               fi
@@ -395,6 +579,7 @@ if [[ "$PARALLEL_MODE" == "true" ]]; then
               jq --arg id "$SID" --arg files "$CONFLICT_FILES" '
                 .stories |= map(if .id == $id then
                   .status = "failed" |
+                  .startedAt = null |
                   .retries.attempts += 1 |
                   .retries.failureLog += [{"phase": "merge_conflict", "files": $files, "timestamp": (now | todate)}]
                 else . end)
@@ -417,6 +602,7 @@ if [[ "$PARALLEL_MODE" == "true" ]]; then
             jq --arg id "$SID" '
               .stories |= map(if .id == $id then
                 .status = "failed" |
+                .startedAt = null |
                 .retries.attempts += 1 |
                 .retries.failureLog += [{"phase": "agent_failed", "timestamp": (now | todate)}]
               else . end)
@@ -431,6 +617,7 @@ if [[ "$PARALLEL_MODE" == "true" ]]; then
             jq --arg id "$SID" '
               .stories |= map(if .id == $id then
                 .status = "failed" |
+                .startedAt = null |
                 .retries.attempts += 1 |
                 .retries.failureLog += [{"phase": "crash", "timestamp": (now | todate)}]
               else . end)
@@ -477,8 +664,8 @@ if [[ "$PARALLEL_MODE" == "true" ]]; then
             fi
 
             set_story_worktree "$REPO_ROOT/quantum.json" "$NSID" ".ql-wt/$NSID" || true
-            jq --arg id "$NSID" '
-              .stories |= map(if .id == $id then .status = "in_progress" else . end)
+            jq --arg id "$NSID" --arg now "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" '
+              .stories |= map(if .id == $id then .status = "in_progress" | .startedAt = $now else . end)
             ' "$REPO_ROOT/quantum.json" > "$REPO_ROOT/quantum.json.tmp" \
               && mv "$REPO_ROOT/quantum.json.tmp" "$REPO_ROOT/quantum.json"
 
@@ -517,6 +704,9 @@ fi
 for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
   printf "\n=== Iteration %d / %d ===\n\n" "$ITERATION" "$MAX_ITERATIONS"
 
+  # Detect stale stories before DAG query
+  detect_stale_stories
+
   # -------------------------------------------------------------------------
   # Select next executable story from the dependency DAG
   # -------------------------------------------------------------------------
@@ -539,6 +729,7 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
     # Check if all stories are passed
     ALL_PASSED=$(jq '[.stories[].status] | all(. == "passed")' quantum.json)
     if [[ "$ALL_PASSED" == "true" ]]; then
+      final_verification_sweep
       printf "\n===========================================\n"
       printf "  <quantum>COMPLETE</quantum>\n"
       printf "  All stories passed! Feature is done.\n"
@@ -562,9 +753,10 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
   printf "Attempt: %d\n" "$((STORY_ATTEMPT + 1))"
   printf "\n"
 
-  # Mark story as in_progress
-  jq --arg id "$STORY_ID" '
-    .stories |= map(if .id == $id then .status = "in_progress" else . end) |
+  # Mark story as in_progress and set startedAt atomically
+  now=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+  jq --arg id "$STORY_ID" --arg now "$now" '
+    .stories |= map(if .id == $id then .status = "in_progress" | .startedAt = $now else . end) |
     .updatedAt = (now | todate)
   ' quantum.json > quantum.json.tmp && mv quantum.json.tmp quantum.json
 
@@ -593,6 +785,7 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
   # -------------------------------------------------------------------------
 
   if echo "$OUTPUT" | grep -q "<quantum>COMPLETE</quantum>"; then
+    final_verification_sweep
     printf "\n===========================================\n"
     printf "  <quantum>COMPLETE</quantum>\n"
     printf "  All stories passed! Feature is done.\n"
@@ -602,11 +795,17 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
 
   elif echo "$OUTPUT" | grep -q "<quantum>STORY_PASSED</quantum>"; then
     printf "Story %s PASSED. Continuing to next story...\n" "$STORY_ID"
+    # Clear startedAt on completion
+    json_atomic_update ".stories |= map(if .id == \"$STORY_ID\" then .startedAt = null else . end)"
 
   elif echo "$OUTPUT" | grep -q "<quantum>STORY_FAILED</quantum>"; then
     printf "Story %s FAILED (attempt %d). Will retry if attempts remain.\n" "$STORY_ID" "$((STORY_ATTEMPT + 1))"
+    # Clear startedAt on failure
+    json_atomic_update ".stories |= map(if .id == \"$STORY_ID\" then .startedAt = null else . end)"
 
   elif echo "$OUTPUT" | grep -q "<quantum>BLOCKED</quantum>"; then
+    # Clear startedAt before exiting so recovery starts clean
+    json_atomic_update ".stories |= map(if .id == \"$STORY_ID\" then .startedAt = null else . end)"
     printf "\n===========================================\n"
     printf "  <quantum>BLOCKED</quantum>\n"
     printf "  Agent reports no executable stories.\n"
@@ -618,6 +817,8 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
     printf "WARNING: No recognized signal in output. Story may not have completed cleanly.\n"
     printf "Last 10 lines of output:\n"
     echo "$OUTPUT" | tail -10
+    # Clear startedAt and mark failed so stale detection doesn't burn a retry on next startup
+    json_atomic_update ".stories |= map(if .id == \"$STORY_ID\" then .startedAt = null | .status = \"failed\" else . end)"
   fi
 
   # Brief pause between iterations
@@ -629,4 +830,5 @@ printf "  <quantum>MAX_ITERATIONS</quantum>\n"
 printf "  Reached maximum of %d iterations.\n" "$MAX_ITERATIONS"
 printf "===========================================\n"
 print_summary_table
+generate_observations
 exit 2

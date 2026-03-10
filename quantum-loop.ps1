@@ -27,6 +27,7 @@
 param(
     [int]$MaxIterations = 20,
     [int]$MaxRetries = 3,
+    [int]$StaleTimeout = 20,
     [switch]$SkipPermissions,
     [string]$Model = ""
 )
@@ -98,10 +99,75 @@ function Show-Summary {
     Write-Host "Result: $passed/$total stories passed"
 }
 
+# ─── Final Verification Sweep ───
+function Final-VerificationSweep {
+    Write-Host "`n[FINAL SWEEP] Running test suite before declaring COMPLETE..." -ForegroundColor Cyan
+    $testCmd = $null
+    if (Test-Path "package.json") { $testCmd = "npm test" }
+    elseif (Test-Path "pyproject.toml") { $testCmd = "python -m pytest -x -q" }
+    elseif (Test-Path "Cargo.toml") { $testCmd = "cargo test" }
+    elseif (Test-Path "go.mod") { $testCmd = "go test ./..." }
+
+    if ($testCmd) {
+        try {
+            Invoke-Expression $testCmd 2>&1 | Out-Null
+            Write-Host "[FINAL SWEEP] Test suite passed." -ForegroundColor Green
+        } catch {
+            Write-Host "[FINAL SWEEP] FAILED: test suite. Cannot declare COMPLETE." -ForegroundColor Red
+            Show-Summary
+            exit 1
+        }
+    } else {
+        Write-Host "[FINAL SWEEP] No test suite detected, skipping." -ForegroundColor Yellow
+    }
+
+    # Import smoke test (warning only)
+    if (Test-Path "package.json") {
+        $entry = jq -r '.main // empty' package.json 2>$null
+        if ($entry) {
+            try {
+                node -e "require('./$entry')" 2>&1 | Out-Null
+                Write-Host "[FINAL SWEEP] Import smoke test passed." -ForegroundColor Green
+            } catch {
+                Write-Host "[FINAL SWEEP] WARNING: Import smoke test failed (non-blocking)." -ForegroundColor Yellow
+            }
+        }
+    }
+}
+
+# ─── Stale Story Detection ───
+function Detect-StaleStories {
+    $staleIds = jq -r --argjson threshold $StaleTimeout '
+        .stories[] |
+        select(.status == "in_progress" and .startedAt != null) |
+        select(((now | floor) - (.startedAt | fromdateiso8601)) > ($threshold * 60)) |
+        .id
+    ' quantum.json 2>$null
+
+    if ($staleIds) {
+        foreach ($sid in $staleIds) {
+            if ([string]::IsNullOrWhiteSpace($sid)) { continue }
+            Write-Host "[STALE] $sid - resetting to failed (exceeded $StaleTimeout minute threshold)" -ForegroundColor Yellow
+            $tmp = jq --arg id $sid --argjson threshold $StaleTimeout '
+                .stories |= map(if .id == $id then
+                    .status = (if .retries.attempts + 1 >= .retries.maxAttempts then "blocked" else "failed" end) |
+                    .startedAt = null |
+                    .retries.attempts += 1 |
+                    .retries.failureLog += [{"phase": "stale_detection", "timestamp": (now | todate), "error": ("Story exceeded " + ($threshold | tostring) + " minute stale threshold")}]
+                else . end)
+            ' quantum.json
+            $tmp | Set-Content -Path quantum.json -Encoding UTF8 -NoNewline
+        }
+    }
+}
+
 # ─── Main Loop ───
 for ($iteration = 1; $iteration -le $MaxIterations; $iteration++) {
     Write-Host "`n=== Iteration $iteration / $MaxIterations ===" -ForegroundColor Green
     Write-Host ""
+
+    # Detect stale stories before DAG query
+    Detect-StaleStories
 
     # Select next executable story from DAG
     $storyId = jq -r '
@@ -121,6 +187,7 @@ for ($iteration = 1; $iteration -le $MaxIterations; $iteration++) {
     if ([string]::IsNullOrWhiteSpace($storyId) -or $storyId -eq "null") {
         $allPassed = jq '[.stories[].status] | all(. == "passed")' quantum.json
         if ($allPassed -eq "true") {
+            Final-VerificationSweep
             Write-Host ""
             Write-Host "===========================================" -ForegroundColor Green
             Write-Host "  COMPLETE - All stories passed!" -ForegroundColor Green
@@ -144,9 +211,10 @@ for ($iteration = 1; $iteration -le $MaxIterations; $iteration++) {
     Write-Host "Attempt: $([int]$storyAttempt + 1)"
     Write-Host ""
 
-    # Mark story as in_progress
-    $tmp = jq --arg id $storyId '
-        .stories |= map(if .id == $id then .status = "in_progress" else . end) |
+    # Mark story as in_progress and set startedAt
+    $now = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+    $tmp = jq --arg id $storyId --arg now $now '
+        .stories |= map(if .id == $id then .status = "in_progress" | .startedAt = $now else . end) |
         .updatedAt = (now | todate)
     ' quantum.json
     $tmp | Set-Content -Path quantum.json -Encoding UTF8 -NoNewline
@@ -170,6 +238,7 @@ for ($iteration = 1; $iteration -le $MaxIterations; $iteration++) {
 
     # Process output signals
     if ($output -match "<quantum>COMPLETE</quantum>") {
+        Final-VerificationSweep
         Write-Host ""
         Write-Host "===========================================" -ForegroundColor Green
         Write-Host "  COMPLETE - All stories passed!" -ForegroundColor Green
@@ -179,9 +248,15 @@ for ($iteration = 1; $iteration -le $MaxIterations; $iteration++) {
     }
     elseif ($output -match "<quantum>STORY_PASSED</quantum>") {
         Write-Host "Story $storyId PASSED. Continuing..." -ForegroundColor Green
+        # Clear startedAt on completion
+        $tmp = jq --arg id $storyId '.stories |= map(if .id == $id then .startedAt = null else . end)' quantum.json
+        $tmp | Set-Content -Path quantum.json -Encoding UTF8 -NoNewline
     }
     elseif ($output -match "<quantum>STORY_FAILED</quantum>") {
         Write-Host "Story $storyId FAILED (attempt $([int]$storyAttempt + 1)). Will retry if attempts remain." -ForegroundColor Yellow
+        # Clear startedAt on failure
+        $tmp = jq --arg id $storyId '.stories |= map(if .id == $id then .startedAt = null else . end)' quantum.json
+        $tmp | Set-Content -Path quantum.json -Encoding UTF8 -NoNewline
     }
     elseif ($output -match "<quantum>BLOCKED</quantum>") {
         Write-Host ""
@@ -201,9 +276,77 @@ for ($iteration = 1; $iteration -le $MaxIterations; $iteration++) {
     Start-Sleep -Seconds 2
 }
 
+# ─── Generate Observations ───
+function Generate-Observations {
+    $branch = jq -r '.branchName' quantum.json
+    $dateStr = (Get-Date -Format "yyyy-MM-dd")
+    $safeBranch = $branch -replace '/', '-'
+    $obsFile = "docs/post-mortems/$dateStr-$safeBranch-observations.md"
+
+    if (-not (Test-Path "docs/post-mortems")) { New-Item -ItemType Directory -Path "docs/post-mortems" -Force | Out-Null }
+
+    $total = jq '.stories | length' quantum.json
+    $passed = jq '[.stories[] | select(.status == "passed")] | length' quantum.json
+    $failed = jq '[.stories[] | select(.status == "failed")] | length' quantum.json
+    $blocked = jq '[.stories[] | select(.status == "blocked")] | length' quantum.json
+
+    $content = @"
+# Execution Observations: $branch
+
+**Date:** $dateStr
+**Stories:** $passed passed, $failed failed, $blocked blocked (of $total total)
+**Mode:** Sequential (PowerShell)
+
+## Failure Summary
+
+$(jq -r '.stories[] | select(.status == "failed" or .status == "blocked") | "- **\(.id)** \(.title) — \(.status) (\(.retries.attempts)/\(.retries.maxAttempts) retries)"' quantum.json 2>$null)
+
+## Raw Data
+
+<details>
+<summary>Progress Log</summary>
+
+``````json
+$(jq '.progress' quantum.json)
+``````
+
+</details>
+"@
+
+    $content | Set-Content -Path $obsFile -Encoding UTF8
+    git add $obsFile 2>$null
+    git commit -m "docs: execution observations for $branch" 2>$null
+    Write-Host "[OBSERVATIONS] Generated $obsFile" -ForegroundColor Cyan
+
+    # Check if observations contain issues worth reporting
+    $hasBlocked = [int](jq '[.stories[] | select(.status == "blocked" or .status == "failed")] | length' quantum.json)
+    if ($hasBlocked -gt 0) {
+        # Skip if non-interactive (piped input)
+        if ([Environment]::UserInteractive -eq $false) {
+            Write-Host "[OBSERVATIONS] Skipping GitHub issue prompt (non-interactive)." -ForegroundColor Yellow
+            return
+        }
+        $response = Read-Host "File observations as GitHub issue on quantum-loop? [y/N]"
+        if ($response -match '^[Yy]$') {
+            if (Get-Command "gh" -ErrorAction SilentlyContinue) {
+                try {
+                    $body = Get-Content $obsFile -Raw
+                    gh issue create --repo andyzengmath/quantum-loop --title "Execution observations: $branch ($dateStr)" --body $body --label "execution-feedback" 2>$null
+                    Write-Host "[OBSERVATIONS] GitHub issue filed." -ForegroundColor Green
+                } catch {
+                    Write-Host "[OBSERVATIONS] Failed to file GitHub issue. Local doc available." -ForegroundColor Yellow
+                }
+            } else {
+                Write-Host "[OBSERVATIONS] gh CLI not found. Local doc available at $obsFile" -ForegroundColor Yellow
+            }
+        }
+    }
+}
+
 Write-Host ""
 Write-Host "===========================================" -ForegroundColor Yellow
 Write-Host "  MAX_ITERATIONS reached ($MaxIterations)." -ForegroundColor Yellow
 Write-Host "===========================================" -ForegroundColor Yellow
 Show-Summary
+Generate-Observations
 exit 2

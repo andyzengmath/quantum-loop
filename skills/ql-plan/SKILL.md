@@ -45,6 +45,72 @@ After building the dependency graph, verify there are no cycles. If you detect a
 2. Explain which stories form the cycle
 3. Ask how to break the cycle (usually by splitting a story)
 
+### Contracts Generation (after dependency DAG)
+
+After building the dependency graph, scan for values that appear in 2+ stories' acceptance criteria or task descriptions. These are **contract candidates** — shared constants that parallel agents must agree on.
+
+1. **Identify candidates:** Look for repeated references to the same entity across stories — secret key names, environment variable names, type/class names, API route paths, event names, CSS class names
+2. **Group by category:** Organize candidates into logical categories:
+   - `secret_keys` — shared secret/config key names
+   - `env_vars` — environment variable names
+   - `shared_types` — type names, class names, enum values
+   - `api_routes` — API endpoint paths
+   - `event_names` — event/signal names
+   - `css_classes` — shared CSS class names or design tokens
+3. **Rule: When in doubt, add it** — an unused contract entry costs nothing; a missing contract causes cross-story mismatches that require manual fixes
+4. **Optional `pattern` field:** For values with a naming convention, add a `pattern` regex so the implementer can validate at runtime (e.g., `"pattern": "^[a-z][a-z0-9-]*$"`)
+
+Example contracts block:
+```json
+"contracts": {
+  "secret_keys": {
+    "openai": { "value": "openai-api-key", "pattern": "^[a-z][a-z0-9-]*$" },
+    "db_password": { "value": "DATABASE_PASSWORD" }
+  },
+  "shared_types": {
+    "priority_enum": { "value": "Priority" }
+  }
+}
+```
+
+Add the `contracts` object to quantum.json at the top level, after `codebasePatterns`.
+
+### wiring_verification Generation
+
+Tasks that create new modules, handlers, or components **SHOULD** have a `wiring_verification` object unless wiring is handled by a dependent story via `consumedBy`.
+
+**Rule:** If a task creates a new file (function, class, component, handler) that must be imported by an existing file, add:
+```json
+"wiring_verification": {
+  "file": "path/to/caller.ts",
+  "must_contain": ["import { NewThing }", "NewThing"]
+}
+```
+
+- `file`: The existing file that should import/call the new code
+- `must_contain`: Array of exact strings that must appear in that file after implementation
+
+**Exception:** If the task's output will be consumed by a dependent story (the dependent story is responsible for the import), use `consumedBy` instead of `wiring_verification`. Both on the same task is redundant.
+
+### consumedBy Generation
+
+If a task's output is listed in a dependent story's acceptance criteria, the task **MUST** have a `consumedBy` field listing the consuming story IDs.
+
+**Rule:** When Story A creates a component/module and Story B's acceptance criteria reference it:
+1. Add `"consumedBy": ["US-B"]` to the task in Story A
+2. Add to Story B's **first task** description: `"Import <component> from <path> (created by <Story A ID>). Do NOT create an inline replacement."`
+
+This prevents the consumer story's agent from re-implementing something that already exists. The `consumedBy` field is the signal: "Don't build this yourself — it will exist when your dependencies are satisfied."
+
+### coverageThreshold Generation
+
+Set the top-level `coverageThreshold` field in quantum.json:
+1. **Ask the user** for their desired coverage threshold, OR
+2. **Infer from project config:** check `.nycrc`, `jest.config.*`, `pyproject.toml [tool.coverage]`, `.coveragerc`, `go test` flags for an existing threshold
+3. **Default:** 80 (percent). Set to `null` to report coverage without blocking.
+
+The quality-reviewer will enforce this threshold during review. If the project has no coverage tooling, the reviewer will skip enforcement on the first story and enforce after first successful measurement.
+
 ## Step 3: Decompose Stories into Tasks
 
 For each story, break it into granular tasks. Each task should take 2-5 minutes for an AI agent.
@@ -108,18 +174,23 @@ The key shift: validation of wiring belongs on the **consumer** story, not the c
 - "Add an import statement"
 - "Fix a typo in a comment"
 
-### TDD Flag Rules
-Set `testFirst: true` when:
-- The task implements business logic
-- The task adds an API endpoint
-- The task creates a data transformation
-- The task adds user-facing behavior
+### testFirst Mandate
 
-Set `testFirst: false` when:
-- The task creates config files (migrations, package.json changes)
-- The task is pure scaffolding (empty component skeleton)
-- The task modifies only type definitions
-- The task is the test itself (when test and implementation are separate tasks)
+**`testFirst: true` is the default for ALL tasks.** TDD is a mandate, not a suggestion.
+
+**Exempt categories** (the ONLY cases where `testFirst: false` is allowed):
+- Config/scaffold files (migrations, package.json, tsconfig changes)
+- Pure type definitions (interfaces, type aliases, enums with no logic)
+- Documentation-only tasks (README, comments, markdown files)
+- The test task itself (when test and implementation are separate tasks)
+
+**For any exempt task**, the planner **MUST** add a `notes` field with justification:
+```json
+"testFirst": false,
+"notes": "testFirst: false — pure type definition, no runtime logic"
+```
+
+**Anti-rationalization line:** If a task has an `if`, a loop, a data transformation, or calls an external API, it is NOT config. Set `testFirst: true`.
 
 ### Edge Case Test Requirements
 

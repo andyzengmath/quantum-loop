@@ -66,6 +66,20 @@ Review the diff for changes that go BEYOND what the story requires:
 
 Flag these as scope creep. They are not necessarily bad, but they must be noted.
 
+### Step 6: Wiring Verification
+
+For each task in this story that has a `wiring_verification` field:
+
+1. Read the file at `wiring_verification.file`
+2. For each string in `wiring_verification.must_contain`:
+   - Grep for the **exact string** in the file
+   - **Missing string** = **CRITICAL** spec failure: `"Task <T-ID> requires '<string>' in <file>, but it is missing"`
+   - **Present string** = pass (no further judgment needed)
+
+This check is **mechanical** — it uses exact string matching (grep), not AI judgment. If the string is not literally present in the file, it fails. No rationalizing "it's equivalent" or "it's close enough."
+
+Tasks without a `wiring_verification` field are unaffected — skip them.
+
 ## Output Format
 
 Produce a structured review:

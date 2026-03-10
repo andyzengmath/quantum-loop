@@ -129,6 +129,57 @@ update_story_status() {
   "
 }
 
+# Set startedAt timestamp on a story (ISO 8601 UTC)
+set_story_started_at() {
+  local story_id="$1"
+  atomic_json_update "
+    for (const story of q.stories) {
+      if (story.id === '$story_id') story.startedAt = new Date().toISOString();
+    }
+  "
+}
+
+# Clear startedAt on a story (set to null)
+clear_story_started_at() {
+  local story_id="$1"
+  atomic_json_update "
+    for (const story of q.stories) {
+      if (story.id === '$story_id') story.startedAt = null;
+    }
+  "
+}
+
+# Detect stale stories (in_progress too long) and reset to failed
+detect_stale_stories() {
+  local threshold="${STALE_TIMEOUT:-20}"
+  node -e "
+    const fs = require('fs');
+    const q = JSON.parse(fs.readFileSync('$PLAN_FILE', 'utf8'));
+    const threshold = $threshold * 60 * 1000; // minutes to ms
+    const now = Date.now();
+    let changed = false;
+    for (const s of q.stories) {
+      if (s.status === 'in_progress' && s.startedAt) {
+        const elapsed = now - new Date(s.startedAt).getTime();
+        if (elapsed > threshold) {
+          const elapsedMin = Math.round(elapsed / 60000);
+          console.log('[STALE] ' + s.id + ' - resetting to failed after ' + elapsedMin + ' minutes');
+          s.retries.attempts += 1;
+          s.retries.failureLog.push({phase: 'stale_detection', timestamp: new Date().toISOString(), error: 'Story exceeded $threshold minute stale threshold'});
+          s.status = s.retries.attempts >= s.retries.maxAttempts ? 'blocked' : 'failed';
+          s.startedAt = null;
+          changed = true;
+        }
+      }
+    }
+    if (changed) {
+      const tmp = '$PLAN_FILE' + '.tmp';
+      fs.writeFileSync(tmp, JSON.stringify(q, null, 2) + '\n');
+      fs.renameSync(tmp, '$PLAN_FILE');
+    }
+  "
+}
+
 # Check if all tasks in a story are completed
 is_story_complete() {
   local story_id="$1"
@@ -206,6 +257,8 @@ execute_task() {
 
   log "▶ Starting task $task_id (story $story_id)"
   update_task_status "$task_id" "in_progress"
+  # Write startedAt if this is the first task starting for this story
+  set_story_started_at "$story_id"
 
   prompt=$(build_prompt "$task_json")
 
@@ -233,10 +286,12 @@ execute_task() {
     if is_story_complete "$story_id"; then
       log "[STORY DONE] $story_id"
       update_story_status "$story_id" "passed"
+      clear_story_started_at "$story_id"
     fi
   else
     log "[FAILED] Task $task_id (exit code $exit_code)"
     update_task_status "$task_id" "failed"
+    clear_story_started_at "$story_id"
     [[ "$VERBOSE" != "true" ]] && echo "  See log: $log_file"
     [[ "$VERBOSE" == "true" ]] && cat "$log_file"
     return 1
@@ -403,6 +458,9 @@ main() {
     local wave=0
 
     while [[ $iteration -lt $MAX_ITERATIONS ]]; do
+      # Detect stale stories before querying tasks
+      detect_stale_stories
+
       local tasks_json
       tasks_json=$(get_next_tasks)
       local task_count
@@ -452,8 +510,9 @@ main() {
           continue
         }
 
-        # Mark task in_progress
+        # Mark task in_progress and set startedAt
         update_task_status "$tid" "in_progress"
+        set_story_started_at "$sid"
 
         # Spawn agent
         local pid
@@ -498,6 +557,7 @@ main() {
             wait "$pid" 2>/dev/null || true
             log "  [TIMEOUT] $tid (story $sid) after ${elapsed}s"
             update_task_status "$tid" "failed"
+            clear_story_started_at "$sid"
             remove_task_worktree "$wk" || true
             completed_indices+=("$idx")
             continue
@@ -538,6 +598,7 @@ main() {
               else
                 log "  [CONFLICT] $tid (story $sid) — merge failed"
                 update_task_status "$tid" "failed"
+                clear_story_started_at "$sid"
               fi
             else
               # Agent exited 0 but made no changes — suspicious but mark completed
@@ -551,6 +612,7 @@ main() {
           else
             log "  [FAILED] $tid (story $sid) — exit code $exit_code"
             update_task_status "$tid" "failed"
+            clear_story_started_at "$sid"
           fi
 
           remove_task_worktree "$wk" || true
@@ -625,6 +687,9 @@ main() {
     local failed_tasks=()
 
     while [[ $iteration -lt $MAX_ITERATIONS ]]; do
+      # Detect stale stories before querying tasks
+      detect_stale_stories
+
       local tasks_json
       tasks_json=$(get_next_tasks)
       local task_count
@@ -647,6 +712,41 @@ main() {
       fi
       iteration=$((iteration + 1))
     done
+  fi
+
+  # ─── Final Verification Sweep ───
+  log ""
+  log "[FINAL SWEEP] Running test suite before declaring complete..."
+
+  local test_cmd=""
+  if [[ -f "package.json" ]]; then test_cmd="npm test"
+  elif [[ -f "pyproject.toml" ]] || [[ -f "setup.py" ]]; then test_cmd="python -m pytest -x -q"
+  elif [[ -f "Cargo.toml" ]]; then test_cmd="cargo test"
+  elif [[ -f "go.mod" ]]; then test_cmd="go test ./..."
+  fi
+
+  if [[ -n "$test_cmd" ]]; then
+    if eval "$test_cmd" >/dev/null 2>&1; then
+      log "[FINAL SWEEP] Test suite passed."
+    else
+      log "[FINAL SWEEP] FAILED: test suite. Cannot declare complete."
+      exit 1
+    fi
+  else
+    log "[FINAL SWEEP] No test suite detected, skipping."
+  fi
+
+  # Import smoke test (warning only)
+  if [[ -f "package.json" ]]; then
+    local entry
+    entry=$(node -e "const p=JSON.parse(require('fs').readFileSync('package.json','utf8')); console.log(p.main||'')" 2>/dev/null)
+    if [[ -n "$entry" ]]; then
+      if node -e "require('./$entry')" >/dev/null 2>&1; then
+        log "[FINAL SWEEP] Import smoke test passed."
+      else
+        log "[FINAL SWEEP] WARNING: Import smoke test failed for $entry (non-blocking)."
+      fi
+    fi
   fi
 
   # ─── Summary ───

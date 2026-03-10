@@ -22,6 +22,22 @@ You manage the full execution lifecycle for quantum-loop. You read quantum.json,
    ```
 7. Count stories by status and report summary to user
 
+## Step 1B: Detect Stale Stories
+
+After initialization and before querying the DAG, check for stories stuck in `in_progress`:
+
+1. Read `staleThresholdMinutes` from quantum.json (default: 20). This can be overridden by the CLI flag `--stale-timeout`.
+2. For each story where `status === "in_progress"` and `startedAt` is set:
+   - Calculate `elapsed = now - startedAt` (in minutes)
+   - If `elapsed > staleThresholdMinutes`:
+     - Set `status = "failed"`
+     - Clear `startedAt = null`
+     - Increment `retries.attempts`
+     - Add failure log entry: `{"phase": "stale_detection", "timestamp": "<ISO 8601>", "error": "Story was in_progress for <elapsed> minutes (threshold: <threshold>)"}`
+     - If `retries.attempts >= retries.maxAttempts`: set `status = "blocked"`
+     - Log: `[STALE] US-XXX - reset to failed after <elapsed> minutes`
+3. Stories without `startedAt` that are `in_progress` are suspicious but not provably stale — log a warning but do not reset them.
+
 ## Step 2: Query DAG
 
 Find all eligible stories. A story is eligible when ALL of:
@@ -45,7 +61,8 @@ For the highest-priority eligible story:
 ### 3A.1: Setup
 1. Record `BASE_SHA` = current git HEAD
 2. Mark story `status: "in_progress"` in quantum.json
-3. Present story details to user:
+3. Set `story.startedAt` = `new Date().toISOString()` in quantum.json (ISO 8601 UTC)
+4. Present story details to user:
    ```
    Story:   US-002 - Display priority indicator
    Deps:    US-001 (passed)
@@ -105,6 +122,7 @@ git commit -m "feat: <Story ID> - <Story Title>"
 
 Update quantum.json:
 - Set story `status: "passed"`
+- Clear `story.startedAt` = `null`
 - Set `review.specCompliance.status: "passed"` with timestamp
 - Set `review.codeQuality.status: "passed"` with timestamp
 - Add progress entry with `filesChanged` and `learnings`
@@ -116,6 +134,7 @@ Return to Step 2.
 - Increment `retries.attempts`
 - Add entry to `retries.failureLog` with timestamp, error, phase
 - Set story `status: "failed"`
+- Clear `story.startedAt` = `null`
 - Return to Step 2 (other stories may still be eligible)
 
 ## Step 3B: Parallel Execution
@@ -127,7 +146,8 @@ When 2+ stories are eligible, spawn implementer subagents in parallel using Clau
 For each eligible story (up to 4 concurrent):
 
 1. Mark story `status: "in_progress"` in quantum.json
-2. Spawn a background Task subagent:
+2. Set `story.startedAt` = `new Date().toISOString()` in quantum.json (ISO 8601 UTC)
+3. Spawn a background Task subagent:
    ```
    Task tool with:
      subagent_type: "quantum-loop:implementer"
@@ -150,13 +170,13 @@ Poll each running agent:
 
 **On STORY_PASSED:**
 - Log: `[PASSED] US-XXX - Story Title`
-- Update quantum.json: story `status: "passed"`, add progress entry
+- Update quantum.json: story `status: "passed"`, clear `startedAt` = `null`, add progress entry
 - The worktree merge is handled automatically by Claude Code's isolation mode
 
 **On STORY_FAILED:**
 - Log: `[FAILED] US-XXX - Story Title`
 - Increment `retries.attempts`, add to `failureLog`
-- Set story `status: "failed"`
+- Set story `status: "failed"`, clear `startedAt` = `null`
 
 **After each STORY_PASSED merge:**
 - Run the full test suite to catch semantic merge regressions
@@ -228,7 +248,34 @@ When DAG query returns no eligible stories and all stories have passed, run fina
 3. **Dead code scan:** every new function/class created during this feature has at least one call site outside its own file and tests. Use LSP "Find References" when available, fall back to grep.
 4. **If any check fails:** create a fix task, implement inline, re-test, commit. Do NOT output COMPLETE until all checks pass.
 
-## Step 5: Completion
+## Step 5: Generate Execution Observations
+
+After the main loop exits (COMPLETE, BLOCKED, or max iterations), generate an observations document:
+
+1. **File path:** `docs/post-mortems/YYYY-MM-DD-<branchName>-observations.md`
+2. **Content:**
+   - **Header:** Date, story counts (passed/failed/blocked/total), execution mode (sequential/parallel), number of iterations, approximate wall-clock time
+   - **Failure summary table:** For each failed or blocked story, show story ID, title, failure phase, error message, retry count
+   - **Patterns observed:** Recurring failure modes (same root cause in 2+ stories), what worked well, suggested improvements for the pipeline
+   - **Raw data:** Full progress log and failure logs in collapsed `<details>` sections
+3. **Commit:** `git add <file> && git commit -m "docs: execution observations for <branchName>"`
+
+This document is **always** generated locally. It provides a record for continuous pipeline improvement.
+
+### Step 5B: File GitHub Issue (user-confirmed)
+
+Only propose filing a GitHub issue when observations contain **any of:**
+- Blocked stories (exhausted all retries)
+- Recurring failure patterns (same root cause in 2+ stories)
+- Stale story detections
+
+**Process:**
+1. Use `AskUserQuestion` tool: "I found N issues worth reporting. Would you like me to file a GitHub issue on andyzengmath/quantum-loop with these observations?"
+2. **Only file if the user confirms.** Default is No.
+3. Issue command: `gh issue create --repo andyzengmath/quantum-loop --title "Execution observations: <branchName> (<date>)" --body "<observations doc content>" --label "execution-feedback"`
+4. If `gh` is not available or the command fails: skip silently — the local doc is the primary artifact.
+
+## Step 6: Completion
 
 When all integration checks pass:
 

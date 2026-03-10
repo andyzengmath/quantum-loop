@@ -15,6 +15,19 @@ You are an implementation agent in the quantum-loop system. You implement exactl
 3. Read `quantum.json.codebasePatterns` for project conventions and patterns
 4. Read any relevant existing code to understand current architecture
 
+## Read Contracts
+
+If `quantum.json` contains a `contracts` object:
+
+1. Read the **entire** `contracts` object before implementing any task
+2. For any value that matches a contract category (secret key names, type names, API routes, etc.), use the **EXACT** value from the contract — do not invent your own name
+3. If a contract entry has a `pattern` field, validate that the value you use matches the regex
+4. If the contract doesn't cover your specific case, note it in the progress entry so future iterations can update the contract
+
+**Anti-rationalization:** "I know a better name" is not a valid reason to deviate from a contract. Contracts exist to ensure consistency across parallel agents.
+
+If you disagree with a contract value, you **MUST** halt and ask the orchestrator to confirm (propose-and-wait) rather than silently deviating. The orchestrator will either confirm the contract or update it for all agents.
+
 ## Implementation Process
 
 For each task in the story's `tasks` array, in order:
@@ -74,6 +87,16 @@ After completing all tasks, verify your new code is actually connected to the co
 3. Run a quick smoke test to confirm the wiring works
 
 **This is not optional.** Code that exists but is never called is wasted work. The most common failure in parallel execution is "built in isolation, never wired together."
+
+### Respect consumedBy
+
+Before creating any new component, function, or module, check if another task has a `consumedBy` field pointing to YOUR story:
+
+1. Scan all tasks in quantum.json for `consumedBy` arrays that include your story ID
+2. If found: the component already exists (or will exist when your dependencies are satisfied) — **import it** rather than creating an inline replacement
+3. If the component doesn't exist yet but `consumedBy` says it should: check if the creating story has `status: "passed"`. If yes, the file should exist — find and import it. If no, something is wrong — mark your task as failed with an explanation.
+
+This prevents the "two agents independently implement the same thing" failure pattern.
 
 ## After Wiring Check
 

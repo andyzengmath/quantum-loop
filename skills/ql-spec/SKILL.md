@@ -169,3 +169,14 @@ Before saving the PRD, verify:
 - [ ] Non-goals section has at least 3 items
 - [ ] Stories follow dependency order (data → backend → UI)
 - [ ] Saved to `tasks/prd-<feature-name>.md`
+
+### Lifecycle Checklist (mandatory for user-facing features)
+
+For each item below, either address it in the PRD or mark it "N/A" with a justification. **Silent skipping is forbidden** — every item must have an explicit resolution.
+
+- [ ] **First-run behavior:** What happens the first time a user encounters this feature? (empty states, onboarding, defaults)
+- [ ] **Returning-user behavior:** What changes when the user comes back? (persisted state, updated data, version differences)
+- [ ] **Update behavior:** What happens when the feature is updated after initial deployment? (migrations, backward compatibility, data transformations)
+- [ ] **Error recovery:** What happens when things go wrong? (network failures, invalid data, partial state, retry logic)
+- [ ] **No-data/empty state:** What does the user see when there is no data to display? (empty lists, missing config, uninitialized state)
+- [ ] **Uninstall/disable:** What happens when the feature is removed or disabled? (cleanup, orphaned data, dependent features)
