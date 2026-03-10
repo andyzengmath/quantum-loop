@@ -7,6 +7,17 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.3.2] - 2026-03-10
+
+### Fixed
+- **Mandatory worktree isolation** — `isolation: "worktree"` is now documented as MANDATORY for parallel execution, with specific failure modes listed (bash contention, file conflicts, quantum.json races)
+- **Correct tool naming** — orchestrator now references "Agent tool" (not "Task tool") with exact parameter names (`subagent_type`, `isolation`, `mode`, `run_in_background`)
+- **Atomic quantum.json updates** — new Step 3B.1 batches all `in_progress` status writes into a single atomic update before spawning agents
+- **Monitor loop** — changed from polling to waiting for Claude Code completion notifications
+- **State management discipline** — only the orchestrator writes quantum.json; Edit tool banned (use Python/jq); multi-story updates batched into one write
+- **Implementer parallel mode** — implementer agents in worktrees no longer edit quantum.json (stale copy); report via output message instead
+- **Anti-rationalization guards** — 2 new entries blocking "skip worktree" and "worktrees won't work on this OS" excuses
+
 ## [0.3.1] - 2026-03-09
 
 ### Added
