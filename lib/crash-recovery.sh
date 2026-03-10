@@ -94,9 +94,9 @@ recover_orphaned_worktrees() {
   updated=$(jq --arg merged "$merged_ids" '
     (.stories[] | select(.status == "in_progress")) |=
       if ($merged | split(",") | map(select(. != "")) | index(.id) | . != null) then
-        (.status = "passed" | del(.worktree))
+        (.status = "passed" | del(.worktree) | .startedAt = null)
       else
-        (.status = "pending" | del(.worktree))
+        (.status = "pending" | del(.worktree) | .startedAt = null)
       end |
     .execution.activeWorktrees = []
   ' "$json_path") || {

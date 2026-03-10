@@ -557,6 +557,7 @@ main() {
             wait "$pid" 2>/dev/null || true
             log "  [TIMEOUT] $tid (story $sid) after ${elapsed}s"
             update_task_status "$tid" "failed"
+            clear_story_started_at "$sid"
             remove_task_worktree "$wk" || true
             completed_indices+=("$idx")
             continue
@@ -597,6 +598,7 @@ main() {
               else
                 log "  [CONFLICT] $tid (story $sid) — merge failed"
                 update_task_status "$tid" "failed"
+                clear_story_started_at "$sid"
               fi
             else
               # Agent exited 0 but made no changes — suspicious but mark completed
@@ -610,6 +612,7 @@ main() {
           else
             log "  [FAILED] $tid (story $sid) — exit code $exit_code"
             update_task_status "$tid" "failed"
+            clear_story_started_at "$sid"
           fi
 
           remove_task_worktree "$wk" || true

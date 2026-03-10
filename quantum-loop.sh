@@ -309,7 +309,7 @@ generate_observations() {
   # Check if observations contain issues worth reporting
   local has_blocked has_recurring
   has_blocked=$(jq '[.stories[] | select(.status == "blocked" or .status == "failed")] | length' quantum.json)
-  has_recurring=$(jq '[.stories[].retries.failureLog[] | .phase] | group_by(.) | map(select(length > 1)) | length' quantum.json 2>/dev/null || echo "0")
+  has_recurring=$(jq '[.stories[] | (.retries.failureLog // [])[] | .phase] | group_by(.) | map(select(length > 1)) | length' quantum.json 2>/dev/null || echo "0")
 
   if [[ "$has_blocked" -gt 0 || "$has_recurring" -gt 0 ]]; then
     # Skip prompt if non-interactive
@@ -753,9 +753,10 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
   printf "Attempt: %d\n" "$((STORY_ATTEMPT + 1))"
   printf "\n"
 
-  # Mark story as in_progress
-  jq --arg id "$STORY_ID" '
-    .stories |= map(if .id == $id then .status = "in_progress" else . end) |
+  # Mark story as in_progress and set startedAt atomically
+  now=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+  jq --arg id "$STORY_ID" --arg now "$now" '
+    .stories |= map(if .id == $id then .status = "in_progress" | .startedAt = $now else . end) |
     .updatedAt = (now | todate)
   ' quantum.json > quantum.json.tmp && mv quantum.json.tmp quantum.json
 
@@ -767,10 +768,6 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
   if [[ "$TOOL" == "amp" && -f "$SCRIPT_DIR/prompt.md" ]]; then
     PROMPT_FILE="$SCRIPT_DIR/prompt.md"
   fi
-
-  # Write startedAt timestamp before spawning
-  now=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-  json_atomic_update ".stories |= map(if .id == \"$STORY_ID\" then .startedAt = \"$now\" else . end)"
 
   printf "Spawning %s for story %s...\n" "$TOOL" "$STORY_ID"
 
@@ -807,6 +804,8 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
     json_atomic_update ".stories |= map(if .id == \"$STORY_ID\" then .startedAt = null else . end)"
 
   elif echo "$OUTPUT" | grep -q "<quantum>BLOCKED</quantum>"; then
+    # Clear startedAt before exiting so recovery starts clean
+    json_atomic_update ".stories |= map(if .id == \"$STORY_ID\" then .startedAt = null else . end)"
     printf "\n===========================================\n"
     printf "  <quantum>BLOCKED</quantum>\n"
     printf "  Agent reports no executable stories.\n"
@@ -818,6 +817,8 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
     printf "WARNING: No recognized signal in output. Story may not have completed cleanly.\n"
     printf "Last 10 lines of output:\n"
     echo "$OUTPUT" | tail -10
+    # Clear startedAt and mark failed so stale detection doesn't burn a retry on next startup
+    json_atomic_update ".stories |= map(if .id == \"$STORY_ID\" then .startedAt = null | .status = \"failed\" else . end)"
   fi
 
   # Brief pause between iterations
