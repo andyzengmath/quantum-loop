@@ -65,7 +65,7 @@ Clone the repo, then edit three files in `~/.claude/`:
      "name": "quantum-loop",
      "source": { "source": "url", "url": "https://github.com/andyzengmath/quantum-loop.git" },
      "description": "Spec-driven autonomous development loop",
-     "version": "0.2.2",
+     "version": "0.3.1",
      "strict": true
    }
    ```
@@ -74,7 +74,7 @@ Clone the repo, then edit three files in `~/.claude/`:
    "quantum-loop@<marketplace-name>": [{
      "scope": "user",
      "installPath": "/path/to/quantum-loop",
-     "version": "0.2.2",
+     "version": "0.3.1",
      "installedAt": "2026-02-18T00:00:00.000Z",
      "lastUpdated": "2026-02-18T00:00:00.000Z"
    }]
@@ -246,6 +246,26 @@ NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE.
 
 The verification skill catches hedging language ("should work", "probably passes"), stale evidence ("passed earlier"), and partial checks ("linter passed so it's fine"). Every claim needs a fresh command run with full output.
 
+### Cross-Story Contracts
+
+When parallel agents share values (secret key names, env vars, API routes, type definitions), a `contracts` section in quantum.json ensures consistency:
+
+```json
+"contracts": {
+  "secret_keys": { "openai": { "value": "openai-api-key", "pattern": "^[a-z][a-z0-9-]*$" } }
+}
+```
+
+Implementers must use exact contract values. If they disagree, they halt and propose changes (propose-and-wait) rather than silently deviating.
+
+### Stale Story Detection
+
+Stories stuck `in_progress` are automatically detected and retried. The caller writes a `startedAt` timestamp before dispatching each agent. If `now - startedAt > staleThresholdMinutes` (default 20, CLI-overridable), the story is reset to `failed` and retried. Implemented in all execution paths: orchestrator agent, quantum-loop.sh, quantum-loop.ps1, and templates/quantum-loop.sh.
+
+### Execution Observations
+
+After every run, an observations document is auto-generated to `docs/post-mortems/` with failure summaries, recurring patterns, and raw data. Optionally filed as a GitHub issue (with user confirmation) to feed improvements back into the pipeline.
+
 ### Anti-Rationalization Engineering
 
 Every skill includes a table of excuses AI agents use to skip steps, paired with rebuttals:
@@ -267,15 +287,25 @@ The machine-readable state file that survives across sessions:
 {
   "project": "MyApp",
   "branchName": "ql/task-priority",
+  "coverageThreshold": 80,
+  "staleThresholdMinutes": 20,
+  "contracts": {
+    "secret_keys": { "openai": { "value": "openai-api-key" } },
+    "shared_types": { "priority": { "value": "Priority" } }
+  },
   "stories": [
     {
       "id": "US-001",
       "title": "Add priority field to database",
       "status": "passed",
+      "startedAt": null,
       "dependsOn": [],
       "tasks": [
         { "id": "T-001", "title": "Write migration test", "testFirst": true, "status": "passed" },
-        { "id": "T-002", "title": "Create migration", "testFirst": false, "status": "passed" }
+        { "id": "T-002", "title": "Create migration", "testFirst": false, "status": "passed",
+          "wiring_verification": { "file": "models/task.py", "must_contain": ["priority"] } },
+        { "id": "T-003", "title": "Create PriorityBadge", "testFirst": true, "status": "passed",
+          "consumedBy": ["US-003"] }
       ],
       "review": {
         "specCompliance": { "status": "passed" },
@@ -317,14 +347,18 @@ quantum-loop/
 │   ├── monitor.sh        # Agent polling, signal detection, merge-on-pass
 │   ├── json-atomic.sh    # Atomic quantum.json writes (tmp + mv)
 │   └── crash-recovery.sh # Orphaned worktree cleanup on startup
-├── tests/                # Shell test suites (110 tests)
+├── tests/                # Shell test suites (124 tests)
 │   ├── test_dag_query.sh
 │   ├── test_worktree.sh
 │   ├── test_spawn.sh
 │   ├── test_monitor_merge.sh
 │   ├── test_timeout.sh
 │   ├── test_json_atomic.sh
-│   └── test_crash_recovery.sh
+│   ├── test_crash_recovery.sh
+│   ├── test_stale_detection.sh
+│   ├── test_started_at.sh
+│   ├── test_final_sweep.sh
+│   └── test_observations.sh
 ├── quantum-loop.sh       # Autonomous bash loop (sequential + parallel)
 └── CLAUDE.md             # Agent template (parallel-aware)
 ```
