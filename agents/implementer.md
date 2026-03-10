@@ -75,8 +75,9 @@ If you skip edge cases because "the happy path is enough," you are wrong. Field 
 
 ### After Each Task:
 
-1. Update `quantum.json`: set this task's `status` to `"passed"` or `"failed"`
-2. If `"failed"`: add a note explaining what went wrong
+1. **Sequential mode (repo root):** Update `quantum.json`: set this task's `status` to `"passed"` or `"failed"`
+2. **Parallel mode (worktree):** Do NOT update quantum.json — the worktree has a stale copy. Instead, track task status internally and report via your completion signal. The orchestrator updates quantum.json after merging.
+3. If `"failed"`: add a note explaining what went wrong (in quantum.json for sequential, in your output message for parallel)
 
 ## Integration Wiring Check
 
@@ -125,6 +126,7 @@ All three MUST pass. If ANY fails:
 
 ## On All Checks Passing
 
+**Sequential mode (repo root):**
 1. Add discovered patterns to `quantum.json.codebasePatterns` (only genuinely reusable ones)
 2. Add a progress entry to `quantum.json.progress`:
    ```json
@@ -141,7 +143,15 @@ All three MUST pass. If ANY fails:
 3. Commit your changes: `git add -A && git commit -m "feat: [Story ID] - [Story Title]"`
 4. Output: `<quantum>STORY_PASSED</quantum>`
 
-**Note:** In sequential mode (repo root), the orchestration loop may run additional reviews after this signal. In parallel mode (worktree), your commit will be merged by the orchestrator.
+The orchestration loop may run additional reviews after this signal.
+
+**Parallel mode (worktree):**
+1. Do NOT update quantum.json — your worktree copy is isolated and will be discarded
+2. Commit your changes: `git add -A && git commit -m "feat: [Story ID] - [Story Title]"`
+3. Include a summary in your output message with: files changed, patterns discovered, and any learnings
+4. Output: `<quantum>STORY_PASSED</quantum>`
+
+The orchestrator will merge your worktree branch and update quantum.json with your results.
 
 ## Rules
 
