@@ -24,13 +24,25 @@ create_worktree() {
 
   local wt_path="$repo_root/.ql-wt/$story_id"
 
+  # Resolve to top-level repo root (not a nested worktree) to prevent worktree nesting.
+  # Without this, agents spawned inside worktrees create .ql-wt/ inside .ql-wt/, leading
+  # to exponentially growing paths that hit OS limits after 2-3 waves.
+  local real_root
+  real_root=$(git -C "$repo_root" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | sed 's|/\.git$||')
+  if [[ -n "$real_root" && "$real_root" != "$repo_root" ]]; then
+    printf "INFO: Resolved nested repo_root to top-level: %s\n" "$real_root" >&2
+    repo_root="$real_root"
+    wt_path="$repo_root/.ql-wt/$story_id"
+  fi
+
   # Windows long-path guard: if the worktree path exceeds 200 chars, use a shorter location.
   # This prevents "fatal: '$GIT_DIR' too big" errors on Windows+OneDrive.
-  if [[ ${#wt_path} -gt 200 ]]; then
+  local orig_len=${#wt_path}
+  if [[ $orig_len -gt 200 ]]; then
     local short_base="${TMPDIR:-/tmp}/ql-wt"
     mkdir -p "$short_base"
     wt_path="$short_base/$story_id"
-    printf "WARN: Default worktree path too long (%d chars), using %s\n" "${#wt_path}" "$wt_path" >&2
+    printf "WARN: Default worktree path too long (%d chars), using %s\n" "$orig_len" "$wt_path" >&2
   fi
 
   # Ensure parent directory exists
@@ -89,7 +101,8 @@ remove_worktree() {
 }
 
 # list_worktrees(repo_root)
-# Returns newline-separated list of active worktree story IDs (those under .ql-wt/).
+# Returns newline-separated list of active worktree story IDs.
+# Checks both the default location (.ql-wt/) and the short-path fallback (/tmp/ql-wt/).
 list_worktrees() {
   local repo_root="$1"
 
@@ -99,14 +112,16 @@ list_worktrees() {
   fi
 
   local wt_dir="$repo_root/.ql-wt"
-  if [[ ! -d "$wt_dir" ]]; then
-    return 0
-  fi
+  local short_dir="${TMPDIR:-/tmp}/ql-wt"
 
-  # List directories under .ql-wt/ that are actual git worktrees
-  for dir in "$wt_dir"/*/; do
-    if [[ -d "$dir" ]]; then
-      basename "$dir"
+  # List directories under both locations that are actual git worktrees
+  for search_dir in "$wt_dir" "$short_dir"; do
+    if [[ -d "$search_dir" ]]; then
+      for dir in "$search_dir"/*/; do
+        if [[ -d "$dir" ]]; then
+          basename "$dir"
+        fi
+      done
     fi
-  done
+  done | sort -u  # Deduplicate in case a story appears in both locations
 }

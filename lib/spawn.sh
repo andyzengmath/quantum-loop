@@ -27,6 +27,13 @@ Implement story ${story_id} following the instructions in CLAUDE.md.
 IMPORTANT: You are running in a worktree (.ql-wt/). Do NOT write quantum.json.
 The orchestrator manages all state.
 
+IMPORTANT — Python projects: Do NOT run 'pip install -e .' in the worktree.
+Parallel worktrees share one Python environment, so editable installs race.
+Instead, set PYTHONPATH before running tests:
+  export PYTHONPATH="\$(pwd)/src:\$PYTHONPATH"
+Or for inline commands:
+  PYTHONPATH=src python -m pytest tests/ -x -v
+
 Your workflow:
 1. Read quantum.json for story details, PRD path, and codebasePatterns
 2. Implement all tasks in order (TDD if testFirst is true)

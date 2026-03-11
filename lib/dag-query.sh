@@ -118,20 +118,27 @@ filter_file_conflicts() {
 
     # Greedily select stories: for each story in priority order,
     # include it only if none of its files overlap with already-selected stories.
+    # Note: we bind the accumulator to named variables ($claimed, $sel) inside
+    # the reduce body because jq `env` refers to shell $ENV, not the accumulator.
     reduce $eligible_stories[] as $story (
       {selected: [], claimed_files: []};
-      if ([$story.files[] | . as $f | select(
-            [.] | inside([env.claimed_files[]?]) | not
-          )] | length) == ($story.files | length)
+      .claimed_files as $claimed |
+      .selected as $sel |
+      if (
+            # Check filePaths overlap: every file in this story must NOT already
+            # be claimed. Use index() for exact-match (not inside/substring).
+            ([$story.files[] | select(. as $f | $claimed | index($f) | not)]
+             | length) == ($story.files | length)
+         )
          and
-         # Check fileConflicts: no conflict entry includes both this story
-         # and an already-selected story
          (
+           # Check fileConflicts: no conflict entry includes both this story
+           # and an already-selected story
            [ $conflict_entries[] |
              select(
                (.stories | index($story.id)) and
                ([.stories[] | . as $s | select(
-                 [env.selected[] | .id] | index($s)
+                 [$sel[].id] | index($s)
                )] | length > 0)
              )
            ] | length == 0

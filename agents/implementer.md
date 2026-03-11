@@ -34,18 +34,20 @@ When running in an isolated worktree (parallel execution), the Python/Node envir
 
 Instead, use `PYTHONPATH` injection:
 ```bash
-# Python projects: prepend worktree src to PYTHONPATH
-export PYTHONPATH="$(pwd)/src:$PYTHONPATH"
+# Python projects: prepend worktree source directory to PYTHONPATH.
+# Common layouts: src/, lib/, or the package directory itself.
+# Check pyproject.toml or setup.py for the correct source root.
+export PYTHONPATH="$(pwd)/src:$PYTHONPATH"   # for src-layout projects
+# export PYTHONPATH="$(pwd):$PYTHONPATH"     # for flat-layout projects
 
 # Run tests with PYTHONPATH
 PYTHONPATH=src python -m pytest tests/ -x -v
 
-# Verify correct import path
+# Verify correct import path — should show YOUR worktree path
 python -c "import <module>; print(<module>.__file__)"
-# Should show YOUR worktree path, not another agent's
 ```
 
-For Node.js projects, worktree isolation is usually sufficient since `node_modules` is per-directory.
+For Node.js projects, worktree isolation is usually sufficient since `node_modules` is per-directory. For Go projects, worktree isolation works natively (module paths are directory-relative).
 
 ## Implementation Process
 
