@@ -28,6 +28,25 @@ If `quantum.json` contains a `contracts` object:
 
 If you disagree with a contract value, you **MUST** halt and ask the orchestrator to confirm (propose-and-wait) rather than silently deviating. The orchestrator will either confirm the contract or update it for all agents.
 
+## Environment Setup (Worktree Mode)
+
+When running in an isolated worktree (parallel execution), the Python/Node environment may be shared with other worktrees. **Do NOT run `pip install -e .`** — this overwrites the editable install for all worktrees, causing race conditions where your tests import another agent's code.
+
+Instead, use `PYTHONPATH` injection:
+```bash
+# Python projects: prepend worktree src to PYTHONPATH
+export PYTHONPATH="$(pwd)/src:$PYTHONPATH"
+
+# Run tests with PYTHONPATH
+PYTHONPATH=src python -m pytest tests/ -x -v
+
+# Verify correct import path
+python -c "import <module>; print(<module>.__file__)"
+# Should show YOUR worktree path, not another agent's
+```
+
+For Node.js projects, worktree isolation is usually sufficient since `node_modules` is per-directory.
+
 ## Implementation Process
 
 For each task in the story's `tasks` array, in order:

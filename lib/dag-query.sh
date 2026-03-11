@@ -88,3 +88,61 @@ detect_cycles() {
   fi
   return 0
 }
+
+# filter_file_conflicts(quantum_json_path, eligible_ids_json_array)
+# Given a JSON array of eligible story IDs, filters out stories that share
+# file paths (via tasks[].filePaths or fileConflicts) with higher-priority
+# stories in the same wave. Returns a filtered JSON array.
+#
+# Example: filter_file_conflicts quantum.json '["US-001","US-002","US-003"]'
+filter_file_conflicts() {
+  local json_path="$1"
+  local eligible="$2"
+
+  jq -r --argjson eligible "$eligible" '
+    .stories as $all |
+    .fileConflicts as $fc |
+
+    # Build a map of story_id -> set of file paths (from tasks)
+    (
+      [ $all[] | select(.id as $id | $eligible | index($id)) |
+        {id: .id, priority: (.priority // 999),
+         files: [.tasks[]? | .filePaths[]?]}
+      ] | sort_by(.priority)
+    ) as $eligible_stories |
+
+    # Also include fileConflicts entries
+    (
+      [$fc[]? | {file: .file, stories: .stories}]
+    ) as $conflict_entries |
+
+    # Greedily select stories: for each story in priority order,
+    # include it only if none of its files overlap with already-selected stories.
+    reduce $eligible_stories[] as $story (
+      {selected: [], claimed_files: []};
+      if ([$story.files[] | . as $f | select(
+            [.] | inside([env.claimed_files[]?]) | not
+          )] | length) == ($story.files | length)
+         and
+         # Check fileConflicts: no conflict entry includes both this story
+         # and an already-selected story
+         (
+           [ $conflict_entries[] |
+             select(
+               (.stories | index($story.id)) and
+               ([.stories[] | . as $s | select(
+                 [env.selected[] | .id] | index($s)
+               )] | length > 0)
+             )
+           ] | length == 0
+         )
+      then
+        .selected += [$story] |
+        .claimed_files += $story.files
+      else
+        .
+      end
+    ) |
+    [.selected[].id]
+  ' "$json_path"
+}

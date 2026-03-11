@@ -8,6 +8,8 @@ source "$WORKTREE_LIB_DIR/common.sh" || { printf "ERROR: common.sh not found\n" 
 
 # create_worktree(story_id, branch_name, repo_root)
 # Creates a worktree at <repo_root>/.ql-wt/<story_id>/ branched from branch_name HEAD.
+# On Windows with long paths (OneDrive, deep directories), falls back to a shorter
+# temp-directory location if the default path exceeds 200 characters.
 # Returns 0 on success, 1 on failure.
 create_worktree() {
   local story_id="$1"
@@ -22,8 +24,17 @@ create_worktree() {
 
   local wt_path="$repo_root/.ql-wt/$story_id"
 
-  # Ensure .ql-wt directory exists
-  mkdir -p "$repo_root/.ql-wt"
+  # Windows long-path guard: if the worktree path exceeds 200 chars, use a shorter location.
+  # This prevents "fatal: '$GIT_DIR' too big" errors on Windows+OneDrive.
+  if [[ ${#wt_path} -gt 200 ]]; then
+    local short_base="${TMPDIR:-/tmp}/ql-wt"
+    mkdir -p "$short_base"
+    wt_path="$short_base/$story_id"
+    printf "WARN: Default worktree path too long (%d chars), using %s\n" "${#wt_path}" "$wt_path" >&2
+  fi
+
+  # Ensure parent directory exists
+  mkdir -p "$(dirname "$wt_path")"
 
   # Create worktree with a new branch for this story, based on the feature branch
   local wt_branch="ql-wt/${story_id}"
@@ -34,6 +45,8 @@ create_worktree() {
 # remove_worktree(story_id, repo_root)
 # Removes the worktree at <repo_root>/.ql-wt/<story_id>/.
 # Idempotent: returns 0 even if the worktree doesn't exist.
+# On Windows, retries up to 3 times with a short delay to handle file locks
+# (OneDrive sync, Python __pycache__, etc.).
 remove_worktree() {
   local story_id="$1"
   local repo_root="$2"
@@ -46,16 +59,31 @@ remove_worktree() {
 
   local wt_path="$repo_root/.ql-wt/$story_id"
 
-  if [[ -d "$wt_path" ]]; then
-    git -C "$repo_root" worktree remove --force "$wt_path" 2>/dev/null || true
-  fi
+  # Also check the short-path fallback location (used when long paths are detected)
+  local short_path="${TMPDIR:-/tmp}/ql-wt/$story_id"
+
+  for path in "$wt_path" "$short_path"; do
+    if [[ -d "$path" ]]; then
+      # Retry loop for Windows file locks
+      local attempt=0
+      while [[ $attempt -lt 3 ]]; do
+        git -C "$repo_root" worktree remove --force "$path" 2>/dev/null && break
+        attempt=$((attempt + 1))
+        if [[ $attempt -lt 3 ]]; then
+          sleep 2
+        fi
+      done
+      # Fallback: force-remove directory if git worktree remove failed
+      rm -rf "$path" 2>/dev/null || true
+    fi
+  done
 
   # Clean up the worktree branch
   local wt_branch="ql-wt/${story_id}"
   git -C "$repo_root" branch -D "$wt_branch" 2>/dev/null || true
 
-  # Remove directory if still present (edge case)
-  rm -rf "$wt_path" 2>/dev/null || true
+  # Prune stale worktree references
+  git -C "$repo_root" worktree prune 2>/dev/null || true
 
   return 0
 }

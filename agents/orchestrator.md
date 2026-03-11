@@ -47,6 +47,16 @@ Find all eligible stories. A story is eligible when ALL of:
 
 Sort eligible stories by `priority` (ascending).
 
+### 2.1: File-Conflict-Aware Filtering
+
+Before deciding sequential vs parallel, check the `fileConflicts` array in quantum.json. For each entry where two or more eligible stories share a file:
+- Only include the **highest-priority** story from the conflict group in this wave
+- Defer the others to the next wave (they remain eligible but are held back)
+
+This prevents merge conflicts from parallel stories editing the same file. Also check each eligible story's `tasks[].filePaths` — if two eligible stories share any file path, treat them as conflicting even if not listed in `fileConflicts`.
+
+Log: `[DAG] Held back US-XXX (file conflict with US-YYY on <file>)`
+
 **If no eligible stories:**
 - If ALL stories have `status: "passed"` -> output `<quantum>COMPLETE</quantum>`, print summary table, stop
 - Otherwise -> output `<quantum>BLOCKED</quantum>`, report which stories are stuck and why, stop
@@ -176,6 +186,14 @@ Agent tool with:
   prompt: "Implement story <STORY_ID> from quantum.json.
            You are in an isolated worktree. Read quantum.json for context.
            Follow the implementer agent protocol in agents/implementer.md.
+
+           IMPORTANT — Python projects: Do NOT run 'pip install -e .' in the worktree.
+           Parallel worktrees share one Python environment, so editable installs race.
+           Instead, set PYTHONPATH to your worktree's source directory before running tests:
+             export PYTHONPATH=\"$(pwd)/src:$PYTHONPATH\"
+           Or for inline commands:
+             PYTHONPATH=src python -m pytest tests/ -x -v
+
            You MUST commit your changes: git add -A && git commit -m 'feat: <STORY_ID> - <Title>'
            Signal completion: <quantum>STORY_PASSED</quantum> or <quantum>STORY_FAILED</quantum>"
 ```
@@ -196,8 +214,14 @@ Wait for agent completion notifications. Do NOT poll in a loop — Claude Code a
 
 **On STORY_PASSED:**
 - Log: `[PASSED] US-XXX - Story Title`
+- **Merge the worktree branch.** Claude Code's `isolation: "worktree"` may auto-merge, or you may need to merge manually. If quantum.json blocks the merge (modified locally for orchestrator state), use this pattern:
+  ```bash
+  git stash push -m "quantum.json orchestrator state" -- quantum.json
+  git merge <worktree-branch> --no-edit        # or use -X ours for non-critical conflicts
+  git stash pop
+  ```
+  If `stash pop` conflicts on quantum.json, discard the stash and re-write quantum.json state via Python (the orchestrator is the source of truth, not the stashed copy).
 - Update quantum.json: story `status: "passed"`, clear `startedAt` = `null`, add progress entry
-- The worktree merge is handled automatically by Claude Code's isolation mode
 
 **On STORY_FAILED:**
 - Log: `[FAILED] US-XXX - Story Title`
