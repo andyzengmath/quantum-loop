@@ -321,6 +321,37 @@ When DAG query returns no eligible stories and all stories have passed, run fina
 3. **Dead code scan:** every new function/class created during this feature has at least one call site outside its own file and tests. Use LSP "Find References" when available, fall back to grep.
 4. **If any check fails:** create a fix task, implement inline, re-test, commit. Do NOT output COMPLETE until all checks pass.
 
+## Step 4B: Full-Feature Code Review
+
+After Step 4 passes, run a holistic review of the **entire feature branch diff** — not per-story, but the combined change set. Per-story reviews catch local issues; this step catches cross-story problems that only emerge when viewed as a whole.
+
+```bash
+git diff main...HEAD --stat    # overview of all files changed
+git diff main...HEAD           # full diff for review
+```
+
+### 4B.1: Cross-Story Consistency
+- **Naming:** Did parallel agents use different names for the same concept? (e.g., `image_mode` vs `imageMode`, `_build_images_used` vs `_create_image_refs`)
+- **Duplicate logic:** Did two stories implement overlapping helpers or utility functions? If so, consolidate into one and update callers.
+- **Contradictory design:** Did one story return a list where another expects a dict? Check type consistency across story boundaries.
+
+### 4B.2: Architecture Coherence
+- Read the PRD goals section. For each goal, verify the combined implementation achieves it end-to-end (not just per-story acceptance criteria).
+- Check that the feature's data flow is complete: config → filtering → generation → validation → output. No stage should be half-wired.
+- Verify backward compatibility: run the test suite with the feature **disabled** (default config) and confirm identical behavior to the base branch.
+
+### 4B.3: Security and Quality
+- Grep the full diff for hardcoded secrets, TODO/FIXME/HACK comments, disabled tests, and `# type: ignore` suppressions.
+- Check error handling at feature boundaries: what happens when image_mode=True but no images exist? When the Vision API is unreachable?
+- Review any new async code for missing `await`, unhandled exceptions, or resource leaks.
+
+### 4B.4: Disposition
+- **If issues found:** Fix them inline, re-run tests, commit with `fix: <description>`.
+- **If clean:** Proceed to Step 5.
+- **Log:** Print a summary: `[FEATURE REVIEW] N files changed, M issues found (X fixed, Y deferred)`
+
+This review is NOT optional. Per-story reviews miss cross-cutting concerns. Field data: the most common post-merge issues (duplicate helpers, inconsistent naming, half-wired pipelines) are only visible at the full-feature level.
+
 ## Step 5: Generate Execution Observations
 
 After the main loop exits (COMPLETE, BLOCKED, or max iterations), generate an observations document:
