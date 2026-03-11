@@ -47,6 +47,16 @@ Find all eligible stories. A story is eligible when ALL of:
 
 Sort eligible stories by `priority` (ascending).
 
+### 2.1: File-Conflict-Aware Filtering
+
+Before deciding sequential vs parallel, check the `fileConflicts` array in quantum.json. For each entry where two or more eligible stories share a file:
+- Only include the **highest-priority** story from the conflict group in this wave
+- Defer the others to the next wave (they remain eligible but are held back)
+
+This prevents merge conflicts from parallel stories editing the same file. Also check each eligible story's `tasks[].filePaths` — if two eligible stories share any file path, treat them as conflicting even if not listed in `fileConflicts`.
+
+Log: `[DAG] Held back US-XXX (file conflict with US-YYY on <file>)`
+
 **If no eligible stories:**
 - If ALL stories have `status: "passed"` -> output `<quantum>COMPLETE</quantum>`, print summary table, stop
 - Otherwise -> output `<quantum>BLOCKED</quantum>`, report which stories are stuck and why, stop
@@ -176,6 +186,15 @@ Agent tool with:
   prompt: "Implement story <STORY_ID> from quantum.json.
            You are in an isolated worktree. Read quantum.json for context.
            Follow the implementer agent protocol in agents/implementer.md.
+
+           IMPORTANT — Python projects: Do NOT run 'pip install -e .' in the worktree.
+           Parallel worktrees share one Python environment, so editable installs race.
+           Instead, set PYTHONPATH to your worktree's source directory before running tests:
+             export PYTHONPATH=\"\$(pwd)/src:\$PYTHONPATH\"   # src-layout
+             # export PYTHONPATH=\"\$(pwd):\$PYTHONPATH\"     # flat-layout
+           Or for inline commands:
+             PYTHONPATH=src python -m pytest tests/ -x -v
+
            You MUST commit your changes: git add -A && git commit -m 'feat: <STORY_ID> - <Title>'
            Signal completion: <quantum>STORY_PASSED</quantum> or <quantum>STORY_FAILED</quantum>"
 ```
@@ -196,8 +215,18 @@ Wait for agent completion notifications. Do NOT poll in a loop — Claude Code a
 
 **On STORY_PASSED:**
 - Log: `[PASSED] US-XXX - Story Title`
+- **Merge the worktree branch.** Claude Code's `isolation: "worktree"` may auto-merge, or you may need to merge manually.
+
+  **Handling quantum.json during merges:** quantum.json should be in `.gitignore` so it doesn't participate in merges. If it IS tracked (some projects track it), or if other local-only files block the merge, use this pattern:
+  ```bash
+  git stash push -m "orchestrator state" -- quantum.json
+  git merge <worktree-branch> --no-edit        # or use -X ours for non-critical conflicts
+  git stash pop                                 # may conflict — see below
+  ```
+  If `stash pop` conflicts on quantum.json, **drop the stash** (`git stash drop`) and re-write quantum.json state from scratch via Python. The orchestrator's in-memory knowledge of story statuses is the source of truth, not any stashed file. Never resolve quantum.json merge conflicts by hand — always regenerate programmatically.
+
+  **Best practice:** Add `quantum.json` to `.gitignore` at the start of a feature branch to avoid this entirely. The implementer agents are already instructed not to commit quantum.json in parallel mode (see implementer.md, "Parallel mode" section).
 - Update quantum.json: story `status: "passed"`, clear `startedAt` = `null`, add progress entry
-- The worktree merge is handled automatically by Claude Code's isolation mode
 
 **On STORY_FAILED:**
 - Log: `[FAILED] US-XXX - Story Title`
@@ -208,6 +237,25 @@ Wait for agent completion notifications. Do NOT poll in a loop — Claude Code a
 - Run the full test suite to catch semantic merge regressions
 - If tests fail after merge: `git revert -m 1 HEAD` to undo the merge commit, mark story failed
 - Run a quick wiring check on the just-merged story's new exports (LSP "Find References" preferred, grep fallback)
+
+### 3B.4: Inline Review Gate (Parallel Mode)
+
+In parallel mode, implementer agents self-review (quality checks + acceptance criteria verification). The orchestrator runs an **inline review gate** after each successful merge, equivalent to Step 3A.5 but executed by the orchestrator rather than a separate agent:
+
+**Stage 1: Spec Compliance (inline)**
+- Read the PRD acceptance criteria for the just-merged story
+- For each criterion: grep the diff (`git diff <MERGE_BASE>..HEAD`) or test output for evidence
+- If any criterion is clearly unsatisfied: ONE fix attempt inline, re-commit. If unfixable, revert the merge and mark story failed.
+
+**Stage 2: Code Quality (inline)**
+- Review the merged diff for obvious issues: missing error handling, hardcoded secrets, broken types
+- Categorize: Critical / Important / Minor
+- Pass if: 0 Critical AND < 3 Important
+- If fails: ONE fix attempt inline, re-commit
+
+**When to defer the inline review:** If the wave has 4+ stories pending merge and the accumulated diff exceeds 2000 lines, defer reviews to the wave-end Integration Check (Step 3C) to conserve context. Log: `[REVIEW DEFERRED] US-XXX - will review at wave end (diff too large)`
+
+This ensures parallel execution has the same quality bar as sequential, while adapting to context window constraints.
 
 **When a complete dependency chain passes** (ALL stories in the chain have `status: "passed"` — skip if any story in the chain is still pending, in_progress, or failed):
 - Run a cross-story integration review:
@@ -273,6 +321,37 @@ When DAG query returns no eligible stories and all stories have passed, run fina
 2. **Full test suite:** run ALL tests (not per-story)
 3. **Dead code scan:** every new function/class created during this feature has at least one call site outside its own file and tests. Use LSP "Find References" when available, fall back to grep.
 4. **If any check fails:** create a fix task, implement inline, re-test, commit. Do NOT output COMPLETE until all checks pass.
+
+## Step 4B: Full-Feature Code Review
+
+After Step 4 passes, run a holistic review of the **entire feature branch diff** — not per-story, but the combined change set. Per-story reviews catch local issues; this step catches cross-story problems that only emerge when viewed as a whole.
+
+```bash
+git diff main...HEAD --stat    # overview of all files changed
+git diff main...HEAD           # full diff for review
+```
+
+### 4B.1: Cross-Story Consistency
+- **Naming:** Did parallel agents use different names for the same concept? (e.g., `image_mode` vs `imageMode`, `_build_images_used` vs `_create_image_refs`)
+- **Duplicate logic:** Did two stories implement overlapping helpers or utility functions? If so, consolidate into one and update callers.
+- **Contradictory design:** Did one story return a list where another expects a dict? Check type consistency across story boundaries.
+
+### 4B.2: Architecture Coherence
+- Read the PRD goals section. For each goal, verify the combined implementation achieves it end-to-end (not just per-story acceptance criteria).
+- Check that the feature's data flow is complete: config → filtering → generation → validation → output. No stage should be half-wired.
+- Verify backward compatibility: run the test suite with the feature **disabled** (default config) and confirm identical behavior to the base branch.
+
+### 4B.3: Security and Quality
+- Grep the full diff for hardcoded secrets, TODO/FIXME/HACK comments, disabled tests, and `# type: ignore` suppressions.
+- Check error handling at feature boundaries: what happens when image_mode=True but no images exist? When the Vision API is unreachable?
+- Review any new async code for missing `await`, unhandled exceptions, or resource leaks.
+
+### 4B.4: Disposition
+- **If issues found:** Fix them inline, re-run tests, commit with `fix: <description>`.
+- **If clean:** Proceed to Step 5.
+- **Log:** Print a summary: `[FEATURE REVIEW] N files changed, M issues found (X fixed, Y deferred)`
+
+This review is NOT optional. Per-story reviews miss cross-cutting concerns. Field data: the most common post-merge issues (duplicate helpers, inconsistent naming, half-wired pipelines) are only visible at the full-feature level.
 
 ## Step 5: Generate Execution Observations
 

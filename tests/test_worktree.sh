@@ -148,6 +148,63 @@ EXIT_CODE=$?
 assert_eq "remove_worktree for nonexistent exits 0" "0" "$EXIT_CODE"
 
 # =========================================================================
+echo "=== Test 7: _resolve_repo_root from main repo returns itself ==="
+RESOLVED=$(_resolve_repo_root "$TMPDIR")
+assert_eq "_resolve_repo_root main repo is identity" "$TMPDIR" "$RESOLVED"
+
+# =========================================================================
+echo "=== Test 8: _resolve_repo_root from inside worktree returns main root ==="
+# Create a worktree to test from
+create_worktree "US-resolve" "ql/test-feature" "$TMPDIR" >/dev/null 2>&1
+WT_RESOLVE="$TMPDIR/.ql-wt/US-resolve"
+if [[ -d "$WT_RESOLVE" ]]; then
+  RESOLVED=$(_resolve_repo_root "$WT_RESOLVE")
+  assert_eq "_resolve_repo_root from worktree returns main root" "$TMPDIR" "$RESOLVED"
+  remove_worktree "US-resolve" "$TMPDIR" >/dev/null 2>&1
+else
+  TOTAL=$((TOTAL + 1))
+  echo "  FAIL: Could not create worktree for _resolve_repo_root test"
+  FAIL=$((FAIL + 1))
+fi
+
+# =========================================================================
+echo "=== Test 9: create_worktree from nested path roots at top level ==="
+create_worktree "US-outer" "ql/test-feature" "$TMPDIR" >/dev/null 2>&1
+NESTED_ROOT="$TMPDIR/.ql-wt/US-outer"
+if [[ -d "$NESTED_ROOT" ]]; then
+  create_worktree "US-inner" "ql/test-feature" "$NESTED_ROOT" >/dev/null 2>&1
+  # Should land under main repo root, NOT double-nested
+  assert_dir_exists "US-inner under main root" "$TMPDIR/.ql-wt/US-inner"
+  assert_dir_not_exists "US-inner NOT nested inside US-outer" "$NESTED_ROOT/.ql-wt/US-inner"
+  remove_worktree "US-inner" "$TMPDIR" >/dev/null 2>&1
+  remove_worktree "US-outer" "$TMPDIR" >/dev/null 2>&1
+else
+  TOTAL=$((TOTAL + 1))
+  echo "  FAIL: Could not create outer worktree for nesting test"
+  FAIL=$((FAIL + 1))
+fi
+
+# =========================================================================
+echo "=== Test 10: _short_path_base is deterministic ==="
+BASE1=$(_short_path_base "$TMPDIR")
+BASE2=$(_short_path_base "$TMPDIR")
+assert_eq "_short_path_base deterministic" "$BASE1" "$BASE2"
+assert_contains "_short_path_base has ql-wt prefix" "ql-wt-" "$BASE1"
+
+# =========================================================================
+echo "=== Test 11: _short_path_base differs per repo root ==="
+BASE_A=$(_short_path_base "/tmp/repo-a")
+BASE_B=$(_short_path_base "/tmp/repo-b")
+TOTAL=$((TOTAL + 1))
+if [[ "$BASE_A" != "$BASE_B" ]]; then
+  echo "  PASS: Different repos get different short paths"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: Same short path for different repos: $BASE_A"
+  FAIL=$((FAIL + 1))
+fi
+
+# =========================================================================
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 if [[ $FAIL -eq 0 ]]; then

@@ -413,6 +413,9 @@ if [[ "$PARALLEL_MODE" == "true" ]]; then
       exit 1
     fi
 
+    # Filter out stories that share files with higher-priority stories in this wave
+    EXECUTABLE=$(filter_file_conflicts "$REPO_ROOT/quantum.json" "$EXECUTABLE")
+
     # Count executable stories
     EXEC_COUNT=$(echo "$EXECUTABLE" | jq '. | length')
     WAVE=$((WAVE + 1))
@@ -648,6 +651,7 @@ if [[ "$PARALLEL_MODE" == "true" ]]; then
       if [[ ${#local_completed[@]} -gt 0 && ${#AGENT_PIDS[@]} -lt $MAX_PARALLEL ]]; then
         NEW_EXEC=$(get_executable_stories "$REPO_ROOT/quantum.json")
         if [[ "$NEW_EXEC" != "COMPLETE" && "$NEW_EXEC" != "BLOCKED" && -n "$NEW_EXEC" ]]; then
+          NEW_EXEC=$(filter_file_conflicts "$REPO_ROOT/quantum.json" "$NEW_EXEC")
           NEW_COUNT=$(echo "$NEW_EXEC" | jq '. | length')
           WAVE=$((WAVE + 1))
           for ni in $(seq 0 $((NEW_COUNT - 1))); do
