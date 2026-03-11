@@ -290,7 +290,43 @@ assert_not_contains "US-003 excluded (conflict)" "US-003" "$RESULT"
 rm -f "$TMPJSON"
 
 # =========================================================================
-echo "=== Test 14: filter_file_conflicts — similar but different paths ==="
+echo "=== Test 14: filter_file_conflicts — null fileConflicts ==="
+TMPJSON=$(mktemp)
+cat > "$TMPJSON" << 'EOF'
+{
+  "stories": [
+    {"id": "US-001", "priority": 1, "status": "pending", "dependsOn": [], "tasks": [{"filePaths": ["src/a.ts"]}], "retries": {"attempts": 0, "maxAttempts": 3}},
+    {"id": "US-002", "priority": 2, "status": "pending", "dependsOn": [], "tasks": [{"filePaths": ["src/b.ts"]}], "retries": {"attempts": 0, "maxAttempts": 3}}
+  ],
+  "fileConflicts": null
+}
+EOF
+RESULT=$(filter_file_conflicts "$TMPJSON" '["US-001","US-002"]')
+assert_contains "US-001 with null fileConflicts" "US-001" "$RESULT"
+assert_contains "US-002 with null fileConflicts" "US-002" "$RESULT"
+rm -f "$TMPJSON"
+
+# =========================================================================
+echo "=== Test 15: filter_file_conflicts — transitive conflict chain ==="
+TMPJSON=$(mktemp)
+cat > "$TMPJSON" << 'EOF'
+{
+  "stories": [
+    {"id": "US-001", "priority": 1, "status": "pending", "dependsOn": [], "tasks": [{"filePaths": ["src/a.ts"]}], "retries": {"attempts": 0, "maxAttempts": 3}},
+    {"id": "US-002", "priority": 2, "status": "pending", "dependsOn": [], "tasks": [{"filePaths": ["src/a.ts", "src/b.ts"]}], "retries": {"attempts": 0, "maxAttempts": 3}},
+    {"id": "US-003", "priority": 3, "status": "pending", "dependsOn": [], "tasks": [{"filePaths": ["src/b.ts"]}], "retries": {"attempts": 0, "maxAttempts": 3}}
+  ],
+  "fileConflicts": []
+}
+EOF
+RESULT=$(filter_file_conflicts "$TMPJSON" '["US-001","US-002","US-003"]')
+assert_contains "US-001 included (claims src/a.ts)" "US-001" "$RESULT"
+assert_not_contains "US-002 excluded (src/a.ts conflict with US-001)" "US-002" "$RESULT"
+assert_contains "US-003 included (src/b.ts unclaimed — US-002 was excluded)" "US-003" "$RESULT"
+rm -f "$TMPJSON"
+
+# =========================================================================
+echo "=== Test 16: filter_file_conflicts — similar-but-different paths ==="
 TMPJSON=$(mktemp)
 cat > "$TMPJSON" << 'EOF'
 {

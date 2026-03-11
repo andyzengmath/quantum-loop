@@ -252,7 +252,7 @@ In parallel mode, implementer agents self-review (quality checks + acceptance cr
 - Pass if: 0 Critical AND < 3 Important
 - If fails: ONE fix attempt inline, re-commit
 
-**When to skip the inline review:** If the wave has 4+ stories pending merge and the orchestrator's context window is above 60% usage, defer reviews to the wave-end Integration Check (Step 3C). Log: `[REVIEW DEFERRED] US-XXX - will review at wave end`
+**When to defer the inline review:** If the wave has 4+ stories pending merge and the accumulated diff exceeds 2000 lines, defer reviews to the wave-end Integration Check (Step 3C) to conserve context. Log: `[REVIEW DEFERRED] US-XXX - will review at wave end (diff too large)`
 
 This ensures parallel execution has the same quality bar as sequential, while adapting to context window constraints.
 

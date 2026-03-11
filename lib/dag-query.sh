@@ -99,6 +99,15 @@ filter_file_conflicts() {
   local json_path="$1"
   local eligible="$2"
 
+  if [[ -z "$json_path" || ! -f "$json_path" ]]; then
+    printf "ERROR: filter_file_conflicts requires a valid JSON file path\n" >&2
+    return 1
+  fi
+  if [[ -z "$eligible" ]]; then
+    printf "ERROR: filter_file_conflicts requires eligible IDs JSON array\n" >&2
+    return 1
+  fi
+
   jq -r --argjson eligible "$eligible" '
     .stories as $all |
     .fileConflicts as $fc |
