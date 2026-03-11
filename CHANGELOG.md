@@ -7,6 +7,25 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.3.3] - 2026-03-11
+
+### Fixed
+- **File-conflict-aware DAG scheduling** — new `filter_file_conflicts()` in `dag-query.sh` prevents spawning parallel agents that share file paths. Uses greedy priority-ordered selection with exact-match comparison. Wired into both dispatch sites in `quantum-loop.sh` (initial wave + mid-wave top-up). Also detects cross-wave conflicts by seeding with in_progress stories' files.
+- **Worktree nesting prevention** — new `_resolve_repo_root()` helper in `worktree.sh` resolves nested worktree paths to the top-level repo root via `git rev-parse --git-common-dir`. Used by all three public functions (create, remove, list). Falls back gracefully on Git < 2.31 and warns when resolution fails inside `.ql-wt/` paths.
+- **Windows long-path fallback** — `create_worktree` detects paths > 200 chars and falls back to a repo-namespaced temp directory (`/tmp/ql-wt-<hash>/`). Re-checks fallback length with emergency `/tmp` last resort. `remove_worktree` and `list_worktrees` check both locations.
+- **Editable install race condition** — PYTHONPATH injection guidance added to `implementer.md`, `orchestrator.md`, and `spawn.sh` (both src-layout and flat-layout variants). Agents no longer run `pip install -e .` in parallel worktrees.
+- **Worktree cleanup on Windows** — retry loop (3 attempts, 2s delay) for file locks from OneDrive sync / `__pycache__`. `rm -rf` fallback only runs when `git worktree remove` actually fails. `git worktree prune` runs after cleanup.
+- **Unescaped shell expansions** — `orchestrator.md` prompt template now uses `\$(pwd)` and `\$PYTHONPATH` (matching `spawn.sh` pattern) to prevent premature expansion.
+- **echo → printf** — `detect_cycles` in `dag-query.sh` now uses `printf` matching project convention.
+
+### Added
+- **Inline review gate for parallel mode** (Step 3B.4) — orchestrator runs spec compliance + code quality checks after each worktree merge, matching sequential mode's quality bar. Defers to wave-end when accumulated diff exceeds 2000 lines.
+- **Full-feature code review** (Step 4B) — holistic review of entire branch diff after all stories pass. Checks cross-story consistency (naming, duplicates, type mismatches), architecture coherence (PRD goals, data flow, backward compatibility), and security (secrets, TODOs, error handling).
+- **quantum.json merge guidance** — documented stash/merge/restore pattern and recommended `.gitignore` best practice.
+- **Input validation** — `filter_file_conflicts()` validates file path and eligible array before processing.
+- **Cross-repo collision prevention** — `_short_path_base()` uses repo-root hash to namespace `/tmp` worktrees per repository.
+- 14 new tests: `filter_file_conflicts` (8 tests covering filePaths overlap, fileConflicts entries, empty/null, three-way conflict, transitive chains, similar paths), `_resolve_repo_root` (3 tests: identity, from-worktree, nested-create), `_short_path_base` (2 tests: determinism, cross-repo uniqueness), PYTHONPATH in spawn prompt (4 assertions). **79 total tests, all passing.**
+
 ## [0.3.2] - 2026-03-10
 
 ### Fixed
