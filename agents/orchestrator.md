@@ -214,13 +214,17 @@ Wait for agent completion notifications. Do NOT poll in a loop — Claude Code a
 
 **On STORY_PASSED:**
 - Log: `[PASSED] US-XXX - Story Title`
-- **Merge the worktree branch.** Claude Code's `isolation: "worktree"` may auto-merge, or you may need to merge manually. If quantum.json blocks the merge (modified locally for orchestrator state), use this pattern:
+- **Merge the worktree branch.** Claude Code's `isolation: "worktree"` may auto-merge, or you may need to merge manually.
+
+  **Handling quantum.json during merges:** quantum.json should be in `.gitignore` so it doesn't participate in merges. If it IS tracked (some projects track it), or if other local-only files block the merge, use this pattern:
   ```bash
-  git stash push -m "quantum.json orchestrator state" -- quantum.json
+  git stash push -m "orchestrator state" -- quantum.json
   git merge <worktree-branch> --no-edit        # or use -X ours for non-critical conflicts
-  git stash pop
+  git stash pop                                 # may conflict — see below
   ```
-  If `stash pop` conflicts on quantum.json, discard the stash and re-write quantum.json state via Python (the orchestrator is the source of truth, not the stashed copy).
+  If `stash pop` conflicts on quantum.json, **drop the stash** (`git stash drop`) and re-write quantum.json state from scratch via Python. The orchestrator's in-memory knowledge of story statuses is the source of truth, not any stashed file. Never resolve quantum.json merge conflicts by hand — always regenerate programmatically.
+
+  **Best practice:** Add `quantum.json` to `.gitignore` at the start of a feature branch to avoid this entirely. The implementer agents are already instructed not to commit quantum.json in parallel mode (see implementer.md, "Parallel mode" section).
 - Update quantum.json: story `status: "passed"`, clear `startedAt` = `null`, add progress entry
 
 **On STORY_FAILED:**
@@ -232,6 +236,25 @@ Wait for agent completion notifications. Do NOT poll in a loop — Claude Code a
 - Run the full test suite to catch semantic merge regressions
 - If tests fail after merge: `git revert -m 1 HEAD` to undo the merge commit, mark story failed
 - Run a quick wiring check on the just-merged story's new exports (LSP "Find References" preferred, grep fallback)
+
+### 3B.4: Inline Review Gate (Parallel Mode)
+
+In parallel mode, implementer agents self-review (quality checks + acceptance criteria verification). The orchestrator runs an **inline review gate** after each successful merge, equivalent to Step 3A.5 but executed by the orchestrator rather than a separate agent:
+
+**Stage 1: Spec Compliance (inline)**
+- Read the PRD acceptance criteria for the just-merged story
+- For each criterion: grep the diff (`git diff <MERGE_BASE>..HEAD`) or test output for evidence
+- If any criterion is clearly unsatisfied: ONE fix attempt inline, re-commit. If unfixable, revert the merge and mark story failed.
+
+**Stage 2: Code Quality (inline)**
+- Review the merged diff for obvious issues: missing error handling, hardcoded secrets, broken types
+- Categorize: Critical / Important / Minor
+- Pass if: 0 Critical AND < 3 Important
+- If fails: ONE fix attempt inline, re-commit
+
+**When to skip the inline review:** If the wave has 4+ stories pending merge and the orchestrator's context window is above 60% usage, defer reviews to the wave-end Integration Check (Step 3C). Log: `[REVIEW DEFERRED] US-XXX - will review at wave end`
+
+This ensures parallel execution has the same quality bar as sequential, while adapting to context window constraints.
 
 **When a complete dependency chain passes** (ALL stories in the chain have `status: "passed"` — skip if any story in the chain is still pending, in_progress, or failed):
 - Run a cross-story integration review:
