@@ -30,6 +30,13 @@ _resolve_repo_root() {
   if [[ -n "$real_root" && -d "$real_root" && "$real_root" != "$repo_root" ]]; then
     printf "%s" "$real_root"
   else
+    # Warn if the fallback path looks like it is inside a .ql-wt/ directory,
+    # which would indicate we are inside a worktree but git resolution failed.
+    if [[ "$repo_root" == */.ql-wt/* ]]; then
+      printf "WARN: _resolve_repo_root: input path appears to be inside a worktree (%s). " \
+          "$repo_root" >&2
+      printf "Git resolution failed; cannot prevent nesting.\n" >&2
+    fi
     printf "%s" "$repo_root"
   fi
 }
@@ -80,7 +87,15 @@ create_worktree() {
     short_base=$(_short_path_base "$repo_root")
     mkdir -p "$short_base"
     wt_path="$short_base/$story_id"
-    printf "WARN: Default worktree path too long (%d chars), using %s\n" "$orig_len" "$wt_path" >&2
+    local new_len=${#wt_path}
+    printf "WARN: Default worktree path too long (%d chars), using %s (%d chars)\n" \
+        "$orig_len" "$wt_path" "$new_len" >&2
+    # Last resort: if even the short path is too long, use a bare /tmp path
+    if [[ $new_len -gt 200 ]]; then
+      wt_path="/tmp/ql-wt-$(printf "%s" "$story_id" | md5sum 2>/dev/null | cut -c1-6 || echo "$story_id")"
+      printf "WARN: Short-path fallback still too long (%d chars), using emergency path %s\n" \
+          "$new_len" "$wt_path" >&2
+    fi
   fi
 
   # Ensure parent directory exists

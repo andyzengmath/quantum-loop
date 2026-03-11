@@ -179,14 +179,20 @@ Wave 3:  US-003 (API)      ─── worktree ─── [PASSED] ── merge   
 
 **How it works:**
 1. The orchestrator queries the DAG for all stories with satisfied dependencies
-2. Each story gets an isolated git worktree (`.ql-wt/<story-id>/`)
-3. A fresh Claude Code agent is spawned per worktree with the story ID in its prompt
-4. Agents implement the story, commit their changes (`git add -A && git commit`), then signal completion
-5. The orchestrator verifies changes are committed (safety commit if agent forgot), then merges the worktree branch into the feature branch
-6. The DAG is re-queried after every completion to spawn newly unblocked stories
-7. On merge conflict or failure, the story is retried in the next wave
+2. **File-conflict filtering** removes stories that share file paths with higher-priority stories in the same wave — preventing merge conflicts from parallel edits to the same file
+3. Each story gets an isolated git worktree (`.ql-wt/<story-id>/`)
+4. A fresh Claude Code agent is spawned per worktree with the story ID in its prompt
+5. Agents implement the story, commit their changes (`git add -A && git commit`), then signal completion
+6. The orchestrator runs an **inline review gate** (spec compliance + code quality) after each merge
+7. The DAG is re-queried after every completion to spawn newly unblocked stories
+8. On merge conflict or failure, the story is retried in the next wave
+9. After all stories pass, a **full-feature code review** examines the entire branch diff for cross-story consistency
 
 **Agents are fully isolated:** each works in its own worktree directory. Only the orchestrator reads/writes `quantum.json`. Agents must commit before signaling — the orchestrator includes a safety commit as a fallback, but uncommitted work in a removed worktree is lost. Agents that timeout (default 15 min) or crash are killed, their stories marked failed, and worktrees cleaned up.
+
+**Worktree nesting prevention:** If an agent is spawned inside a worktree (e.g., during mid-wave dispatch), `_resolve_repo_root()` resolves the path to the top-level repository root, preventing `.ql-wt/` directories from nesting inside each other. On Windows with long OneDrive paths, worktrees automatically fall back to a shorter temp-directory location.
+
+**Python project isolation:** Parallel worktrees share a single Python interpreter. Agents use `PYTHONPATH` injection instead of `pip install -e .` to avoid editable-install race conditions where one agent's install overwrites another's.
 
 **Two execution modes:**
 
@@ -341,13 +347,13 @@ quantum-loop/
 │   └── quality-reviewer  # Code quality check
 ├── lib/                  # Shell libraries for parallel orchestration
 │   ├── common.sh         # Shared validation utilities
-│   ├── dag-query.sh      # DAG query + cycle detection
+│   ├── dag-query.sh      # DAG query + cycle detection + file-conflict filtering
 │   ├── worktree.sh       # Git worktree lifecycle (create/remove/list)
 │   ├── spawn.sh          # Agent spawning (autonomous mode)
 │   ├── monitor.sh        # Agent polling, signal detection, merge-on-pass
 │   ├── json-atomic.sh    # Atomic quantum.json writes (tmp + mv)
 │   └── crash-recovery.sh # Orphaned worktree cleanup on startup
-├── tests/                # Shell test suites (124 tests)
+├── tests/                # Shell test suites (79+ tests)
 │   ├── test_dag_query.sh
 │   ├── test_worktree.sh
 │   ├── test_spawn.sh
@@ -385,8 +391,8 @@ curl -sO https://raw.githubusercontent.com/andyzengmath/quantum-loop/main/templa
 
 **Parallel mode** (`--parallel`):
 1. Recovers orphaned worktrees from any interrupted previous run
-2. Queries DAG for all independently executable stories
-3. Creates isolated git worktree per story (`.ql-wt/<story-id>/`)
+2. Queries DAG for all independently executable stories, filters out file conflicts
+3. Creates isolated git worktree per story (`.ql-wt/<story-id>/`, or `/tmp` fallback on long paths)
 4. Spawns background `claude --print` process per worktree (up to `--max-parallel`)
 5. Monitors agents: polls for signals, enforces 15-min timeout, detects crashes
 6. On pass: safety-commits any uncommitted changes, merges worktree branch into feature branch, re-queries DAG, spawns newly unblocked stories

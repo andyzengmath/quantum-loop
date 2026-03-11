@@ -190,7 +190,8 @@ Agent tool with:
            IMPORTANT — Python projects: Do NOT run 'pip install -e .' in the worktree.
            Parallel worktrees share one Python environment, so editable installs race.
            Instead, set PYTHONPATH to your worktree's source directory before running tests:
-             export PYTHONPATH=\"$(pwd)/src:$PYTHONPATH\"
+             export PYTHONPATH=\"\$(pwd)/src:\$PYTHONPATH\"   # src-layout
+             # export PYTHONPATH=\"\$(pwd):\$PYTHONPATH\"     # flat-layout
            Or for inline commands:
              PYTHONPATH=src python -m pytest tests/ -x -v
 

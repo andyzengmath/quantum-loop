@@ -82,7 +82,7 @@ detect_cycles() {
     if any then "CYCLE_DETECTED" else "NO_CYCLES" end
   ' "$json_path")
 
-  echo "$result"
+  printf "%s\n" "$result"
   if [[ "$result" == *"CYCLE"* ]]; then
     return 1
   fi
@@ -112,6 +112,15 @@ filter_file_conflicts() {
     .stories as $all |
     .fileConflicts as $fc |
 
+    # Collect files already claimed by in_progress stories (from prior waves).
+    # This prevents cross-wave file conflicts when a new wave spawns while
+    # a previous wave is still running.
+    (
+      [ $all[] | select(.status == "in_progress") |
+        .tasks[]? | .filePaths[]?
+      ]
+    ) as $in_progress_files |
+
     # Build a map of story_id -> set of file paths (from tasks)
     (
       [ $all[] | select(.id as $id | $eligible | index($id)) |
@@ -126,11 +135,12 @@ filter_file_conflicts() {
     ) as $conflict_entries |
 
     # Greedily select stories: for each story in priority order,
-    # include it only if none of its files overlap with already-selected stories.
+    # include it only if none of its files overlap with already-selected stories
+    # OR with in_progress stories from prior waves.
     # Note: we bind the accumulator to named variables ($claimed, $sel) inside
     # the reduce body because jq `env` refers to shell $ENV, not the accumulator.
     reduce $eligible_stories[] as $story (
-      {selected: [], claimed_files: []};
+      {selected: [], claimed_files: $in_progress_files};
       .claimed_files as $claimed |
       .selected as $sel |
       if (
