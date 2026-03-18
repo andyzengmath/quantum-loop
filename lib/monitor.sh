@@ -2,13 +2,15 @@
 # lib/monitor.sh -- Agent monitoring and worktree merge functions for quantum-loop
 #
 # Provides: detect_signal(), check_agent_status(), merge_worktree_branch(),
-#           check_agent_timeout(), kill_agent_process(), DEFAULT_AGENT_TIMEOUT
-# Requires: lib/spawn.sh (for AGENT_OUTPUT_FILENAME)
+#           check_agent_timeout(), kill_agent_process(), post_merge_typecheck(),
+#           DEFAULT_AGENT_TIMEOUT
+# Requires: lib/spawn.sh (for AGENT_OUTPUT_FILENAME), lib/materialize.sh (for detect_language)
 
 # Source shared utilities
 MONITOR_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$MONITOR_LIB_DIR/common.sh" || { printf "ERROR: common.sh not found\n" >&2; return 1 2>/dev/null || exit 1; }
 source "$MONITOR_LIB_DIR/spawn.sh" || { printf "ERROR: spawn.sh not found\n" >&2; return 1 2>/dev/null || exit 1; }
+source "$MONITOR_LIB_DIR/materialize.sh" || { printf "ERROR: materialize.sh not found\n" >&2; return 1 2>/dev/null || exit 1; }
 
 # detect_signal(output_file)
 # Scans an agent output file for quantum completion signals.
@@ -81,7 +83,8 @@ check_agent_status() {
 # merge_worktree_branch(repo_root, worktree_branch)
 # Merges a worktree branch into the current branch (feature branch).
 # On success: returns 0.
-# On conflict: aborts the merge and returns 1.
+# On conflict: prints "CONFLICT: <filename>" lines to stdout, aborts the merge,
+#   and returns 1. Caller can capture stdout for retries.failureLog[].error.
 merge_worktree_branch() {
   local repo_root="$1"
   local worktree_branch="$2"
@@ -103,14 +106,20 @@ merge_worktree_branch() {
   fi
 
   # Attempt merge (no squash, no rebase per spec)
-  if git -C "$repo_root" merge "$worktree_branch" --no-edit -q 2>/dev/null; then
+  if git -C "$repo_root" merge "$worktree_branch" --no-edit -q > /dev/null 2>&1; then
     [[ "$stashed" == "true" ]] && { git -C "$repo_root" stash pop -q 2>/dev/null || true; }
     return 0
   fi
 
-  # Merge failed -- capture conflict details before aborting
-  # Write conflict file list to stdout so caller can capture it
-  git -C "$repo_root" diff --name-only --diff-filter=U 2>/dev/null || true
+  # Merge failed -- capture conflict file list before aborting
+  # Prefix each file with CONFLICT: for structured failureLog inclusion
+  local conflict_files
+  conflict_files=$(git -C "$repo_root" diff --name-only --diff-filter=U 2>/dev/null) || true
+  if [[ -n "$conflict_files" ]]; then
+    while IFS= read -r file; do
+      printf "CONFLICT: %s\n" "$file"
+    done <<< "$conflict_files"
+  fi
   git -C "$repo_root" merge --abort 2>/dev/null || true
   [[ "$stashed" == "true" ]] && { git -C "$repo_root" stash pop -q 2>/dev/null || true; }
   return 1
@@ -165,5 +174,132 @@ kill_agent_process() {
     kill "$pid" 2>/dev/null || true
   fi
 
+  return 0
+}
+
+# Typecheck timeout in seconds
+TYPECHECK_TIMEOUT=120
+
+# post_merge_typecheck(repo_root, json_path)
+# Runs a typecheck command after merging a worktree branch.
+# Uses typecheckCommand from quantum.json if set, else auto-detects from language.
+# If no command can be determined: logs skip warning and returns 0.
+# If command not found in PATH (exit 127): logs warning and returns 0.
+# Compares error count against execution.baselineTypecheckErrors:
+#   - If baseline not set: initializes baseline with current count, returns 0.
+#   - If current errors > baseline: reverts merge (git revert -m 1 HEAD --no-edit), returns 1.
+#   - If current errors <= baseline: returns 0.
+# Runs with 120s timeout.
+post_merge_typecheck() {
+  local repo_root="$1"
+  local json_path="$2"
+
+  if [[ -z "$repo_root" ]]; then
+    printf "[TYPECHECK] ERROR: repo_root is required\n" >&2
+    return 1
+  fi
+
+  if [[ -z "$json_path" ]]; then
+    printf "[TYPECHECK] ERROR: json_path is required\n" >&2
+    return 1
+  fi
+
+  # Read typecheckCommand from JSON
+  local typecheck_cmd=""
+  if [[ -f "$json_path" ]]; then
+    typecheck_cmd=$(jq -r '.typecheckCommand // empty' "$json_path" 2>/dev/null) || true
+  fi
+
+  # If no explicit command, auto-detect from language
+  if [[ -z "$typecheck_cmd" ]]; then
+    local language
+    language=$(detect_language "$repo_root")
+
+    case "$language" in
+      typescript)
+        typecheck_cmd="tsc --noEmit"
+        ;;
+      python)
+        if command -v pyright >/dev/null 2>&1; then
+          typecheck_cmd="pyright"
+        elif command -v mypy >/dev/null 2>&1; then
+          typecheck_cmd="mypy ."
+        fi
+        ;;
+      go)
+        typecheck_cmd="go vet ./..."
+        ;;
+    esac
+  fi
+
+  # If still no command, skip
+  if [[ -z "$typecheck_cmd" ]]; then
+    printf "[TYPECHECK] skip: no typecheck command configured or detected\n"
+    return 0
+  fi
+
+  printf "[TYPECHECK] running: %s\n" "$typecheck_cmd"
+
+  # Run the typecheck command with timeout, capture output and exit code
+  local tc_output
+  local tc_exit
+  tc_output=$(cd "$repo_root" && timeout "$TYPECHECK_TIMEOUT" bash -c "$typecheck_cmd" 2>&1) || tc_exit=$?
+  tc_exit=${tc_exit:-0}
+
+  # Handle command not found (exit 127)
+  if [[ "$tc_exit" -eq 127 ]]; then
+    printf "[TYPECHECK] warning: command not found: %s\n" "$typecheck_cmd"
+    return 0
+  fi
+
+  # Handle timeout (exit 124 from GNU timeout)
+  if [[ "$tc_exit" -eq 124 ]]; then
+    printf "[TYPECHECK] warning: command timed out after %ds\n" "$TYPECHECK_TIMEOUT"
+    return 0
+  fi
+
+  # Count error lines in the output
+  local error_count=0
+  if [[ -n "$tc_output" ]]; then
+    error_count=$(printf "%s\n" "$tc_output" | grep -c "error" 2>/dev/null) || error_count=0
+  fi
+
+  # If command exited non-zero, use exit code as minimum error count (at least 1)
+  if [[ "$tc_exit" -ne 0 && "$error_count" -eq 0 ]]; then
+    error_count=1
+  fi
+
+  printf "[TYPECHECK] completed: %d errors (exit code %d)\n" "$error_count" "$tc_exit"
+
+  # Read baseline from JSON
+  local baseline
+  baseline=$(jq -r '.execution.baselineTypecheckErrors // empty' "$json_path" 2>/dev/null) || true
+
+  # If no baseline, initialize it
+  if [[ -z "$baseline" ]]; then
+    printf "[TYPECHECK] baseline initialized: %d errors\n" "$error_count"
+    # Write baseline to JSON using atomic jq pattern
+    local tmp_json="${json_path}.tmp.$$"
+    if jq --argjson count "$error_count" '
+      .execution = (.execution // {}) | .execution.baselineTypecheckErrors = $count
+    ' "$json_path" > "$tmp_json" 2>/dev/null; then
+      mv "$tmp_json" "$json_path"
+    else
+      rm -f "$tmp_json"
+    fi
+    return 0
+  fi
+
+  # Compare against baseline
+  if [[ "$error_count" -gt "$baseline" ]]; then
+    printf "[TYPECHECK] FAIL: %d errors > baseline %d — reverting merge\n" "$error_count" "$baseline"
+    # Stash any dirty tracked files before reverting (e.g., quantum.json updates)
+    git -C "$repo_root" stash push -q 2>/dev/null || true
+    git -C "$repo_root" revert --no-edit -m 1 HEAD 2>/dev/null || true
+    git -C "$repo_root" stash pop -q 2>/dev/null || true
+    return 1
+  fi
+
+  printf "[TYPECHECK] PASS: %d errors <= baseline %d\n" "$error_count" "$baseline"
   return 0
 }
