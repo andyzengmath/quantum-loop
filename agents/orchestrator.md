@@ -173,6 +173,75 @@ json.dump(data, open('quantum.json', 'w'), indent=2)
 
 This prevents race conditions from parallel agents editing quantum.json simultaneously.
 
+### 3B.1B: Materialize Contracts
+
+After marking stories as `in_progress` but **before** spawning any agents, materialize shared type contracts so that all worktree branches include the authoritative type definition files.
+
+1. **Read contract sources from quantum.json:**
+   - `contracts.shared_types` — planner-defined types with `definition`, `shape`, `definitionFile`, `consumers`, and `owner` fields
+   - `execution.discoveredContracts` — types discovered by the L5 wave-end audit in previous waves (only present for waves 2+)
+
+2. **For each type where `consumers.length >= 2`:** call `generate_definition_file()` (from `lib/materialize.sh`) to write the definition to disk:
+   - If `definition` field is present: write content verbatim to `definitionFile` path
+   - If `definition` is absent but `shape` is present: generate from shape using the detected project language template
+   - If neither `definition` nor `shape` is present: skip with warning log
+   - If `definitionFile` already exists with matching content: skip (idempotent)
+   - If `definitionFile` already exists with different content: do NOT overwrite; log `[MATERIALIZE] SKIP <TypeName> — file already exists with different content`
+   - Create parent directories with `mkdir -p` if they don't exist
+
+3. **Single-consumer types are NOT materialized.** Log: `[MATERIALIZE] SKIP <TypeName> — single consumer (consumers.length < 2)`
+
+4. **Commit materialized files** (if any were written):
+   ```bash
+   git add <materialized_files>
+   git commit -m "chore: materialize contracts for Wave <N>"
+   ```
+   This commit becomes the **base for all worktree branches** in this wave. Agents branching from HEAD after this commit will see the materialized type files in their working directory.
+
+5. **Update `execution.materializedContracts`** in quantum.json with the list of materialized type names.
+
+6. **Log each action:**
+   - Materialized: `[MATERIALIZE] <TypeName> → <definitionFile>`
+   - Skipped (single consumer): `[MATERIALIZE] SKIP <TypeName> — single consumer`
+   - Skipped (file exists): `[MATERIALIZE] SKIP <TypeName> — file already exists with different content`
+   - Skipped (no definition/shape): `[MATERIALIZE] SKIP <TypeName> — no definition or shape`
+
+7. **No-op case:** If no multi-consumer contracts exist in either `contracts.shared_types` or `execution.discoveredContracts`, log:
+   ```
+   [MATERIALIZE] No multi-consumer contracts to materialize for Wave <N>
+   ```
+   and skip the commit step entirely.
+
+8. **Subsequent waves:** On wave 2+, also read `execution.discoveredContracts` entries (types discovered by the L5 audit in previous waves) and materialize them following the same rules. This ensures that types missed by the planner but caught at runtime are available to agents in later waves.
+
+**Example orchestrator pseudocode:**
+```python
+# Read sources
+shared_types = quantum_json.get("contracts", {}).get("shared_types", {})
+discovered = quantum_json.get("execution", {}).get("discoveredContracts", {})
+
+# Combine all contract sources
+all_types = {**shared_types, **discovered}
+
+materialized = []
+for name, entry in all_types.items():
+    consumers = entry.get("consumers", [])
+    if len(consumers) < 2:
+        log(f"[MATERIALIZE] SKIP {name} — single consumer")
+        continue
+    result = generate_definition_file(entry, language, repo_root)
+    if result:
+        materialized.append(name)
+        log(f"[MATERIALIZE] {name} → {entry['definitionFile']}")
+
+if materialized:
+    # git add + commit → this is the base for worktree branches
+    run(f"git add {' '.join(files)} && git commit -m 'chore: materialize contracts for Wave {wave_num}'")
+    update_execution_materialized_contracts(quantum_json, materialized)
+else:
+    log(f"[MATERIALIZE] No multi-consumer contracts to materialize for Wave {wave_num}")
+```
+
 ### 3B.2: Spawn Agents
 
 For each eligible story (up to 4 concurrent), spawn using the **Agent tool** (NOT the Task tool):
