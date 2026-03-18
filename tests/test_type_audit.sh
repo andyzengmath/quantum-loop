@@ -663,6 +663,392 @@ WAVE_NUM=$(jq -r '.execution.discoveredContracts.Widget.discoveredInWave' "$UC5_
 assert_eq "Widget.discoveredInWave is 1" "1" "$WAVE_NUM"
 
 # =========================================================================
+# Edge-case tests added by US-022
+# =========================================================================
+
+echo "=== Test 29: Mixed language files — TS + Python in same scan ==="
+MIX_DIR="$TMPDIR/mix_project"
+mkdir -p "$MIX_DIR"
+touch "$MIX_DIR/tsconfig.json"
+touch "$MIX_DIR/pyproject.toml"
+
+cat > "$MIX_DIR/service.ts" <<'EOF'
+export interface SharedConfig {
+  url: string;
+}
+EOF
+
+cat > "$MIX_DIR/model.py" <<'EOF'
+class SharedConfig(BaseModel):
+    url: str
+EOF
+
+cat > "$MIX_DIR/other.ts" <<'EOF'
+export interface SharedConfig {
+  endpoint: string;
+}
+EOF
+
+# Scan TS + Python files together; SharedConfig appears in all 3 files:
+# - service.ts and other.ts via TS pattern
+# - model.py via Python BaseModel pattern
+# All extract type name "SharedConfig", so 3 distinct files -> 1 duplicate entry
+RESULT=$(grep_duplicate_definitions "$MIX_DIR" "$MIX_DIR/service.ts $MIX_DIR/model.py $MIX_DIR/other.ts")
+LEN=$(json_array_len "$RESULT")
+assert_eq "Mixed TS+Python: detects SharedConfig as duplicate across 3 files" "1" "$LEN"
+
+FIRST_NAME=$(json_first_name "$RESULT")
+assert_eq "Mixed TS+Python: duplicate name is SharedConfig" "SharedConfig" "$FIRST_NAME"
+
+# All 3 files define SharedConfig (TS pattern for .ts, Python pattern for .py)
+FIRST_FILES_LEN=$(json_first_files_len "$RESULT")
+assert_eq "Mixed TS+Python: duplicate has 3 files (2 TS + 1 Python)" "3" "$FIRST_FILES_LEN"
+
+# =========================================================================
+echo "=== Test 30: Mixed language — TS + Python both define same name cross-file ==="
+MIX2_DIR="$TMPDIR/mix2_project"
+mkdir -p "$MIX2_DIR"
+touch "$MIX2_DIR/tsconfig.json"
+touch "$MIX2_DIR/pyproject.toml"
+
+cat > "$MIX2_DIR/a.ts" <<'EOF'
+export interface Widget {
+  size: number;
+}
+EOF
+
+cat > "$MIX2_DIR/b.py" <<'EOF'
+class Widget(Protocol):
+    size: int
+EOF
+
+# Different extensions -> different grep patterns -> different type name extractions
+# The TS pattern extracts "Widget" from a.ts, the Python pattern extracts "Widget" from b.py
+# Both should be found, grouped under "Widget", and since 2 distinct files -> flagged as duplicate
+RESULT=$(grep_duplicate_definitions "$MIX2_DIR" "$MIX2_DIR/a.ts $MIX2_DIR/b.py")
+LEN=$(json_array_len "$RESULT")
+assert_eq "Mixed TS+Python cross-lang duplicate detected" "1" "$LEN"
+
+FIRST_NAME=$(json_first_name "$RESULT")
+assert_eq "Mixed TS+Python cross-lang duplicate name is Widget" "Widget" "$FIRST_NAME"
+
+FIRST_FILES_LEN=$(json_first_files_len "$RESULT")
+assert_eq "Mixed TS+Python cross-lang duplicate has 2 files" "2" "$FIRST_FILES_LEN"
+
+# =========================================================================
+echo "=== Test 31: Type name appears in 3+ files — single entry with all files ==="
+MULTI3_DIR="$TMPDIR/multi3_project"
+mkdir -p "$MULTI3_DIR"
+touch "$MULTI3_DIR/tsconfig.json"
+
+cat > "$MULTI3_DIR/f1.ts" <<'EOF'
+export interface ApiResponse {
+  data: any;
+}
+EOF
+
+cat > "$MULTI3_DIR/f2.ts" <<'EOF'
+export interface ApiResponse {
+  result: any;
+}
+EOF
+
+cat > "$MULTI3_DIR/f3.ts" <<'EOF'
+export interface ApiResponse {
+  payload: any;
+}
+EOF
+
+RESULT=$(grep_duplicate_definitions "$MULTI3_DIR" "$MULTI3_DIR/f1.ts $MULTI3_DIR/f2.ts $MULTI3_DIR/f3.ts")
+LEN=$(json_array_len "$RESULT")
+assert_eq "3-file duplicate: exactly 1 entry in result array" "1" "$LEN"
+
+FIRST_NAME=$(json_first_name "$RESULT")
+assert_eq "3-file duplicate: name is ApiResponse" "ApiResponse" "$FIRST_NAME"
+
+FILES_COUNT=$(json_first_files_len "$RESULT")
+assert_eq "3-file duplicate: files array has 3 entries" "3" "$FILES_COUNT"
+
+# =========================================================================
+echo "=== Test 32: Type name in 4 files — still one entry ==="
+MULTI4_DIR="$TMPDIR/multi4_project"
+mkdir -p "$MULTI4_DIR"
+touch "$MULTI4_DIR/go.mod"
+
+cat > "$MULTI4_DIR/a.go" <<'EOF'
+type Service struct {
+    Name string
+}
+EOF
+
+cat > "$MULTI4_DIR/b.go" <<'EOF'
+type Service struct {
+    ID int
+}
+EOF
+
+cat > "$MULTI4_DIR/c.go" <<'EOF'
+type Service struct {
+    Port int
+}
+EOF
+
+cat > "$MULTI4_DIR/d.go" <<'EOF'
+type Service struct {
+    Host string
+}
+EOF
+
+RESULT=$(grep_duplicate_definitions "$MULTI4_DIR" "$MULTI4_DIR/a.go $MULTI4_DIR/b.go $MULTI4_DIR/c.go $MULTI4_DIR/d.go")
+LEN=$(json_array_len "$RESULT")
+assert_eq "4-file duplicate: exactly 1 entry in result array" "1" "$LEN"
+
+FILES_COUNT=$(json_first_files_len "$RESULT")
+assert_eq "4-file duplicate: files array has 4 entries" "4" "$FILES_COUNT"
+
+# =========================================================================
+echo "=== Test 33: Empty file list (whitespace-only string) returns empty array ==="
+WS_DIR="$TMPDIR/ws_project"
+mkdir -p "$WS_DIR"
+touch "$WS_DIR/tsconfig.json"
+RESULT=$(grep_duplicate_definitions "$WS_DIR" "   ")
+LEN=$(json_array_len "$RESULT")
+assert_eq "Whitespace-only file list returns empty array" "0" "$LEN"
+
+# =========================================================================
+echo "=== Test 34: Files with syntax errors — grep still extracts type names ==="
+SYNERR_DIR="$TMPDIR/synerr_project"
+mkdir -p "$SYNERR_DIR"
+touch "$SYNERR_DIR/tsconfig.json"
+
+# File with valid type definition mixed with syntax errors
+cat > "$SYNERR_DIR/broken1.ts" <<'EOF'
+export interface Broken {
+  name: string;
+// missing closing brace -- syntax error
+const x = {{{{{ // garbage
+
+export interface Valid {
+  ok: boolean;
+}
+EOF
+
+cat > "$SYNERR_DIR/broken2.ts" <<'EOF'
+!@#$%^&*() invalid syntax everywhere
+export interface Broken {
+  id: number;
+}
+more garbage here }{}{}{
+EOF
+
+RESULT=$(grep_duplicate_definitions "$SYNERR_DIR" "$SYNERR_DIR/broken1.ts $SYNERR_DIR/broken2.ts")
+LEN=$(json_array_len "$RESULT")
+assert_eq "Files with syntax errors: grep still finds duplicates" "1" "$LEN"
+
+FIRST_NAME=$(json_first_name "$RESULT")
+assert_eq "Files with syntax errors: duplicate name is Broken" "Broken" "$FIRST_NAME"
+
+# =========================================================================
+echo "=== Test 35: Same-file duplicate with multiple type defs — not flagged ==="
+SAMEFILE_DIR="$TMPDIR/samefile_project"
+mkdir -p "$SAMEFILE_DIR"
+touch "$SAMEFILE_DIR/pyproject.toml"
+
+# Multiple definitions of the same name within a single file
+cat > "$SAMEFILE_DIR/models.py" <<'EOF'
+class MyModel(BaseModel):
+    name: str
+
+class MyModel(Protocol):
+    name: str
+EOF
+
+RESULT=$(grep_duplicate_definitions "$SAMEFILE_DIR" "$SAMEFILE_DIR/models.py")
+LEN=$(json_array_len "$RESULT")
+assert_eq "Same-file Python duplicate not flagged (cross-file only)" "0" "$LEN"
+
+# =========================================================================
+echo "=== Test 36: Same-file TS class duplicate — not flagged as cross-file ==="
+SAMETS_DIR="$TMPDIR/samets_project"
+mkdir -p "$SAMETS_DIR"
+touch "$SAMETS_DIR/tsconfig.json"
+
+cat > "$SAMETS_DIR/module.ts" <<'EOF'
+export class Duplicated {
+  name: string;
+}
+
+export interface Duplicated {
+  name: string;
+}
+
+export type Duplicated = { name: string };
+EOF
+
+RESULT=$(grep_duplicate_definitions "$SAMETS_DIR" "$SAMETS_DIR/module.ts")
+LEN=$(json_array_len "$RESULT")
+assert_eq "Same-file TS triple definition not flagged as cross-file" "0" "$LEN"
+
+# =========================================================================
+echo "=== Test 37: update_contracts_for_next_wave — appends to existing discoveredContracts, not replaces ==="
+UC_APPEND_DIR="$TMPDIR/uc_append"
+mkdir -p "$UC_APPEND_DIR"
+cat > "$UC_APPEND_DIR/quantum.json" <<'QEOF'
+{
+  "project": "test",
+  "contracts": {},
+  "stories": [],
+  "execution": {
+    "mode": "parallel",
+    "discoveredContracts": {
+      "Alpha": {
+        "discoveredInWave": 1,
+        "sourceFiles": ["alpha1.ts", "alpha2.ts"],
+        "consolidated": true,
+        "consolidatedFile": "shared/alpha.ts"
+      },
+      "Beta": {
+        "discoveredInWave": 1,
+        "sourceFiles": ["beta1.ts"],
+        "consolidated": true,
+        "consolidatedFile": "shared/beta.ts"
+      }
+    }
+  }
+}
+QEOF
+
+# Add a third contract entry
+update_contracts_for_next_wave "$UC_APPEND_DIR/quantum.json" "Gamma" "g1.ts g2.ts" "shared/gamma.ts" 2
+RET=$?
+assert_eq "Append third contract returns 0" "0" "$RET"
+
+# Verify all three entries exist
+ALPHA_WAVE=$(jq -r '.execution.discoveredContracts.Alpha.discoveredInWave' "$UC_APPEND_DIR/quantum.json")
+assert_eq "Alpha still exists after append" "1" "$ALPHA_WAVE"
+
+BETA_WAVE=$(jq -r '.execution.discoveredContracts.Beta.discoveredInWave' "$UC_APPEND_DIR/quantum.json")
+assert_eq "Beta still exists after append" "1" "$BETA_WAVE"
+
+GAMMA_WAVE=$(jq -r '.execution.discoveredContracts.Gamma.discoveredInWave' "$UC_APPEND_DIR/quantum.json")
+assert_eq "Gamma was appended" "2" "$GAMMA_WAVE"
+
+# Count total entries: should be 3
+TOTAL_ENTRIES=$(jq '.execution.discoveredContracts | keys | length' "$UC_APPEND_DIR/quantum.json")
+assert_eq "Total discoveredContracts entries is 3" "3" "$TOTAL_ENTRIES"
+
+# Now add a fourth entry to confirm append is stable
+update_contracts_for_next_wave "$UC_APPEND_DIR/quantum.json" "Delta" "d1.py d2.py" "shared/delta.py" 3
+RET=$?
+assert_eq "Append fourth contract returns 0" "0" "$RET"
+
+TOTAL_ENTRIES=$(jq '.execution.discoveredContracts | keys | length' "$UC_APPEND_DIR/quantum.json")
+assert_eq "Total discoveredContracts entries is 4 after second append" "4" "$TOTAL_ENTRIES"
+
+# Verify original entries are unchanged
+ALPHA_FILE=$(jq -r '.execution.discoveredContracts.Alpha.consolidatedFile' "$UC_APPEND_DIR/quantum.json")
+assert_eq "Alpha consolidatedFile unchanged" "shared/alpha.ts" "$ALPHA_FILE"
+
+ALPHA_SOURCES=$(jq '.execution.discoveredContracts.Alpha.sourceFiles | length' "$UC_APPEND_DIR/quantum.json")
+assert_eq "Alpha sourceFiles unchanged (2 entries)" "2" "$ALPHA_SOURCES"
+
+# =========================================================================
+echo "=== Test 38: update_contracts_for_next_wave — nonexistent json_path returns error ==="
+update_contracts_for_next_wave "/nonexistent/path/quantum.json" "Foo" "a.ts" "b.ts" 1 2>/dev/null
+RET=$?
+assert_eq "update_contracts_for_next_wave with nonexistent json_path returns 1" "1" "$RET"
+
+# =========================================================================
+echo "=== Test 39: update_contracts_for_next_wave — wave_num defaults when omitted ==="
+UC_DEFWAVE_DIR="$TMPDIR/uc_defwave"
+mkdir -p "$UC_DEFWAVE_DIR"
+cat > "$UC_DEFWAVE_DIR/quantum.json" <<'QEOF'
+{
+  "project": "test",
+  "execution": {}
+}
+QEOF
+
+# Call without wave_num argument (5th arg empty)
+update_contracts_for_next_wave "$UC_DEFWAVE_DIR/quantum.json" "NoWave" "a.ts" "shared/nowav.ts" ""
+RET=$?
+assert_eq "update_contracts_for_next_wave with empty wave_num returns 0" "0" "$RET"
+
+WAVE=$(jq -r '.execution.discoveredContracts.NoWave.discoveredInWave' "$UC_DEFWAVE_DIR/quantum.json")
+assert_eq "Default wave_num is 1 when empty string" "1" "$WAVE"
+
+# =========================================================================
+echo "=== Test 40: Mixed TS + Go files in same scan ==="
+MIXGO_DIR="$TMPDIR/mixgo_project"
+mkdir -p "$MIXGO_DIR"
+touch "$MIXGO_DIR/tsconfig.json"
+touch "$MIXGO_DIR/go.mod"
+
+cat > "$MIXGO_DIR/handler.ts" <<'EOF'
+export interface Router {
+  path: string;
+}
+EOF
+
+cat > "$MIXGO_DIR/handler.go" <<'EOF'
+type Router interface {
+    Route(path string)
+}
+EOF
+
+RESULT=$(grep_duplicate_definitions "$MIXGO_DIR" "$MIXGO_DIR/handler.ts $MIXGO_DIR/handler.go")
+LEN=$(json_array_len "$RESULT")
+assert_eq "Mixed TS+Go: Router detected as cross-file duplicate" "1" "$LEN"
+
+FIRST_NAME=$(json_first_name "$RESULT")
+assert_eq "Mixed TS+Go: duplicate name is Router" "Router" "$FIRST_NAME"
+
+FIRST_FILES_LEN=$(json_first_files_len "$RESULT")
+assert_eq "Mixed TS+Go: duplicate has 2 files" "2" "$FIRST_FILES_LEN"
+
+# =========================================================================
+echo "=== Test 41: File with no type definitions — returns empty ==="
+NOTYPES_DIR="$TMPDIR/notypes_project"
+mkdir -p "$NOTYPES_DIR"
+touch "$NOTYPES_DIR/tsconfig.json"
+
+cat > "$NOTYPES_DIR/plain.ts" <<'EOF'
+const x = 42;
+function hello() {
+  return "world";
+}
+// no type, interface, or class exports
+EOF
+
+cat > "$NOTYPES_DIR/plain2.ts" <<'EOF'
+import { something } from "./other";
+console.log("no types here");
+EOF
+
+RESULT=$(grep_duplicate_definitions "$NOTYPES_DIR" "$NOTYPES_DIR/plain.ts $NOTYPES_DIR/plain2.ts")
+LEN=$(json_array_len "$RESULT")
+assert_eq "Files with no type definitions return empty array" "0" "$LEN"
+
+# =========================================================================
+echo "=== Test 42: Binary/unreadable content in file — grep handles gracefully ==="
+BINARY_DIR="$TMPDIR/binary_project"
+mkdir -p "$BINARY_DIR"
+touch "$BINARY_DIR/tsconfig.json"
+
+# Write some binary-like content
+printf '\x00\x01\x02\x03\x04\x05' > "$BINARY_DIR/binary.ts"
+
+cat > "$BINARY_DIR/valid.ts" <<'EOF'
+export interface Clean {
+  value: string;
+}
+EOF
+
+RESULT=$(grep_duplicate_definitions "$BINARY_DIR" "$BINARY_DIR/binary.ts $BINARY_DIR/valid.ts")
+RET=$?
+assert_eq "Binary content does not crash grep_duplicate_definitions" "0" "$RET"
+
+# =========================================================================
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 if [[ $FAIL -eq 0 ]]; then
