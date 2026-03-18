@@ -332,6 +332,16 @@
     "activeWorktrees": [
       ".ql-wt/US-002",
       ".ql-wt/US-003"
-    ]
+    ],
+    "materializedContracts": ["AliasRegistry", "FeatureCluster"],
+    "discoveredContracts": {
+      "Feature": {
+        "discoveredInWave": 3,
+        "sourceFiles": ["src/api/types.ts", "src/frontend/types.ts"],
+        "consolidated": true,
+        "consolidatedFile": "src/shared/types/feature.ts"
+      }
+    },
+    "baselineTypecheckErrors": 0
   }
 }
