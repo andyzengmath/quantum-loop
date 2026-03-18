@@ -75,6 +75,8 @@ Example contracts block:
 
 Add the `contracts` object to quantum.json at the top level, after `codebasePatterns`.
 
+For language-specific shape and definition examples, read `references/contract-shapes.md` when generating structural contracts for shared types.
+
 ### wiring_verification Generation
 
 Tasks that create new modules, handlers, or components **SHOULD** have a `wiring_verification` object unless wiring is handled by a dependent story via `consumedBy`.
