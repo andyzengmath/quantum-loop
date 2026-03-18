@@ -291,6 +291,8 @@
     }
   },
   "coverageThreshold": 80,
+  "typecheckCommand": "tsc --noEmit",
+  "_comment_typecheckCommand": "Auto-detect: tsconfig.json -> tsc --noEmit, pyproject.toml with [tool.pyright] -> pyright, mypy config -> mypy ., go.mod -> go vet ./... If absent, auto-detect is used. Set to null to skip.",
   "staleThresholdMinutes": 20,
   "codebasePatterns": [],
   "fileConflicts": [
