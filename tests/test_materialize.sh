@@ -790,6 +790,604 @@ else
 fi
 
 # =========================================================================
+# Additional edge-case tests (US-020)
+# =========================================================================
+
+echo ""
+echo "--- Additional edge-case tests (US-020) ---"
+
+# =========================================================================
+echo "=== Test 46: materialize_contracts — mix of multi-consumer and single-consumer types ==="
+MC_MIX_DIR="$TMPDIR/mc_mix"
+mkdir -p "$MC_MIX_DIR"
+touch "$MC_MIX_DIR/tsconfig.json"
+cat > "$MC_MIX_DIR/quantum.json" << 'QJSON'
+{
+  "contracts": {
+    "shared_types": {
+      "MultiA": {
+        "value": "MultiA",
+        "definitionFile": "src/types/MultiA.ts",
+        "definition": "export interface MultiA { a: string; }",
+        "owner": "US-001",
+        "consumers": ["US-002", "US-003", "US-004"]
+      },
+      "SingleB": {
+        "value": "SingleB",
+        "definitionFile": "src/types/SingleB.ts",
+        "definition": "export interface SingleB { b: number; }",
+        "owner": "US-001",
+        "consumers": ["US-005"]
+      },
+      "MultiC": {
+        "value": "MultiC",
+        "definitionFile": "src/types/MultiC.ts",
+        "definition": "export type MultiC = 'x' | 'y';",
+        "owner": "US-002",
+        "consumers": ["US-003", "US-006"]
+      },
+      "SingleD": {
+        "value": "SingleD",
+        "definitionFile": "src/types/SingleD.ts",
+        "definition": "export interface SingleD {}",
+        "owner": "US-001",
+        "consumers": ["US-007"]
+      }
+    }
+  },
+  "execution": {}
+}
+QJSON
+(cd "$MC_MIX_DIR" && git init -q && git add -A && git commit -m "init" -q) 2>/dev/null
+RESULT=$(materialize_contracts "$MC_MIX_DIR/quantum.json" "$MC_MIX_DIR" 1 2>&1)
+# Multi-consumer files (MultiA, MultiC) should exist; single-consumer (SingleB, SingleD) should NOT
+MC_MIX_PASS=true
+if [[ ! -f "$MC_MIX_DIR/src/types/MultiA.ts" ]]; then
+  MC_MIX_PASS=false
+  echo "    DETAIL: MultiA.ts missing (should exist)"
+fi
+if [[ ! -f "$MC_MIX_DIR/src/types/MultiC.ts" ]]; then
+  MC_MIX_PASS=false
+  echo "    DETAIL: MultiC.ts missing (should exist)"
+fi
+if [[ -f "$MC_MIX_DIR/src/types/SingleB.ts" ]]; then
+  MC_MIX_PASS=false
+  echo "    DETAIL: SingleB.ts exists (should NOT exist)"
+fi
+if [[ -f "$MC_MIX_DIR/src/types/SingleD.ts" ]]; then
+  MC_MIX_PASS=false
+  echo "    DETAIL: SingleD.ts exists (should NOT exist)"
+fi
+TOTAL=$((TOTAL + 1))
+if [[ "$MC_MIX_PASS" == "true" ]]; then
+  PASS=$((PASS + 1))
+  echo "  PASS: Multi-consumer materialized, single-consumer skipped"
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: Mix of multi/single consumer not handled correctly"
+fi
+
+# =========================================================================
+echo "=== Test 47: materialize_contracts — empty contracts object (no-op) ==="
+MC_EMPTY_DIR="$TMPDIR/mc_empty_contracts"
+mkdir -p "$MC_EMPTY_DIR"
+touch "$MC_EMPTY_DIR/tsconfig.json"
+cat > "$MC_EMPTY_DIR/quantum.json" << 'QJSON'
+{
+  "contracts": {},
+  "execution": {}
+}
+QJSON
+(cd "$MC_EMPTY_DIR" && git init -q && git add -A && git commit -m "init" -q) 2>/dev/null
+INITIAL_COMMIT_EMPTY=$(cd "$MC_EMPTY_DIR" && git log --oneline -1 2>/dev/null)
+RESULT=$(materialize_contracts "$MC_EMPTY_DIR/quantum.json" "$MC_EMPTY_DIR" 1 2>&1)
+RET=$?
+AFTER_COMMIT_EMPTY=$(cd "$MC_EMPTY_DIR" && git log --oneline -1 2>/dev/null)
+TOTAL=$((TOTAL + 1))
+if [[ $RET -eq 0 && "$INITIAL_COMMIT_EMPTY" == "$AFTER_COMMIT_EMPTY" ]]; then
+  PASS=$((PASS + 1))
+  echo "  PASS: Empty contracts object is no-op (no commit, returns 0)"
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: Empty contracts should be no-op"
+  echo "    return code: $RET, initial_commit: $INITIAL_COMMIT_EMPTY, after_commit: $AFTER_COMMIT_EMPTY"
+fi
+
+# =========================================================================
+echo "=== Test 48: generate_definition_file — shape but no definition for Python ==="
+GEN_PY_SHAPE_DIR="$TMPDIR/gen_py_shape_only"
+mkdir -p "$GEN_PY_SHAPE_DIR"
+TYPE_JSON_PY_SHAPE='{"definitionFile":"src/shared/event.py","shape":{"properties":[{"name":"name","type":"str"},{"name":"timestamp","type":"float"}],"methods":[{"name":"serialize","params":[{"name":"format","type":"str"}],"returns":"str"}]},"consumers":["US-002","US-003"]}'
+generate_definition_file "Event" "$TYPE_JSON_PY_SHAPE" "python" "$GEN_PY_SHAPE_DIR" 2>&1
+TOTAL=$((TOTAL + 1))
+if [[ -f "$GEN_PY_SHAPE_DIR/src/shared/event.py" ]]; then
+  CONTENT_PY=$(cat "$GEN_PY_SHAPE_DIR/src/shared/event.py")
+  if echo "$CONTENT_PY" | grep -q "class Event(Protocol)" && echo "$CONTENT_PY" | grep -q "from typing import Protocol"; then
+    PASS=$((PASS + 1))
+    echo "  PASS: Python Protocol class generated from shape (no definition)"
+  else
+    FAIL=$((FAIL + 1))
+    echo "  FAIL: Python shape-only file does not contain Protocol class"
+    echo "    actual: $CONTENT_PY"
+  fi
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: Python file not created from shape (no definition)"
+fi
+
+# =========================================================================
+echo "=== Test 49: generate_definition_file — shape but no definition for Go ==="
+GEN_GO_SHAPE_DIR="$TMPDIR/gen_go_shape_only"
+mkdir -p "$GEN_GO_SHAPE_DIR"
+TYPE_JSON_GO_SHAPE='{"definitionFile":"internal/shared/event.go","shape":{"properties":[],"methods":[{"name":"Serialize","params":[{"name":"format","type":"string"}],"returns":"string"},{"name":"Timestamp","params":[],"returns":"int64"}]},"consumers":["US-002","US-003"]}'
+generate_definition_file "Event" "$TYPE_JSON_GO_SHAPE" "go" "$GEN_GO_SHAPE_DIR" 2>&1
+TOTAL=$((TOTAL + 1))
+if [[ -f "$GEN_GO_SHAPE_DIR/internal/shared/event.go" ]]; then
+  CONTENT_GO=$(cat "$GEN_GO_SHAPE_DIR/internal/shared/event.go")
+  if echo "$CONTENT_GO" | grep -q "type Event interface" && echo "$CONTENT_GO" | grep -q "package shared"; then
+    PASS=$((PASS + 1))
+    echo "  PASS: Go interface generated from shape (no definition)"
+  else
+    FAIL=$((FAIL + 1))
+    echo "  FAIL: Go shape-only file does not contain interface"
+    echo "    actual: $CONTENT_GO"
+  fi
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: Go file not created from shape (no definition)"
+fi
+
+# =========================================================================
+echo "=== Test 50: Idempotent re-run — same content, file already exists -> skipped ==="
+IDEM_DIR="$TMPDIR/idempotent_rerun"
+mkdir -p "$IDEM_DIR/src/types"
+# Write file with known content first
+printf "export interface Widget { id: number; }" > "$IDEM_DIR/src/types/Widget.ts"
+ORIG_TIMESTAMP=$(stat -c %Y "$IDEM_DIR/src/types/Widget.ts" 2>/dev/null || stat -f %m "$IDEM_DIR/src/types/Widget.ts" 2>/dev/null)
+TYPE_JSON_IDEM='{"definitionFile":"src/types/Widget.ts","definition":"export interface Widget { id: number; }","consumers":["US-002","US-003"]}'
+RESULT_IDEM=$(generate_definition_file "Widget" "$TYPE_JSON_IDEM" "typescript" "$IDEM_DIR" 2>&1)
+TOTAL=$((TOTAL + 1))
+if echo "$RESULT_IDEM" | grep -q "\[MATERIALIZE\] SKIP.*same content"; then
+  PASS=$((PASS + 1))
+  echo "  PASS: Idempotent re-run skipped with SKIP message (same content)"
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: Expected [MATERIALIZE] SKIP ... same content message"
+  echo "    actual: $RESULT_IDEM"
+fi
+
+# =========================================================================
+echo "=== Test 51: Different content already exists -> NOT overwritten, warning logged ==="
+DIFF_DIR="$TMPDIR/diff_content_rerun"
+mkdir -p "$DIFF_DIR/src/types"
+# Write file with different content first
+printf "export interface Widget { id: string; name: string; }" > "$DIFF_DIR/src/types/Widget.ts"
+ORIGINAL_DIFF=$(cat "$DIFF_DIR/src/types/Widget.ts")
+TYPE_JSON_DIFF='{"definitionFile":"src/types/Widget.ts","definition":"export interface Widget { id: number; }","consumers":["US-002","US-003"]}'
+RESULT_DIFF=$(generate_definition_file "Widget" "$TYPE_JSON_DIFF" "typescript" "$DIFF_DIR" 2>&1)
+AFTER_DIFF=$(cat "$DIFF_DIR/src/types/Widget.ts")
+TOTAL=$((TOTAL + 1))
+if [[ "$ORIGINAL_DIFF" == "$AFTER_DIFF" ]]; then
+  PASS=$((PASS + 1))
+  echo "  PASS: File with different content NOT overwritten"
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: File was overwritten despite different content"
+fi
+TOTAL=$((TOTAL + 1))
+if echo "$RESULT_DIFF" | grep -q "\[MATERIALIZE\] SKIP.*different content"; then
+  PASS=$((PASS + 1))
+  echo "  PASS: Warning logged for different content"
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: Expected warning about different content"
+  echo "    actual: $RESULT_DIFF"
+fi
+
+# =========================================================================
+echo "=== Test 52: discoveredContracts included alongside shared_types ==="
+MC_BOTH_DIR="$TMPDIR/mc_both_sources"
+mkdir -p "$MC_BOTH_DIR"
+touch "$MC_BOTH_DIR/tsconfig.json"
+cat > "$MC_BOTH_DIR/quantum.json" << 'QJSON'
+{
+  "contracts": {
+    "shared_types": {
+      "Priority": {
+        "value": "Priority",
+        "definitionFile": "src/types/Priority.ts",
+        "definition": "export interface Priority { level: number; }",
+        "owner": "US-001",
+        "consumers": ["US-002", "US-003"]
+      }
+    }
+  },
+  "execution": {
+    "discoveredContracts": {
+      "Metric": {
+        "discoveredInWave": 1,
+        "sourceFiles": ["src/a.ts", "src/b.ts"],
+        "consolidated": true,
+        "consolidatedFile": "src/types/Metric.ts",
+        "consumers": ["US-005", "US-006"],
+        "definition": "export interface Metric { name: string; value: number; }"
+      }
+    }
+  }
+}
+QJSON
+(cd "$MC_BOTH_DIR" && git init -q && git add -A && git commit -m "init" -q) 2>/dev/null
+STDOUT_BOTH=$(materialize_contracts "$MC_BOTH_DIR/quantum.json" "$MC_BOTH_DIR" 3 2>/dev/null)
+MC_BOTH_OK=true
+if [[ ! -f "$MC_BOTH_DIR/src/types/Priority.ts" ]]; then
+  MC_BOTH_OK=false
+  echo "    DETAIL: Priority.ts not created from shared_types"
+fi
+if [[ ! -f "$MC_BOTH_DIR/src/types/Metric.ts" ]]; then
+  MC_BOTH_OK=false
+  echo "    DETAIL: Metric.ts not created from discoveredContracts"
+fi
+TOTAL=$((TOTAL + 1))
+if [[ "$MC_BOTH_OK" == "true" ]]; then
+  PASS=$((PASS + 1))
+  echo "  PASS: Both shared_types and discoveredContracts materialized"
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: Not all sources materialized"
+fi
+# Also verify both names appear on stdout
+TOTAL=$((TOTAL + 1))
+if echo "$STDOUT_BOTH" | grep -q "Priority" && echo "$STDOUT_BOTH" | grep -q "Metric"; then
+  PASS=$((PASS + 1))
+  echo "  PASS: Both names (Priority, Metric) printed to stdout"
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: Expected both Priority and Metric on stdout"
+  echo "    actual: $STDOUT_BOTH"
+fi
+
+# =========================================================================
+echo "=== Test 53: Git commit message format matches 'chore: materialize contracts for Wave N' ==="
+MC_COMMIT_FMT="$TMPDIR/mc_commit_fmt"
+mkdir -p "$MC_COMMIT_FMT"
+touch "$MC_COMMIT_FMT/tsconfig.json"
+cat > "$MC_COMMIT_FMT/quantum.json" << 'QJSON'
+{
+  "contracts": {
+    "shared_types": {
+      "Alpha": {
+        "value": "Alpha",
+        "definitionFile": "src/types/Alpha.ts",
+        "definition": "export interface Alpha {}",
+        "owner": "US-001",
+        "consumers": ["US-002", "US-003"]
+      }
+    }
+  },
+  "execution": {}
+}
+QJSON
+(cd "$MC_COMMIT_FMT" && git init -q && git add -A && git commit -m "init" -q) 2>/dev/null
+materialize_contracts "$MC_COMMIT_FMT/quantum.json" "$MC_COMMIT_FMT" 5 2>/dev/null
+COMMIT_MSG=$(cd "$MC_COMMIT_FMT" && git log --format=%s -1 2>/dev/null)
+TOTAL=$((TOTAL + 1))
+if [[ "$COMMIT_MSG" == "chore: materialize contracts for Wave 5" ]]; then
+  PASS=$((PASS + 1))
+  echo "  PASS: Commit message exactly matches 'chore: materialize contracts for Wave 5'"
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: Commit message format mismatch"
+  echo "    expected: chore: materialize contracts for Wave 5"
+  echo "    actual:   $COMMIT_MSG"
+fi
+
+# =========================================================================
+echo "=== Test 54: Git commit message for Wave 1 ==="
+MC_COMMIT_W1="$TMPDIR/mc_commit_w1"
+mkdir -p "$MC_COMMIT_W1"
+touch "$MC_COMMIT_W1/pyproject.toml"
+cat > "$MC_COMMIT_W1/quantum.json" << 'QJSON'
+{
+  "contracts": {
+    "shared_types": {
+      "Beta": {
+        "value": "Beta",
+        "definitionFile": "src/shared/beta.py",
+        "definition": "class Beta:\n    pass",
+        "owner": "US-001",
+        "consumers": ["US-002", "US-003"]
+      }
+    }
+  },
+  "execution": {}
+}
+QJSON
+(cd "$MC_COMMIT_W1" && git init -q && git add -A && git commit -m "init" -q) 2>/dev/null
+materialize_contracts "$MC_COMMIT_W1/quantum.json" "$MC_COMMIT_W1" 1 2>/dev/null
+COMMIT_MSG_W1=$(cd "$MC_COMMIT_W1" && git log --format=%s -1 2>/dev/null)
+TOTAL=$((TOTAL + 1))
+if [[ "$COMMIT_MSG_W1" == "chore: materialize contracts for Wave 1" ]]; then
+  PASS=$((PASS + 1))
+  echo "  PASS: Commit message matches 'chore: materialize contracts for Wave 1'"
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: Commit message mismatch for Wave 1"
+  echo "    expected: chore: materialize contracts for Wave 1"
+  echo "    actual:   $COMMIT_MSG_W1"
+fi
+
+# =========================================================================
+echo "=== Test 55: infer_shared_types_dir — priority order: src/types > src/interfaces > types > shared ==="
+INFER_PRI_DIR="$TMPDIR/infer_priority2"
+mkdir -p "$INFER_PRI_DIR/src/types"
+mkdir -p "$INFER_PRI_DIR/src/interfaces"
+mkdir -p "$INFER_PRI_DIR/types"
+mkdir -p "$INFER_PRI_DIR/shared"
+# src/shared/types does NOT exist, so src/types should win
+RESULT=$(infer_shared_types_dir "$INFER_PRI_DIR" "typescript")
+assert_eq "src/types wins when src/shared/types absent" "src/types" "$RESULT"
+
+# =========================================================================
+echo "=== Test 56: infer_shared_types_dir — src/interfaces > types > shared ==="
+INFER_PRI_DIR2="$TMPDIR/infer_priority3"
+mkdir -p "$INFER_PRI_DIR2/src/interfaces"
+mkdir -p "$INFER_PRI_DIR2/types"
+mkdir -p "$INFER_PRI_DIR2/shared"
+RESULT=$(infer_shared_types_dir "$INFER_PRI_DIR2" "go")
+assert_eq "src/interfaces wins when src/shared/types and src/types absent" "src/interfaces" "$RESULT"
+
+# =========================================================================
+echo "=== Test 57: infer_shared_types_dir — types > shared ==="
+INFER_PRI_DIR3="$TMPDIR/infer_priority4"
+mkdir -p "$INFER_PRI_DIR3/types"
+mkdir -p "$INFER_PRI_DIR3/shared"
+RESULT=$(infer_shared_types_dir "$INFER_PRI_DIR3" "python")
+assert_eq "types wins when higher priority dirs absent" "types" "$RESULT"
+
+# =========================================================================
+echo "=== Test 58: materialize_contracts — empty shared_types with no discoveredContracts ==="
+MC_EMPTY_ST="$TMPDIR/mc_empty_st"
+mkdir -p "$MC_EMPTY_ST"
+touch "$MC_EMPTY_ST/tsconfig.json"
+cat > "$MC_EMPTY_ST/quantum.json" << 'QJSON'
+{
+  "contracts": {
+    "shared_types": {}
+  },
+  "execution": {}
+}
+QJSON
+(cd "$MC_EMPTY_ST" && git init -q && git add -A && git commit -m "init" -q) 2>/dev/null
+INITIAL_COMMIT_ST=$(cd "$MC_EMPTY_ST" && git log --oneline -1 2>/dev/null)
+RESULT=$(materialize_contracts "$MC_EMPTY_ST/quantum.json" "$MC_EMPTY_ST" 1 2>&1)
+RET=$?
+AFTER_COMMIT_ST=$(cd "$MC_EMPTY_ST" && git log --oneline -1 2>/dev/null)
+TOTAL=$((TOTAL + 1))
+if [[ $RET -eq 0 && "$INITIAL_COMMIT_ST" == "$AFTER_COMMIT_ST" ]]; then
+  PASS=$((PASS + 1))
+  echo "  PASS: Empty shared_types object is no-op"
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: Empty shared_types should be no-op"
+fi
+
+# =========================================================================
+echo "=== Test 59: generate_definition_file — Python shape with methods generates def ==="
+GEN_PY_METHOD_DIR="$TMPDIR/gen_py_method"
+mkdir -p "$GEN_PY_METHOD_DIR"
+TYPE_JSON_PY_METHOD='{"definitionFile":"src/shared/calculator.py","shape":{"properties":[],"methods":[{"name":"add","params":[{"name":"a","type":"int"},{"name":"b","type":"int"}],"returns":"int"}]},"consumers":["US-002","US-003"]}'
+generate_definition_file "Calculator" "$TYPE_JSON_PY_METHOD" "python" "$GEN_PY_METHOD_DIR" 2>&1
+TOTAL=$((TOTAL + 1))
+if [[ -f "$GEN_PY_METHOD_DIR/src/shared/calculator.py" ]]; then
+  CONTENT_PY_M=$(cat "$GEN_PY_METHOD_DIR/src/shared/calculator.py")
+  if echo "$CONTENT_PY_M" | grep -q "def add(self, a: int, b: int) -> int"; then
+    PASS=$((PASS + 1))
+    echo "  PASS: Python method with params generated correctly"
+  else
+    FAIL=$((FAIL + 1))
+    echo "  FAIL: Python method signature incorrect"
+    echo "    actual: $CONTENT_PY_M"
+  fi
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: Python file not created for method shape test"
+fi
+
+# =========================================================================
+echo "=== Test 60: generate_definition_file — Go shape with params in methods ==="
+GEN_GO_PARAM_DIR="$TMPDIR/gen_go_param"
+mkdir -p "$GEN_GO_PARAM_DIR"
+TYPE_JSON_GO_PARAM='{"definitionFile":"internal/shared/calc.go","shape":{"properties":[],"methods":[{"name":"Add","params":[{"name":"a","type":"int"},{"name":"b","type":"int"}],"returns":"int"}]},"consumers":["US-002","US-003"]}'
+generate_definition_file "Calc" "$TYPE_JSON_GO_PARAM" "go" "$GEN_GO_PARAM_DIR" 2>&1
+TOTAL=$((TOTAL + 1))
+if [[ -f "$GEN_GO_PARAM_DIR/internal/shared/calc.go" ]]; then
+  CONTENT_GO_P=$(cat "$GEN_GO_PARAM_DIR/internal/shared/calc.go")
+  if echo "$CONTENT_GO_P" | grep -q "Add(a int, b int) int"; then
+    PASS=$((PASS + 1))
+    echo "  PASS: Go method with params generated correctly"
+  else
+    FAIL=$((FAIL + 1))
+    echo "  FAIL: Go method signature incorrect"
+    echo "    actual: $CONTENT_GO_P"
+  fi
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: Go file not created for param method test"
+fi
+
+# =========================================================================
+echo "=== Test 61: materialize_contracts — discoveredContracts with single consumer skipped ==="
+MC_DISC_SINGLE="$TMPDIR/mc_disc_single"
+mkdir -p "$MC_DISC_SINGLE"
+touch "$MC_DISC_SINGLE/tsconfig.json"
+cat > "$MC_DISC_SINGLE/quantum.json" << 'QJSON'
+{
+  "contracts": {
+    "shared_types": {}
+  },
+  "execution": {
+    "discoveredContracts": {
+      "LoneType": {
+        "discoveredInWave": 1,
+        "sourceFiles": ["src/a.ts"],
+        "consolidated": true,
+        "consolidatedFile": "src/types/LoneType.ts",
+        "consumers": ["US-005"],
+        "definition": "export interface LoneType {}"
+      }
+    }
+  }
+}
+QJSON
+(cd "$MC_DISC_SINGLE" && git init -q && git add -A && git commit -m "init" -q) 2>/dev/null
+RESULT=$(materialize_contracts "$MC_DISC_SINGLE/quantum.json" "$MC_DISC_SINGLE" 1 2>&1)
+TOTAL=$((TOTAL + 1))
+if [[ ! -f "$MC_DISC_SINGLE/src/types/LoneType.ts" ]]; then
+  PASS=$((PASS + 1))
+  echo "  PASS: Discovered contract with single consumer NOT materialized"
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: Discovered contract with single consumer should be skipped"
+fi
+
+# =========================================================================
+echo "=== Test 62: materialize_contracts — empty repo_root returns error ==="
+MC_EMPTY_ROOT="$TMPDIR/mc_empty_root"
+mkdir -p "$MC_EMPTY_ROOT"
+cat > "$MC_EMPTY_ROOT/quantum.json" << 'QJSON'
+{
+  "contracts": {"shared_types": {}},
+  "execution": {}
+}
+QJSON
+RESULT=$(materialize_contracts "$MC_EMPTY_ROOT/quantum.json" "" 1 2>&1)
+RET=$?
+TOTAL=$((TOTAL + 1))
+if [[ $RET -ne 0 ]]; then
+  PASS=$((PASS + 1))
+  echo "  PASS: Empty repo_root returns error"
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: Empty repo_root should return error"
+fi
+
+# =========================================================================
+echo "=== Test 63: materialize_contracts — wave_num defaults to 1 when omitted ==="
+MC_DEFAULT_WAVE="$TMPDIR/mc_default_wave"
+mkdir -p "$MC_DEFAULT_WAVE"
+touch "$MC_DEFAULT_WAVE/tsconfig.json"
+cat > "$MC_DEFAULT_WAVE/quantum.json" << 'QJSON'
+{
+  "contracts": {
+    "shared_types": {
+      "Gamma": {
+        "value": "Gamma",
+        "definitionFile": "src/types/Gamma.ts",
+        "definition": "export interface Gamma {}",
+        "owner": "US-001",
+        "consumers": ["US-002", "US-003"]
+      }
+    }
+  },
+  "execution": {}
+}
+QJSON
+(cd "$MC_DEFAULT_WAVE" && git init -q && git add -A && git commit -m "init" -q) 2>/dev/null
+# Call without wave_num argument (should default to 1)
+materialize_contracts "$MC_DEFAULT_WAVE/quantum.json" "$MC_DEFAULT_WAVE" 2>/dev/null
+COMMIT_MSG_DEF=$(cd "$MC_DEFAULT_WAVE" && git log --format=%s -1 2>/dev/null)
+TOTAL=$((TOTAL + 1))
+if [[ "$COMMIT_MSG_DEF" == "chore: materialize contracts for Wave 1" ]]; then
+  PASS=$((PASS + 1))
+  echo "  PASS: wave_num defaults to 1 when omitted"
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: wave_num default not applied"
+  echo "    actual commit: $COMMIT_MSG_DEF"
+fi
+
+# =========================================================================
+echo "=== Test 64: generate_definition_file — TS shape with methods that have params ==="
+GEN_TS_METH_DIR="$TMPDIR/gen_ts_method_params"
+mkdir -p "$GEN_TS_METH_DIR"
+TYPE_JSON_TS_METH='{"definitionFile":"src/types/Service.ts","shape":{"properties":[],"methods":[{"name":"process","params":[{"name":"input","type":"string"},{"name":"count","type":"number"}],"returns":"Promise<void>"}]},"consumers":["US-002","US-003"]}'
+generate_definition_file "Service" "$TYPE_JSON_TS_METH" "typescript" "$GEN_TS_METH_DIR" 2>&1
+TOTAL=$((TOTAL + 1))
+if [[ -f "$GEN_TS_METH_DIR/src/types/Service.ts" ]]; then
+  CONTENT_TS_M=$(cat "$GEN_TS_METH_DIR/src/types/Service.ts")
+  if echo "$CONTENT_TS_M" | grep -q "process(input: string, count: number): Promise<void>"; then
+    PASS=$((PASS + 1))
+    echo "  PASS: TS method with multiple params generated correctly"
+  else
+    FAIL=$((FAIL + 1))
+    echo "  FAIL: TS method signature incorrect"
+    echo "    actual: $CONTENT_TS_M"
+  fi
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: TS file not created for method params test"
+fi
+
+# =========================================================================
+echo "=== Test 65: generate_definition_file — Python shape with no properties and no methods ==="
+GEN_PY_EMPTY_SHAPE="$TMPDIR/gen_py_empty_shape"
+mkdir -p "$GEN_PY_EMPTY_SHAPE"
+TYPE_JSON_PY_EMPTY_SHAPE='{"definitionFile":"src/shared/marker.py","shape":{"properties":[],"methods":[]},"consumers":["US-002","US-003"]}'
+generate_definition_file "Marker" "$TYPE_JSON_PY_EMPTY_SHAPE" "python" "$GEN_PY_EMPTY_SHAPE" 2>&1
+TOTAL=$((TOTAL + 1))
+if [[ -f "$GEN_PY_EMPTY_SHAPE/src/shared/marker.py" ]]; then
+  CONTENT_PY_E=$(cat "$GEN_PY_EMPTY_SHAPE/src/shared/marker.py")
+  # Should have "..." placeholder for empty Protocol class
+  if echo "$CONTENT_PY_E" | grep -q "class Marker(Protocol)" && echo "$CONTENT_PY_E" | grep -q "\.\.\."; then
+    PASS=$((PASS + 1))
+    echo "  PASS: Empty Python Protocol has ... placeholder"
+  else
+    FAIL=$((FAIL + 1))
+    echo "  FAIL: Empty Python Protocol should have ... placeholder"
+    echo "    actual: $CONTENT_PY_E"
+  fi
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: Python file not created for empty shape test"
+fi
+
+# =========================================================================
+echo "=== Test 66: materialize_contracts — materializedContracts accumulates across calls ==="
+MC_ACCUM="$TMPDIR/mc_accumulate"
+mkdir -p "$MC_ACCUM"
+touch "$MC_ACCUM/tsconfig.json"
+cat > "$MC_ACCUM/quantum.json" << 'QJSON'
+{
+  "contracts": {
+    "shared_types": {
+      "TypeA": {
+        "value": "TypeA",
+        "definitionFile": "src/types/TypeA.ts",
+        "definition": "export interface TypeA {}",
+        "owner": "US-001",
+        "consumers": ["US-002", "US-003"]
+      }
+    }
+  },
+  "execution": {
+    "materializedContracts": ["ExistingType"]
+  }
+}
+QJSON
+(cd "$MC_ACCUM" && git init -q && git add -A && git commit -m "init" -q) 2>/dev/null
+materialize_contracts "$MC_ACCUM/quantum.json" "$MC_ACCUM" 1 2>/dev/null
+MATERIALIZED_LIST=$(jq -r '.execution.materializedContracts[]' "$MC_ACCUM/quantum.json" 2>/dev/null)
+TOTAL=$((TOTAL + 1))
+if echo "$MATERIALIZED_LIST" | grep -q "ExistingType" && echo "$MATERIALIZED_LIST" | grep -q "TypeA"; then
+  PASS=$((PASS + 1))
+  echo "  PASS: materializedContracts accumulates (ExistingType + TypeA)"
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: materializedContracts should accumulate, not replace"
+  echo "    actual: $MATERIALIZED_LIST"
+fi
+
+# =========================================================================
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 if [[ $FAIL -eq 0 ]]; then
