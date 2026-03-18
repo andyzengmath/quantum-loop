@@ -294,6 +294,375 @@ FIRST_NAME=$(json_first_name "$RESULT")
 assert_eq "TS export type duplicate name is Result" "Result" "$FIRST_NAME"
 
 # =========================================================================
+# Tests for audit_wave_types()
+# =========================================================================
+
+echo "=== Test 13: audit_wave_types — no duplicates logs skip and returns 0 ==="
+AWN_DIR="$TMPDIR/aw_nodup"
+mkdir -p "$AWN_DIR"
+touch "$AWN_DIR/tsconfig.json"
+
+cat > "$AWN_DIR/a.ts" <<'EOF'
+export interface Alpha {
+  value: string;
+}
+EOF
+
+cat > "$AWN_DIR/b.ts" <<'EOF'
+export interface Beta {
+  count: number;
+}
+EOF
+
+# Create a minimal quantum.json for audit_wave_types
+cat > "$AWN_DIR/quantum.json" <<'QEOF'
+{
+  "project": "test",
+  "contracts": {},
+  "stories": []
+}
+QEOF
+
+# Initialize a git repo for git diff simulation
+(cd "$AWN_DIR" && git init -q && git add -A && git commit -q -m "init")
+
+OUTPUT=$(audit_wave_types "$AWN_DIR/quantum.json" "$AWN_DIR" 1 2>&1)
+RET=$?
+assert_eq "audit_wave_types returns 0 when no duplicates" "0" "$RET"
+
+# Check that [AUDIT] skip message appears in output (stderr captured)
+if echo "$OUTPUT" | grep -q "\[AUDIT\].*skip\|[Ss]kip"; then
+  TOTAL=$((TOTAL + 1)); PASS=$((PASS + 1)); echo "  PASS: audit_wave_types logs skip message"
+else
+  TOTAL=$((TOTAL + 1)); FAIL=$((FAIL + 1)); echo "  FAIL: audit_wave_types should log skip message"
+  echo "    output: $OUTPUT"
+fi
+
+# =========================================================================
+echo "=== Test 14: audit_wave_types — duplicates returns count and logs ==="
+AWD_DIR="$TMPDIR/aw_dup"
+mkdir -p "$AWD_DIR"
+touch "$AWD_DIR/tsconfig.json"
+
+cat > "$AWD_DIR/quantum.json" <<'QEOF'
+{
+  "project": "test",
+  "contracts": {},
+  "stories": []
+}
+QEOF
+
+# Initialize git repo
+(cd "$AWD_DIR" && git init -q && git add -A && git commit -q -m "init")
+
+# Add files with duplicate type after initial commit
+cat > "$AWD_DIR/svc1.ts" <<'EOF'
+export interface UserConfig {
+  name: string;
+}
+EOF
+
+cat > "$AWD_DIR/svc2.ts" <<'EOF'
+export interface UserConfig {
+  id: number;
+}
+EOF
+
+(cd "$AWD_DIR" && git add -A && git commit -q -m "add dupes")
+
+OUTPUT=$(audit_wave_types "$AWD_DIR/quantum.json" "$AWD_DIR" 1 2>&1)
+RET=$?
+assert_eq "audit_wave_types returns 1 (duplicate count) when duplicates found" "1" "$RET"
+
+# Check that duplicate name is logged
+if echo "$OUTPUT" | grep -q "UserConfig"; then
+  TOTAL=$((TOTAL + 1)); PASS=$((PASS + 1)); echo "  PASS: audit_wave_types logs duplicate name UserConfig"
+else
+  TOTAL=$((TOTAL + 1)); FAIL=$((FAIL + 1)); echo "  FAIL: audit_wave_types should log duplicate name"
+  echo "    output: $OUTPUT"
+fi
+
+# =========================================================================
+echo "=== Test 15: audit_wave_types — empty repo root returns 0 ==="
+EMPTY_QJ="$TMPDIR/empty_qj.json"
+echo '{"project":"test","contracts":{},"stories":[]}' > "$EMPTY_QJ"
+OUTPUT=$(audit_wave_types "$EMPTY_QJ" "" 1 2>&1)
+RET=$?
+assert_eq "audit_wave_types with empty repo_root returns 0" "0" "$RET"
+
+# =========================================================================
+echo "=== Test 16: audit_wave_types — builds type-auditor prompt on stdout ==="
+# Re-use AWD_DIR from test 14 which has duplicates
+PROMPT_OUTPUT=$(audit_wave_types "$AWD_DIR/quantum.json" "$AWD_DIR" 2 2>/dev/null)
+# Should contain type-auditor-relevant info on stdout
+if echo "$PROMPT_OUTPUT" | grep -q "UserConfig\|type-auditor\|TYPE_NAME\|WAVE"; then
+  TOTAL=$((TOTAL + 1)); PASS=$((PASS + 1)); echo "  PASS: audit_wave_types outputs auditor prompt on stdout"
+else
+  TOTAL=$((TOTAL + 1)); FAIL=$((FAIL + 1)); echo "  FAIL: audit_wave_types should output auditor prompt on stdout"
+  echo "    stdout: $PROMPT_OUTPUT"
+fi
+
+# =========================================================================
+echo "=== Test 17: audit_wave_types — checks contract shapes ==="
+AWC_DIR="$TMPDIR/aw_contract"
+mkdir -p "$AWC_DIR"
+touch "$AWC_DIR/tsconfig.json"
+
+cat > "$AWC_DIR/quantum.json" <<'QEOF'
+{
+  "project": "test",
+  "contracts": {
+    "shared_types": {
+      "UserConfig": {
+        "value": "UserConfig",
+        "shape": {
+          "properties": [{"name": "id", "type": "string"}]
+        }
+      }
+    }
+  },
+  "stories": []
+}
+QEOF
+
+# Initialize git repo
+(cd "$AWC_DIR" && git init -q && git add -A && git commit -q -m "init")
+
+cat > "$AWC_DIR/svc1.ts" <<'EOF'
+export interface UserConfig {
+  name: string;
+}
+EOF
+
+cat > "$AWC_DIR/svc2.ts" <<'EOF'
+export interface UserConfig {
+  id: number;
+}
+EOF
+
+(cd "$AWC_DIR" && git add -A && git commit -q -m "add dupes")
+
+PROMPT_OUTPUT=$(audit_wave_types "$AWC_DIR/quantum.json" "$AWC_DIR" 1 2>/dev/null)
+# The prompt should reference contract shape info
+if echo "$PROMPT_OUTPUT" | grep -q "shape\|contract\|CONTRACTS"; then
+  TOTAL=$((TOTAL + 1)); PASS=$((PASS + 1)); echo "  PASS: audit_wave_types includes contract shape in prompt"
+else
+  TOTAL=$((TOTAL + 1)); FAIL=$((FAIL + 1)); echo "  FAIL: audit_wave_types should include contract shape in prompt"
+  echo "    stdout: $PROMPT_OUTPUT"
+fi
+
+# =========================================================================
+echo "=== Test 18: audit_wave_types — missing json_path returns 0 ==="
+OUTPUT=$(audit_wave_types "" "$AWN_DIR" 1 2>&1)
+RET=$?
+assert_eq "audit_wave_types with empty json_path returns 0" "0" "$RET"
+
+# =========================================================================
+echo "=== Test 19: audit_wave_types — nonexistent repo_root returns 0 ==="
+FAKE_QJ="$TMPDIR/fake_qj.json"
+echo '{"project":"test","contracts":{},"stories":[]}' > "$FAKE_QJ"
+OUTPUT=$(audit_wave_types "$FAKE_QJ" "/nonexistent/path/12345" 1 2>&1)
+RET=$?
+assert_eq "audit_wave_types with nonexistent repo_root returns 0" "0" "$RET"
+
+# =========================================================================
+echo "=== Test 20: audit_wave_types — multiple duplicates returns correct count ==="
+AWM_DIR="$TMPDIR/aw_multi"
+mkdir -p "$AWM_DIR"
+touch "$AWM_DIR/tsconfig.json"
+
+cat > "$AWM_DIR/quantum.json" <<'QEOF'
+{
+  "project": "test",
+  "contracts": {},
+  "stories": []
+}
+QEOF
+
+(cd "$AWM_DIR" && git init -q && git add -A && git commit -q -m "init")
+
+cat > "$AWM_DIR/a.ts" <<'EOF'
+export interface Foo {
+  name: string;
+}
+export interface Bar {
+  value: number;
+}
+EOF
+
+cat > "$AWM_DIR/b.ts" <<'EOF'
+export interface Foo {
+  id: number;
+}
+export interface Bar {
+  count: number;
+}
+EOF
+
+(cd "$AWM_DIR" && git add -A && git commit -q -m "add multi dupes")
+
+OUTPUT=$(audit_wave_types "$AWM_DIR/quantum.json" "$AWM_DIR" 1 2>&1)
+RET=$?
+assert_eq "audit_wave_types returns 2 for two duplicate types" "2" "$RET"
+
+# =========================================================================
+echo "=== Test 21: audit_wave_types — wave_num defaults to 1 ==="
+# Use AWD_DIR which has duplicates
+PROMPT_OUTPUT=$(audit_wave_types "$AWD_DIR/quantum.json" "$AWD_DIR" 2>/dev/null)
+if echo "$PROMPT_OUTPUT" | grep -q "wave 1\|WAVE: 1"; then
+  TOTAL=$((TOTAL + 1)); PASS=$((PASS + 1)); echo "  PASS: audit_wave_types defaults wave_num to 1"
+else
+  TOTAL=$((TOTAL + 1)); FAIL=$((FAIL + 1)); echo "  FAIL: audit_wave_types should default wave_num to 1"
+  echo "    stdout: $PROMPT_OUTPUT"
+fi
+
+# =========================================================================
+# Tests for update_contracts_for_next_wave()
+# =========================================================================
+
+echo "=== Test 22: update_contracts_for_next_wave — adds entry to discoveredContracts ==="
+UC_DIR="$TMPDIR/uc_basic"
+mkdir -p "$UC_DIR"
+cat > "$UC_DIR/quantum.json" <<'QEOF'
+{
+  "project": "test",
+  "contracts": {},
+  "stories": [],
+  "execution": {
+    "mode": "parallel",
+    "currentWave": 1
+  }
+}
+QEOF
+
+update_contracts_for_next_wave "$UC_DIR/quantum.json" "UserConfig" "src/a.ts src/b.ts" "src/shared/types/user-config.ts" 2
+RET=$?
+assert_eq "update_contracts_for_next_wave returns 0" "0" "$RET"
+
+# Verify the entry was written
+DC_ENTRY=$(jq -r '.execution.discoveredContracts.UserConfig' "$UC_DIR/quantum.json")
+if [[ "$DC_ENTRY" != "null" && -n "$DC_ENTRY" ]]; then
+  TOTAL=$((TOTAL + 1)); PASS=$((PASS + 1)); echo "  PASS: discoveredContracts.UserConfig exists"
+else
+  TOTAL=$((TOTAL + 1)); FAIL=$((FAIL + 1)); echo "  FAIL: discoveredContracts.UserConfig should exist"
+  echo "    actual: $DC_ENTRY"
+fi
+
+WAVE_NUM=$(jq -r '.execution.discoveredContracts.UserConfig.discoveredInWave' "$UC_DIR/quantum.json")
+assert_eq "discoveredInWave is 2" "2" "$WAVE_NUM"
+
+CONSOLIDATED=$(jq -r '.execution.discoveredContracts.UserConfig.consolidated' "$UC_DIR/quantum.json")
+assert_eq "consolidated is true" "true" "$CONSOLIDATED"
+
+CONSOL_FILE=$(jq -r '.execution.discoveredContracts.UserConfig.consolidatedFile' "$UC_DIR/quantum.json")
+assert_eq "consolidatedFile is correct" "src/shared/types/user-config.ts" "$CONSOL_FILE"
+
+SOURCE_COUNT=$(jq '.execution.discoveredContracts.UserConfig.sourceFiles | length' "$UC_DIR/quantum.json")
+assert_eq "sourceFiles has 2 entries" "2" "$SOURCE_COUNT"
+
+# =========================================================================
+echo "=== Test 23: update_contracts_for_next_wave — initializes discoveredContracts if absent ==="
+UC2_DIR="$TMPDIR/uc_init"
+mkdir -p "$UC2_DIR"
+cat > "$UC2_DIR/quantum.json" <<'QEOF'
+{
+  "project": "test",
+  "contracts": {},
+  "stories": [],
+  "execution": {
+    "mode": "parallel"
+  }
+}
+QEOF
+
+update_contracts_for_next_wave "$UC2_DIR/quantum.json" "Config" "a.py b.py" "shared/config.py" 3
+RET=$?
+assert_eq "update_contracts_for_next_wave returns 0 with missing discoveredContracts" "0" "$RET"
+
+DC_EXISTS=$(jq 'has("execution") and (.execution | has("discoveredContracts"))' "$UC2_DIR/quantum.json")
+assert_eq "discoveredContracts was initialized" "true" "$DC_EXISTS"
+
+WAVE_NUM=$(jq -r '.execution.discoveredContracts.Config.discoveredInWave' "$UC2_DIR/quantum.json")
+assert_eq "Config.discoveredInWave is 3" "3" "$WAVE_NUM"
+
+# =========================================================================
+echo "=== Test 24: update_contracts_for_next_wave — preserves existing entries ==="
+UC3_DIR="$TMPDIR/uc_preserve"
+mkdir -p "$UC3_DIR"
+cat > "$UC3_DIR/quantum.json" <<'QEOF'
+{
+  "project": "test",
+  "contracts": {},
+  "stories": [],
+  "execution": {
+    "mode": "parallel",
+    "discoveredContracts": {
+      "ExistingType": {
+        "discoveredInWave": 1,
+        "sourceFiles": ["x.ts"],
+        "consolidated": true,
+        "consolidatedFile": "shared/existing.ts"
+      }
+    }
+  }
+}
+QEOF
+
+update_contracts_for_next_wave "$UC3_DIR/quantum.json" "NewType" "y.ts z.ts" "shared/new.ts" 2
+RET=$?
+assert_eq "update_contracts_for_next_wave returns 0 preserving existing" "0" "$RET"
+
+EXISTING=$(jq -r '.execution.discoveredContracts.ExistingType.discoveredInWave' "$UC3_DIR/quantum.json")
+assert_eq "ExistingType preserved" "1" "$EXISTING"
+
+NEW_ENTRY=$(jq -r '.execution.discoveredContracts.NewType.discoveredInWave' "$UC3_DIR/quantum.json")
+assert_eq "NewType added" "2" "$NEW_ENTRY"
+
+# =========================================================================
+echo "=== Test 25: update_contracts_for_next_wave — empty type_name returns error ==="
+UC4_DIR="$TMPDIR/uc_empty"
+mkdir -p "$UC4_DIR"
+cat > "$UC4_DIR/quantum.json" <<'QEOF'
+{"project":"test","execution":{}}
+QEOF
+
+update_contracts_for_next_wave "$UC4_DIR/quantum.json" "" "a.ts" "b.ts" 1 2>/dev/null
+RET=$?
+assert_eq "update_contracts_for_next_wave with empty type_name returns 1" "1" "$RET"
+
+# =========================================================================
+echo "=== Test 26: update_contracts_for_next_wave — empty json_path returns error ==="
+update_contracts_for_next_wave "" "Foo" "a.ts" "b.ts" 1 2>/dev/null
+RET=$?
+assert_eq "update_contracts_for_next_wave with empty json_path returns 1" "1" "$RET"
+
+# =========================================================================
+echo "=== Test 27: update_contracts_for_next_wave — JSON remains valid after write ==="
+# Re-read the file from test 22 and verify it's valid JSON
+jq . "$UC_DIR/quantum.json" > /dev/null 2>&1
+RET=$?
+assert_eq "quantum.json remains valid JSON after update" "0" "$RET"
+
+# =========================================================================
+echo "=== Test 28: update_contracts_for_next_wave — no execution field initializes it ==="
+UC5_DIR="$TMPDIR/uc_no_exec"
+mkdir -p "$UC5_DIR"
+cat > "$UC5_DIR/quantum.json" <<'QEOF'
+{
+  "project": "test",
+  "contracts": {},
+  "stories": []
+}
+QEOF
+
+update_contracts_for_next_wave "$UC5_DIR/quantum.json" "Widget" "w1.ts w2.ts" "shared/widget.ts" 1
+RET=$?
+assert_eq "update_contracts_for_next_wave returns 0 with no execution field" "0" "$RET"
+
+WAVE_NUM=$(jq -r '.execution.discoveredContracts.Widget.discoveredInWave' "$UC5_DIR/quantum.json")
+assert_eq "Widget.discoveredInWave is 1" "1" "$WAVE_NUM"
+
+# =========================================================================
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 if [[ $FAIL -eq 0 ]]; then

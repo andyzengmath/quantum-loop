@@ -143,3 +143,206 @@ grep_duplicate_definitions() {
   printf '%s' "$json_result"
   return 0
 }
+
+# audit_wave_types(json_path, repo_root, wave_num)
+# Audits type definitions changed in the current wave for duplicates.
+# Collects changed files via git diff, calls grep_duplicate_definitions().
+# If no duplicates: logs [AUDIT] skip message, returns 0.
+# If duplicates: logs each duplicate, checks for contract shapes in quantum.json,
+# builds type-auditor prompt and outputs it to stdout. Returns duplicate count.
+#
+# Arguments:
+#   json_path   - Path to quantum.json
+#   repo_root   - Path to the repository root
+#   wave_num    - Current wave number
+#
+# Output: type-auditor prompt on stdout (when duplicates found)
+# Logs: [AUDIT] messages on stderr
+# Returns: 0 if no duplicates, else count of duplicate type names
+audit_wave_types() {
+  local json_path="$1"
+  local repo_root="$2"
+  local wave_num="$3"
+
+  # Validate inputs
+  if [[ -z "$json_path" || -z "$repo_root" ]]; then
+    printf '[AUDIT] Skipping audit: missing json_path or repo_root\n' >&2
+    return 0
+  fi
+
+  if [[ ! -d "$repo_root" ]]; then
+    printf '[AUDIT] Skipping audit: repo_root is not a directory: %s\n' "$repo_root" >&2
+    return 0
+  fi
+
+  # Default wave_num to 1
+  wave_num="${wave_num:-1}"
+
+  # Collect changed files via git diff
+  # Compare HEAD against HEAD~1 to find files changed in the most recent commit(s)
+  local changed_files
+  changed_files=$(cd "$repo_root" && git diff --name-only HEAD~1 HEAD 2>/dev/null | while IFS= read -r f; do
+    printf '%s/%s ' "$repo_root" "$f"
+  done)
+
+  # If no changed files, skip
+  if [[ -z "$changed_files" ]]; then
+    printf '[AUDIT] Grep found 0 duplicate type definitions. Skipping agent audit.\n' >&2
+    return 0
+  fi
+
+  # Call grep_duplicate_definitions
+  local duplicates_json
+  duplicates_json=$(grep_duplicate_definitions "$repo_root" "$changed_files")
+
+  # Count duplicates
+  local dup_count
+  dup_count=$(printf '%s' "$duplicates_json" | jq 'length')
+
+  if [[ "$dup_count" -eq 0 ]]; then
+    printf '[AUDIT] Grep found 0 duplicate type definitions. Skipping agent audit.\n' >&2
+    return 0
+  fi
+
+  # Log each duplicate
+  printf '[AUDIT] Found %d duplicate type definition(s) in wave %s:\n' "$dup_count" "$wave_num" >&2
+  printf '%s' "$duplicates_json" | jq -r '.[] | "  [AUDIT] \(.name) defined in: \(.files | join(", "))"' >&2
+
+  # Check for contract shapes in quantum.json
+  local contracts_json=""
+  if [[ -f "$json_path" ]]; then
+    contracts_json=$(jq -r '.contracts // {}' "$json_path" 2>/dev/null || printf '{}')
+  fi
+
+  # Build type-auditor prompt for each duplicate
+  local prompt=""
+  local i=0
+  while IFS= read -r dup_entry; do
+    local type_name
+    type_name=$(printf '%s' "$dup_entry" | jq -r '.name')
+    local file_paths
+    file_paths=$(printf '%s' "$dup_entry" | jq -c '.files')
+
+    # Check if contract shape exists for this type
+    local contract_shape=""
+    if [[ -n "$contracts_json" && "$contracts_json" != "{}" ]]; then
+      contract_shape=$(printf '%s' "$contracts_json" | jq -c --arg tn "$type_name" '
+        (.shared_types[$tn] // null)
+      ' 2>/dev/null || printf 'null')
+    fi
+
+    # Build prompt section for this duplicate
+    prompt="${prompt}--- Duplicate Type #$((i + 1)) ---
+TYPE_NAME: ${type_name}
+FILE_PATHS: ${file_paths}
+WAVE: ${wave_num}
+"
+
+    if [[ -n "$contract_shape" && "$contract_shape" != "null" ]]; then
+      prompt="${prompt}CONTRACTS: ${contract_shape}
+"
+    fi
+
+    prompt="${prompt}
+"
+    i=$((i + 1))
+  done < <(printf '%s' "$duplicates_json" | jq -c '.[]')
+
+  # Output the complete prompt to stdout
+  printf 'type-auditor prompt for wave %s:\n%s' "$wave_num" "$prompt"
+
+  return "$dup_count"
+}
+
+# update_contracts_for_next_wave(json_path, type_name, source_files, consolidated_file, wave_num)
+# Writes a discovered contract entry to execution.discoveredContracts in quantum.json.
+# Initializes execution.discoveredContracts if absent.
+# Uses atomic jq write pattern (temp file + mv).
+#
+# Arguments:
+#   json_path         - Path to quantum.json
+#   type_name         - Name of the discovered type (e.g., "UserConfig")
+#   source_files      - Space-separated list of source file paths
+#   consolidated_file - Path to the consolidated definition file
+#   wave_num          - Wave number where the type was discovered
+#
+# Returns: 0 on success, 1 on failure
+update_contracts_for_next_wave() {
+  local json_path="$1"
+  local type_name="$2"
+  local source_files="$3"
+  local consolidated_file="$4"
+  local wave_num="$5"
+
+  # Validate required inputs
+  if [[ -z "$json_path" ]]; then
+    printf 'ERROR: update_contracts_for_next_wave requires json_path\n' >&2
+    return 1
+  fi
+
+  if [[ -z "$type_name" ]]; then
+    printf 'ERROR: update_contracts_for_next_wave requires type_name\n' >&2
+    return 1
+  fi
+
+  if [[ ! -f "$json_path" ]]; then
+    printf 'ERROR: update_contracts_for_next_wave: json_path does not exist: %s\n' "$json_path" >&2
+    return 1
+  fi
+
+  # Default wave_num to 1
+  wave_num="${wave_num:-1}"
+
+  # Convert space-separated source_files to JSON array
+  local source_files_json
+  source_files_json=$(printf '%s' "$source_files" | tr ' ' '\n' | jq -R -s 'split("\n") | map(select(length > 0))')
+
+  # Use jq to update quantum.json atomically:
+  # 1. Initialize execution if absent
+  # 2. Initialize execution.discoveredContracts if absent
+  # 3. Add the new entry
+  local tmp_path="${json_path}.tmp"
+  local updated
+  updated=$(jq \
+    --arg tn "$type_name" \
+    --argjson wave "$wave_num" \
+    --argjson sf "$source_files_json" \
+    --arg cf "$consolidated_file" \
+    '
+    # Initialize execution if absent
+    .execution = (.execution // {}) |
+    # Initialize discoveredContracts if absent
+    .execution.discoveredContracts = (.execution.discoveredContracts // {}) |
+    # Add the new entry
+    .execution.discoveredContracts[$tn] = {
+      discoveredInWave: $wave,
+      sourceFiles: $sf,
+      consolidated: true,
+      consolidatedFile: $cf
+    }
+    ' "$json_path" 2>/dev/null)
+
+  if [[ -z "$updated" ]]; then
+    printf 'ERROR: update_contracts_for_next_wave: jq transform failed\n' >&2
+    return 1
+  fi
+
+  # Atomic write: write to tmp, then mv
+  if ! printf '%s\n' "$updated" > "$tmp_path" 2>/dev/null; then
+    rm -f "$tmp_path"
+    printf 'ERROR: update_contracts_for_next_wave: failed to write tmp file\n' >&2
+    return 1
+  fi
+
+  mv "$tmp_path" "$json_path"
+  local mv_ret=$?
+
+  if [[ $mv_ret -ne 0 ]]; then
+    rm -f "$tmp_path"
+    printf 'ERROR: update_contracts_for_next_wave: atomic rename failed\n' >&2
+    return 1
+  fi
+
+  printf '[CONTRACTS] Added discovered contract: %s (wave %s)\n' "$type_name" "$wave_num" >&2
+  return 0
+}
