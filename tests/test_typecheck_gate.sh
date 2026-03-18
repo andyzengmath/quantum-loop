@@ -11,6 +11,11 @@
 #   5. Baseline not set -> initialize baseline, return 0
 #   6. Error count <= baseline -> return 0
 #   7. Error count > baseline -> revert merge, return 1
+#
+# Edge case tests:
+#   8. Timeout behavior (command sleeps > timeout) -> logs warning, returns 0
+#   9. Multiple auto-detect (tsconfig.json + go.mod) -> tsconfig takes priority
+#  10. Typecheck with warnings but zero errors -> passes
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB_DIR="$SCRIPT_DIR/../lib"
@@ -280,6 +285,111 @@ if [[ "$HEAD_BEFORE" != "$HEAD_AFTER" ]]; then
 else
   TOTAL=$((TOTAL + 1)); echo "  FAIL: No revert commit (HEAD unchanged)"; FAIL=$((FAIL + 1))
 fi
+rm -rf "$TEST_REPO"
+
+# =========================================================================
+echo "=== Test 8: Timeout behavior (command that sleeps > timeout) ==="
+TEST_REPO=$(setup_typecheck_repo)
+# Create a fake typecheck that sleeps longer than the timeout
+# We override TYPECHECK_TIMEOUT to 2 seconds for speed
+cat > "$TEST_REPO/slow_typecheck.sh" <<'SCRIPT'
+#!/usr/bin/env bash
+sleep 30
+echo "error: should never reach here"
+exit 1
+SCRIPT
+chmod +x "$TEST_REPO/slow_typecheck.sh"
+
+cat > "$TEST_REPO/quantum.json" <<EOF
+{
+  "project": "test",
+  "typecheckCommand": "bash $TEST_REPO/slow_typecheck.sh",
+  "stories": [],
+  "execution": {
+    "baselineTypecheckErrors": 0
+  }
+}
+EOF
+
+# Override the timeout to 2 seconds for this test
+ORIG_TIMEOUT="$TYPECHECK_TIMEOUT"
+TYPECHECK_TIMEOUT=2
+OUTPUT=$(post_merge_typecheck "$TEST_REPO" "$TEST_REPO/quantum.json" 2>&1)
+EXIT_CODE=$?
+TYPECHECK_TIMEOUT="$ORIG_TIMEOUT"
+
+assert_eq "Timeout returns 0 (graceful)" "0" "$EXIT_CODE"
+assert_contains "Logs timeout warning" "timed out" "$OUTPUT"
+rm -rf "$TEST_REPO"
+
+# =========================================================================
+echo "=== Test 9: Multiple auto-detect options (tsconfig.json takes priority over go.mod) ==="
+TEST_REPO=$(setup_typecheck_repo)
+# Create both tsconfig.json and go.mod -- tsconfig should win
+printf '{"compilerOptions":{}}' > "$TEST_REPO/tsconfig.json"
+printf 'module example.com/test\ngo 1.21\n' > "$TEST_REPO/go.mod"
+
+# Create a fake tsc that succeeds
+mkdir -p "$TEST_REPO/.bin"
+cat > "$TEST_REPO/.bin/tsc" <<'SCRIPT'
+#!/usr/bin/env bash
+echo "tsc_was_used"
+exit 0
+SCRIPT
+chmod +x "$TEST_REPO/.bin/tsc"
+
+# Create a fake go that would fail if used
+cat > "$TEST_REPO/.bin/go" <<'SCRIPT'
+#!/usr/bin/env bash
+echo "error: go should not be used"
+exit 1
+SCRIPT
+chmod +x "$TEST_REPO/.bin/go"
+
+cat > "$TEST_REPO/quantum.json" <<'EOF'
+{
+  "project": "test",
+  "stories": [],
+  "execution": {
+    "baselineTypecheckErrors": 0
+  }
+}
+EOF
+
+OUTPUT=$(PATH="$TEST_REPO/.bin:$PATH" post_merge_typecheck "$TEST_REPO" "$TEST_REPO/quantum.json" 2>&1)
+EXIT_CODE=$?
+assert_eq "tsconfig.json priority returns 0" "0" "$EXIT_CODE"
+assert_contains "Uses tsc (TypeScript detected)" "tsc --noEmit" "$OUTPUT"
+rm -rf "$TEST_REPO"
+
+# =========================================================================
+echo "=== Test 10: Typecheck with warnings but zero errors passes ==="
+TEST_REPO=$(setup_typecheck_repo)
+# Create a fake typecheck that outputs warnings but no errors, exits 0
+cat > "$TEST_REPO/warn_typecheck.sh" <<'SCRIPT'
+#!/usr/bin/env bash
+echo "warning: unused variable 'x' at src/foo.ts:5:3"
+echo "warning: deprecated API usage at src/bar.ts:12:7"
+echo "info: 2 warnings found"
+exit 0
+SCRIPT
+chmod +x "$TEST_REPO/warn_typecheck.sh"
+
+cat > "$TEST_REPO/quantum.json" <<EOF
+{
+  "project": "test",
+  "typecheckCommand": "bash $TEST_REPO/warn_typecheck.sh",
+  "stories": [],
+  "execution": {
+    "baselineTypecheckErrors": 0
+  }
+}
+EOF
+
+OUTPUT=$(post_merge_typecheck "$TEST_REPO" "$TEST_REPO/quantum.json" 2>&1)
+EXIT_CODE=$?
+assert_eq "Warnings-only returns 0" "0" "$EXIT_CODE"
+assert_contains "Logs PASS for zero errors" "[TYPECHECK] PASS" "$OUTPUT"
 rm -rf "$TEST_REPO"
 
 # =========================================================================

@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # tests/test_merge_escalation.sh -- Tests for merge_worktree_branch() conflict classification
 #
-# 4 test cases:
+# 6 test cases:
 #   1. No conflict merge -> returns 0
 #   2. Conflicting branches -> returns 1 with conflict files on stdout
 #   3. After failed merge, working tree is clean
 #   4. Output format includes file names prefixed with CONFLICT:
+#   5. Multiple files conflicting simultaneously -> all listed
+#   6. Merge with unrelated changes (different files) -> succeeds
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB_DIR="$SCRIPT_DIR/../lib"
@@ -175,6 +177,78 @@ OUTPUT=$(merge_worktree_branch "$TEST_REPO" "ql-wt/US-FORMAT")
 EXIT_CODE=$?
 assert_eq "Returns 1 on conflict" "1" "$EXIT_CODE"
 assert_contains "Output has CONFLICT: prefix" "CONFLICT: format_test.txt" "$OUTPUT"
+
+rm -rf "$TEST_REPO"
+
+# =========================================================================
+echo "=== Test 5: Multiple files conflicting simultaneously ==="
+TEST_REPO=$(setup_test_repo)
+FEATURE_BRANCH="feature-multi-conflict"
+git -C "$TEST_REPO" checkout -b "$FEATURE_BRANCH" -q
+
+# Create multiple files on feature branch
+printf "feature alpha\n" > "$TEST_REPO/alpha.txt"
+printf "feature beta\n" > "$TEST_REPO/beta.txt"
+printf "feature gamma\n" > "$TEST_REPO/gamma.txt"
+git -C "$TEST_REPO" add alpha.txt beta.txt gamma.txt
+git -C "$TEST_REPO" commit -m "feature multi commit" -q
+
+# Create worktree branch diverging from before, with conflicting content in all 3 files
+git -C "$TEST_REPO" checkout -b "ql-wt/US-MULTI" HEAD~1 -q
+printf "worktree alpha\n" > "$TEST_REPO/alpha.txt"
+printf "worktree beta\n" > "$TEST_REPO/beta.txt"
+printf "worktree gamma\n" > "$TEST_REPO/gamma.txt"
+git -C "$TEST_REPO" add alpha.txt beta.txt gamma.txt
+git -C "$TEST_REPO" commit -m "worktree multi commit" -q
+
+# Switch back to feature branch
+git -C "$TEST_REPO" checkout "$FEATURE_BRANCH" -q
+
+# Merge -- should fail with all 3 files listed
+OUTPUT=$(merge_worktree_branch "$TEST_REPO" "ql-wt/US-MULTI")
+EXIT_CODE=$?
+assert_eq "Multiple conflict merge returns 1" "1" "$EXIT_CODE"
+assert_contains "Output lists alpha.txt" "CONFLICT: alpha.txt" "$OUTPUT"
+assert_contains "Output lists beta.txt" "CONFLICT: beta.txt" "$OUTPUT"
+assert_contains "Output lists gamma.txt" "CONFLICT: gamma.txt" "$OUTPUT"
+
+# Verify working tree is clean after abort
+STATUS=$(git -C "$TEST_REPO" status --porcelain)
+assert_eq "Working tree clean after multi-conflict abort" "" "$STATUS"
+
+rm -rf "$TEST_REPO"
+
+# =========================================================================
+echo "=== Test 6: Merge with unrelated changes (different files) succeeds ==="
+TEST_REPO=$(setup_test_repo)
+FEATURE_BRANCH="feature-unrelated"
+git -C "$TEST_REPO" checkout -b "$FEATURE_BRANCH" -q
+
+# Create a file on the feature branch
+printf "feature only file\n" > "$TEST_REPO/feature_only.txt"
+git -C "$TEST_REPO" add feature_only.txt
+git -C "$TEST_REPO" commit -m "feature only commit" -q
+
+# Create worktree branch from the same divergence point, with a DIFFERENT file
+git -C "$TEST_REPO" checkout -b "ql-wt/US-UNRELATED" HEAD~1 -q
+printf "worktree only file\n" > "$TEST_REPO/worktree_only.txt"
+git -C "$TEST_REPO" add worktree_only.txt
+git -C "$TEST_REPO" commit -m "worktree only commit" -q
+
+# Switch back to feature branch
+git -C "$TEST_REPO" checkout "$FEATURE_BRANCH" -q
+
+# Merge -- should succeed because files don't overlap
+OUTPUT=$(merge_worktree_branch "$TEST_REPO" "ql-wt/US-UNRELATED" 2>&1)
+EXIT_CODE=$?
+assert_eq "Unrelated changes merge returns 0" "0" "$EXIT_CODE"
+
+# Verify both files exist after merge
+if [[ -f "$TEST_REPO/feature_only.txt" && -f "$TEST_REPO/worktree_only.txt" ]]; then
+  TOTAL=$((TOTAL + 1)); echo "  PASS: Both files present after merge"; PASS=$((PASS + 1))
+else
+  TOTAL=$((TOTAL + 1)); echo "  FAIL: Missing files after unrelated merge"; FAIL=$((FAIL + 1))
+fi
 
 rm -rf "$TEST_REPO"
 
