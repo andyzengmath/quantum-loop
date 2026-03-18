@@ -153,6 +153,24 @@ When 2+ stories are eligible, spawn implementer subagents in parallel using Clau
 
 ### 3B.1: Mark Stories and Update quantum.json
 
+**Before first wave — initialize baseline typecheck errors:**
+
+Before spawning any agents, run the project's typecheck command once against the repo root to establish a baseline error count. Store the result in `execution.baselineTypecheckErrors`:
+
+```bash
+# Example for TypeScript projects:
+tsc --noEmit 2>&1 | grep -c 'error TS' || echo 0
+# Example for Python projects:
+pyright --outputjson 2>/dev/null | python -c "import sys,json; print(json.load(sys.stdin).get('summary',{}).get('errorCount',0))" || echo 0
+```
+
+```python
+# Store in quantum.json:
+data['execution']['baselineTypecheckErrors'] = <count>
+```
+
+If no typecheck command is configured for the project, set `baselineTypecheckErrors` to `null` and log: `[TYPECHECK] No typecheck command available — post-merge typecheck will be skipped`
+
 Before spawning any agents, mark ALL eligible stories as `in_progress` in a single atomic update:
 
 ```bash
@@ -295,6 +313,49 @@ Wait for agent completion notifications. Do NOT poll in a loop — Claude Code a
   If `stash pop` conflicts on quantum.json, **drop the stash** (`git stash drop`) and re-write quantum.json state from scratch via Python. The orchestrator's in-memory knowledge of story statuses is the source of truth, not any stashed file. Never resolve quantum.json merge conflicts by hand — always regenerate programmatically.
 
   **Best practice:** Add `quantum.json` to `.gitignore` at the start of a feature branch to avoid this entirely. The implementer agents are already instructed not to commit quantum.json in parallel mode (see implementer.md, "Parallel mode" section).
+
+### Typecheck Gate
+
+After a successful merge and before running the test suite or inline review, run a post-merge typecheck to catch type regressions introduced by the merged code:
+
+1. **Run `post_merge_typecheck(repo_root, json_path)`:**
+   ```bash
+   # Run the project's typecheck command from the repo root
+   # Example (TypeScript): tsc --noEmit 2>&1
+   # Example (Python): pyright 2>&1
+   ```
+
+2. **Compare against baseline:** Count the errors in the typecheck output and compare to `execution.baselineTypecheckErrors`.
+
+3. **On typecheck failure (errors > baseline):**
+   - Revert the merge: `git revert -m 1 HEAD`
+   - Mark the story as `"failed"` with `"phase": "merge_typecheck"`
+   - Add the typecheck error output to `retries.failureLog`:
+     ```json
+     {
+       "attempt": <number>,
+       "timestamp": "<ISO 8601>",
+       "error": "<typecheck error output>",
+       "phase": "merge_typecheck"
+     }
+     ```
+   - Increment `retries.attempts`
+   - Clear `startedAt` = `null`
+   - Clean up the worktree
+   - Log: `[TYPECHECK] Post-merge typecheck FAILED for US-XXX — merge reverted`
+   - Skip the test suite and inline review for this story
+   - Proceed to the next agent completion or DAG re-query
+
+4. **On typecheck success (errors <= baseline):**
+   - Log: `[TYPECHECK] Post-merge typecheck: PASSED`
+   - Continue to the test suite and inline review
+
+5. **If no typecheck command is available** (`execution.baselineTypecheckErrors` is `null`):
+   - Log: `[TYPECHECK] No typecheck command configured — skipping post-merge typecheck`
+   - Proceed directly to the test suite
+
+The full post-merge sequence is: **merge -> typecheck -> test suite -> inline review**.
+
 - Update quantum.json: story `status: "passed"`, clear `startedAt` = `null`, add progress entry
 
 **On STORY_FAILED:**
