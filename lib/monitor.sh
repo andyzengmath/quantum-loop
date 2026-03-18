@@ -81,7 +81,8 @@ check_agent_status() {
 # merge_worktree_branch(repo_root, worktree_branch)
 # Merges a worktree branch into the current branch (feature branch).
 # On success: returns 0.
-# On conflict: aborts the merge and returns 1.
+# On conflict: prints "CONFLICT: <filename>" lines to stdout, aborts the merge,
+#   and returns 1. Caller can capture stdout for retries.failureLog[].error.
 merge_worktree_branch() {
   local repo_root="$1"
   local worktree_branch="$2"
@@ -103,14 +104,20 @@ merge_worktree_branch() {
   fi
 
   # Attempt merge (no squash, no rebase per spec)
-  if git -C "$repo_root" merge "$worktree_branch" --no-edit -q 2>/dev/null; then
+  if git -C "$repo_root" merge "$worktree_branch" --no-edit -q > /dev/null 2>&1; then
     [[ "$stashed" == "true" ]] && { git -C "$repo_root" stash pop -q 2>/dev/null || true; }
     return 0
   fi
 
-  # Merge failed -- capture conflict details before aborting
-  # Write conflict file list to stdout so caller can capture it
-  git -C "$repo_root" diff --name-only --diff-filter=U 2>/dev/null || true
+  # Merge failed -- capture conflict file list before aborting
+  # Prefix each file with CONFLICT: for structured failureLog inclusion
+  local conflict_files
+  conflict_files=$(git -C "$repo_root" diff --name-only --diff-filter=U 2>/dev/null) || true
+  if [[ -n "$conflict_files" ]]; then
+    while IFS= read -r file; do
+      printf "CONFLICT: %s\n" "$file"
+    done <<< "$conflict_files"
+  fi
   git -C "$repo_root" merge --abort 2>/dev/null || true
   [[ "$stashed" == "true" ]] && { git -C "$repo_root" stash pop -q 2>/dev/null || true; }
   return 1
