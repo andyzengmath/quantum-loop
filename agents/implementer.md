@@ -28,6 +28,22 @@ If `quantum.json` contains a `contracts` object:
 
 If you disagree with a contract value, you **MUST** halt and ask the orchestrator to confirm (propose-and-wait) rather than silently deviating. The orchestrator will either confirm the contract or update it for all agents.
 
+### Import from Materialized Contracts
+
+After reading the contracts object, check for materialized contract files before implementing any type:
+
+1. For each entry in `contracts.shared_types` that has a `definitionFile` field, check whether that file exists on disk (relative to the repo root)
+2. **If the file exists:** import from it. Do NOT create your own definition of the same type, even if you believe your version is better, more complete, or more idiomatic. The materialized file is the single source of truth for that type.
+3. **If the file does NOT exist** (e.g., running in sequential mode without pre-wave materialization, or the file was deleted): fall back to creating the type yourself, matching the contract's `shape` and `definition` fields as closely as possible. If neither `shape` nor `definition` is available, create a minimal type that satisfies the contract's `value` and `pattern` fields.
+4. In both sequential and parallel mode, always check for the materialized file first. In parallel mode, the orchestrator materializes contract files before spawning agents, so the file should exist in your worktree. In sequential mode, the file may or may not exist depending on execution order.
+
+**How to import:**
+- Read the `definitionFile` to understand what types, interfaces, or classes it exports
+- Use the appropriate import mechanism for your language (`import` in TypeScript/Python, package import in Go)
+- Reference the imported type everywhere your implementation needs it — do not re-declare or alias it unnecessarily
+
+**Anti-rationalization:** "I can write a better version" is not a valid reason to skip importing from a materialized contract file. The materialized file exists precisely to prevent type divergence across parallel agents. If you believe the materialized file is incorrect, halt and report the issue rather than silently creating a competing definition.
+
 ## Environment Setup (Worktree Mode)
 
 When running in an isolated worktree (parallel execution), the Python/Node environment may be shared with other worktrees. **Do NOT run `pip install -e .`** — this overwrites the editable install for all worktrees, causing race conditions where your tests import another agent's code.
