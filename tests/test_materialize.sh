@@ -118,6 +118,123 @@ RESULT=$(detect_language "$TMPDIR/nonexistent_dir" 2>/dev/null)
 assert_eq "Unknown for nonexistent directory" "unknown" "$RESULT"
 
 # =========================================================================
+# Tests for infer_shared_types_dir()
+# =========================================================================
+
+echo ""
+echo "--- infer_shared_types_dir() tests ---"
+
+# =========================================================================
+echo "=== Test 11: infer_shared_types_dir — finds src/shared/types/ (highest priority) ==="
+INFER_DIR1="$TMPDIR/infer_project1"
+mkdir -p "$INFER_DIR1/src/shared/types"
+mkdir -p "$INFER_DIR1/src/types"
+mkdir -p "$INFER_DIR1/types"
+RESULT=$(infer_shared_types_dir "$INFER_DIR1" "typescript")
+assert_eq "src/shared/types/ found first (highest priority)" "src/shared/types" "$RESULT"
+
+# =========================================================================
+echo "=== Test 12: infer_shared_types_dir — finds src/types/ when src/shared/types/ missing ==="
+INFER_DIR2="$TMPDIR/infer_project2"
+mkdir -p "$INFER_DIR2/src/types"
+mkdir -p "$INFER_DIR2/types"
+RESULT=$(infer_shared_types_dir "$INFER_DIR2" "typescript")
+assert_eq "src/types/ found when src/shared/types/ absent" "src/types" "$RESULT"
+
+# =========================================================================
+echo "=== Test 13: infer_shared_types_dir — finds src/interfaces/ ==="
+INFER_DIR3="$TMPDIR/infer_project3"
+mkdir -p "$INFER_DIR3/src/interfaces"
+RESULT=$(infer_shared_types_dir "$INFER_DIR3" "typescript")
+assert_eq "src/interfaces/ found" "src/interfaces" "$RESULT"
+
+# =========================================================================
+echo "=== Test 14: infer_shared_types_dir — finds types/ (project root) ==="
+INFER_DIR4="$TMPDIR/infer_project4"
+mkdir -p "$INFER_DIR4/types"
+RESULT=$(infer_shared_types_dir "$INFER_DIR4" "typescript")
+assert_eq "types/ found at project root" "types" "$RESULT"
+
+# =========================================================================
+echo "=== Test 15: infer_shared_types_dir — finds shared/ ==="
+INFER_DIR5="$TMPDIR/infer_project5"
+mkdir -p "$INFER_DIR5/shared"
+RESULT=$(infer_shared_types_dir "$INFER_DIR5" "python")
+assert_eq "shared/ found" "shared" "$RESULT"
+
+# =========================================================================
+echo "=== Test 16: infer_shared_types_dir — TypeScript fallback default ==="
+INFER_DIR6="$TMPDIR/infer_project6"
+mkdir -p "$INFER_DIR6"
+RESULT=$(infer_shared_types_dir "$INFER_DIR6" "typescript")
+assert_eq "TypeScript default: src/shared/types" "src/shared/types" "$RESULT"
+
+# =========================================================================
+echo "=== Test 17: infer_shared_types_dir — Python fallback default ==="
+INFER_DIR7="$TMPDIR/infer_project7"
+mkdir -p "$INFER_DIR7"
+RESULT=$(infer_shared_types_dir "$INFER_DIR7" "python")
+assert_eq "Python default: src/shared" "src/shared" "$RESULT"
+
+# =========================================================================
+echo "=== Test 18: infer_shared_types_dir — Go fallback default ==="
+INFER_DIR8="$TMPDIR/infer_project8"
+mkdir -p "$INFER_DIR8"
+RESULT=$(infer_shared_types_dir "$INFER_DIR8" "go")
+assert_eq "Go default: internal/shared" "internal/shared" "$RESULT"
+
+# =========================================================================
+echo "=== Test 19: infer_shared_types_dir — Unknown language fallback default ==="
+INFER_DIR9="$TMPDIR/infer_project9"
+mkdir -p "$INFER_DIR9"
+RESULT=$(infer_shared_types_dir "$INFER_DIR9" "unknown")
+assert_eq "Unknown language default: src/shared/types" "src/shared/types" "$RESULT"
+
+# =========================================================================
+echo "=== Test 20: infer_shared_types_dir — does NOT create directories ==="
+INFER_DIR10="$TMPDIR/infer_no_create"
+mkdir -p "$INFER_DIR10"
+RESULT=$(infer_shared_types_dir "$INFER_DIR10" "typescript")
+# Verify the default path was returned
+assert_eq "Returns default path for TypeScript" "src/shared/types" "$RESULT"
+# Verify the directory was NOT created on disk
+if [[ -d "$INFER_DIR10/src/shared/types" ]]; then
+  TOTAL=$((TOTAL + 1))
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: Directory was created (should NOT create directories)"
+else
+  TOTAL=$((TOTAL + 1))
+  PASS=$((PASS + 1))
+  echo "  PASS: Directory was NOT created (idempotent)"
+fi
+
+# =========================================================================
+echo "=== Test 21: infer_shared_types_dir — empty repo_root ==="
+RESULT=$(infer_shared_types_dir "" "typescript" 2>/dev/null)
+assert_eq "Empty repo_root defaults to src/shared/types" "src/shared/types" "$RESULT"
+
+# =========================================================================
+echo "=== Test 22: infer_shared_types_dir — nonexistent repo_root ==="
+RESULT=$(infer_shared_types_dir "$TMPDIR/nonexistent_infer" "python" 2>/dev/null)
+assert_eq "Nonexistent repo_root defaults to Python default" "src/shared" "$RESULT"
+
+# =========================================================================
+echo "=== Test 23: infer_shared_types_dir — empty language string ==="
+INFER_DIR11="$TMPDIR/infer_empty_lang"
+mkdir -p "$INFER_DIR11"
+RESULT=$(infer_shared_types_dir "$INFER_DIR11" "")
+assert_eq "Empty language defaults to src/shared/types" "src/shared/types" "$RESULT"
+
+# =========================================================================
+echo "=== Test 24: infer_shared_types_dir — priority order: src/shared/types > types > shared ==="
+INFER_DIR12="$TMPDIR/infer_priority"
+mkdir -p "$INFER_DIR12/src/shared/types"
+mkdir -p "$INFER_DIR12/types"
+mkdir -p "$INFER_DIR12/shared"
+RESULT=$(infer_shared_types_dir "$INFER_DIR12" "go")
+assert_eq "src/shared/types/ wins regardless of language" "src/shared/types" "$RESULT"
+
+# =========================================================================
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 if [[ $FAIL -eq 0 ]]; then
