@@ -1049,6 +1049,40 @@ RET=$?
 assert_eq "Binary content does not crash grep_duplicate_definitions" "0" "$RET"
 
 # =========================================================================
+echo "=== Test 43: Python @dataclass duplicate detection ==="
+DC_DIR="$TMPDIR/dc_project"
+mkdir -p "$DC_DIR"
+touch "$DC_DIR/pyproject.toml"
+
+cat > "$DC_DIR/dc1.py" <<'EOF'
+from dataclasses import dataclass
+
+@dataclass
+class Foo:
+    name: str
+    value: int
+EOF
+
+cat > "$DC_DIR/dc2.py" <<'EOF'
+from dataclasses import dataclass
+
+@dataclass
+class Foo:
+    label: str
+    count: int
+EOF
+
+RESULT=$(grep_duplicate_definitions "$DC_DIR" "$DC_DIR/dc1.py $DC_DIR/dc2.py")
+LEN=$(json_array_len "$RESULT")
+assert_eq "Python @dataclass duplicate detected (array length 1)" "1" "$LEN"
+
+FIRST_NAME=$(json_first_name "$RESULT")
+assert_eq "Python @dataclass duplicate name is Foo" "Foo" "$FIRST_NAME"
+
+FIRST_FILES_LEN=$(json_first_files_len "$RESULT")
+assert_eq "Python @dataclass duplicate has 2 files" "2" "$FIRST_FILES_LEN"
+
+# =========================================================================
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 if [[ $FAIL -eq 0 ]]; then

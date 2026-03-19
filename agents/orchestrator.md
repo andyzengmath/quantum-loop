@@ -585,12 +585,8 @@ After Step 4B passes and before generating observations, promote runtime-discove
                'definitionFile': entry.get('consolidatedFile', ''),
                'consumers': entry.get('sourceFiles', [])
            }
-           # Update existing or append
-           existing = [c for c in data.get('contracts', {}).get('shared_types', []) if c.get('value') == name]
-           if existing:
-               existing[0].update(new_contract)
-           else:
-               data.setdefault('contracts', {}).setdefault('shared_types', []).append(new_contract)
+           # Update existing or insert (shared_types is a dict keyed by type name)
+           data.setdefault('contracts', {}).setdefault('shared_types', {})[name] = new_contract
            promoted.append(name)
    data['updatedAt'] = datetime.now(timezone.utc).isoformat()
    json.dump(data, open('quantum.json', 'w'), indent=2)

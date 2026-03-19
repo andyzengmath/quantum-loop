@@ -210,17 +210,23 @@ post_merge_typecheck() {
     typecheck_cmd=$(jq -r '.typecheckCommand // empty' "$json_path" 2>/dev/null) || true
   fi
 
+  # Detect language (needed for both auto-detect and error counting)
+  local language
+  language=$(detect_language "$repo_root")
+
   # If no explicit command, auto-detect from language
   if [[ -z "$typecheck_cmd" ]]; then
-    local language
-    language=$(detect_language "$repo_root")
-
     case "$language" in
       typescript)
         typecheck_cmd="tsc --noEmit"
         ;;
       python)
-        if command -v pyright >/dev/null 2>&1; then
+        # Check config files first (per PRD spec), then command availability
+        if [[ -f "$repo_root/pyrightconfig.json" ]] || grep -q '\[tool\.pyright\]' "$repo_root/pyproject.toml" 2>/dev/null; then
+          typecheck_cmd="pyright"
+        elif [[ -f "$repo_root/.mypy.ini" ]] || [[ -f "$repo_root/mypy.ini" ]] || grep -q '\[mypy\]' "$repo_root/setup.cfg" 2>/dev/null; then
+          typecheck_cmd="mypy ."
+        elif command -v pyright >/dev/null 2>&1; then
           typecheck_cmd="pyright"
         elif command -v mypy >/dev/null 2>&1; then
           typecheck_cmd="mypy ."
@@ -258,10 +264,29 @@ post_merge_typecheck() {
     return 0
   fi
 
-  # Count error lines in the output
+  # Count errors using language-specific patterns
   local error_count=0
   if [[ -n "$tc_output" ]]; then
-    error_count=$(printf "%s\n" "$tc_output" | grep -c "error" 2>/dev/null) || error_count=0
+    case "$language" in
+      typescript)
+        # tsc outputs "file(line,col): error TS####: message"
+        error_count=$(printf "%s\n" "$tc_output" | grep -c "error TS" 2>/dev/null) || error_count=0
+        ;;
+      python)
+        # pyright: "N errors, N warnings" on summary line; mypy: "Found N errors"
+        local summary_errors
+        summary_errors=$(printf "%s\n" "$tc_output" | grep -oE '[0-9]+ error' | head -1 | grep -oE '[0-9]+')
+        error_count=${summary_errors:-0}
+        ;;
+      go)
+        # go vet outputs one line per issue
+        error_count=$(printf "%s\n" "$tc_output" | grep -cE '\.go:[0-9]+' 2>/dev/null) || error_count=0
+        ;;
+      *)
+        # Fallback: count lines with "error" (case insensitive) but exclude "0 errors"
+        error_count=$(printf "%s\n" "$tc_output" | grep -ciE 'error[^s]' 2>/dev/null) || error_count=0
+        ;;
+    esac
   fi
 
   # If command exited non-zero, use exit code as minimum error count (at least 1)

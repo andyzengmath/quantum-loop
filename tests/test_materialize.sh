@@ -1388,6 +1388,76 @@ else
 fi
 
 # =========================================================================
+echo "=== Test 67: generate_definition_file — infer fallback when definitionFile missing ==="
+GEN_INFER_DIR="$TMPDIR/gen_infer_fallback"
+mkdir -p "$GEN_INFER_DIR"
+touch "$GEN_INFER_DIR/tsconfig.json"
+# Type entry with definition content but NO definitionFile
+TYPE_JSON_INFER='{"definition":"export interface InferredWidget { id: string; }","consumers":["US-002","US-003"]}'
+generate_definition_file "InferredWidget" "$TYPE_JSON_INFER" "typescript" "$GEN_INFER_DIR" 2>&1
+# infer_shared_types_dir should return "src/shared/types" (TS default, no existing dirs)
+# kebab-case of "InferredWidget" is "inferred-widget"
+# So expected path: src/shared/types/inferred-widget.ts
+TOTAL=$((TOTAL + 1))
+if [[ -f "$GEN_INFER_DIR/src/shared/types/inferred-widget.ts" ]]; then
+  INFER_CONTENT=$(cat "$GEN_INFER_DIR/src/shared/types/inferred-widget.ts")
+  if [[ "$INFER_CONTENT" == "export interface InferredWidget { id: string; }" ]]; then
+    PASS=$((PASS + 1))
+    echo "  PASS: Inferred definitionFile fallback wrote to correct path with correct content"
+  else
+    FAIL=$((FAIL + 1))
+    echo "  FAIL: Inferred file content mismatch"
+    echo "    expected: export interface InferredWidget { id: string; }"
+    echo "    actual:   $INFER_CONTENT"
+  fi
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: Inferred file not created at src/shared/types/inferred-widget.ts"
+  # Debug: show what files exist
+  echo "    files in $GEN_INFER_DIR:"
+  find "$GEN_INFER_DIR" -type f 2>/dev/null | sed "s|$GEN_INFER_DIR/||"
+fi
+
+# =========================================================================
+echo "=== Test 68: generate_definition_file — infer fallback with existing src/types dir ==="
+GEN_INFER_DIR2="$TMPDIR/gen_infer_existing_dir"
+mkdir -p "$GEN_INFER_DIR2/src/types"
+touch "$GEN_INFER_DIR2/tsconfig.json"
+TYPE_JSON_INFER2='{"definition":"export type Status = \"active\" | \"inactive\";","consumers":["US-002","US-003"]}'
+generate_definition_file "AppStatus" "$TYPE_JSON_INFER2" "typescript" "$GEN_INFER_DIR2" 2>&1
+# infer_shared_types_dir should find src/types (existing dir)
+# kebab-case of "AppStatus" is "app-status"
+TOTAL=$((TOTAL + 1))
+if [[ -f "$GEN_INFER_DIR2/src/types/app-status.ts" ]]; then
+  PASS=$((PASS + 1))
+  echo "  PASS: Inferred fallback uses existing src/types dir"
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: Inferred file not created at src/types/app-status.ts"
+  echo "    files in $GEN_INFER_DIR2:"
+  find "$GEN_INFER_DIR2" -type f 2>/dev/null | sed "s|$GEN_INFER_DIR2/||"
+fi
+
+# =========================================================================
+echo "=== Test 69: generate_definition_file — infer fallback for Python ==="
+GEN_INFER_PY="$TMPDIR/gen_infer_py"
+mkdir -p "$GEN_INFER_PY"
+touch "$GEN_INFER_PY/pyproject.toml"
+TYPE_JSON_INFER_PY='{"definition":"class UserConfig:\n    pass","consumers":["US-002","US-003"]}'
+generate_definition_file "UserConfig" "$TYPE_JSON_INFER_PY" "python" "$GEN_INFER_PY" 2>&1
+# Python default: src/shared, kebab-case of "UserConfig" is "user-config"
+TOTAL=$((TOTAL + 1))
+if [[ -f "$GEN_INFER_PY/src/shared/user-config.py" ]]; then
+  PASS=$((PASS + 1))
+  echo "  PASS: Inferred fallback for Python writes to src/shared/user-config.py"
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: Python inferred file not created at src/shared/user-config.py"
+  echo "    files in $GEN_INFER_PY:"
+  find "$GEN_INFER_PY" -type f 2>/dev/null | sed "s|$GEN_INFER_PY/||"
+fi
+
+# =========================================================================
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 if [[ $FAIL -eq 0 ]]; then

@@ -111,6 +111,19 @@ grep_duplicate_definitions() {
         fi
       done <<< "$matches"
     fi
+
+    # Additional pass for Python @dataclass decorated classes
+    if [[ "$ext" == "py" ]] || { [[ "$ext" != "ts" && "$ext" != "tsx" && "$ext" != "go" ]] && [[ "$language" == "python" ]]; }; then
+      local dataclass_names
+      dataclass_names=$(grep -A1 '@dataclass' "$file" 2>/dev/null | grep -oE 'class[[:space:]]+[A-Za-z_][A-Za-z0-9_]*' | sed 's/class[[:space:]]*//' || true)
+      if [[ -n "$dataclass_names" ]]; then
+        while IFS= read -r dc_name; do
+          if [[ -n "$dc_name" ]]; then
+            printf '%s\t%s\n' "$dc_name" "$file" >> "$tmp_pairs"
+          fi
+        done <<< "$dataclass_names"
+      fi
+    fi
   done
 
   # If no definitions found at all, return empty array
@@ -144,7 +157,7 @@ grep_duplicate_definitions() {
   return 0
 }
 
-# audit_wave_types(json_path, repo_root, wave_num)
+# audit_wave_types(json_path, repo_root, wave_num, base_sha)
 # Audits type definitions changed in the current wave for duplicates.
 # Collects changed files via git diff, calls grep_duplicate_definitions().
 # If no duplicates: logs [AUDIT] skip message, returns 0.
@@ -155,6 +168,7 @@ grep_duplicate_definitions() {
 #   json_path   - Path to quantum.json
 #   repo_root   - Path to the repository root
 #   wave_num    - Current wave number
+#   base_sha    - Base SHA for git diff (defaults to HEAD~1 if not provided)
 #
 # Output: type-auditor prompt on stdout (when duplicates found)
 # Logs: [AUDIT] messages on stderr
@@ -163,6 +177,8 @@ audit_wave_types() {
   local json_path="$1"
   local repo_root="$2"
   local wave_num="$3"
+  # Base SHA for git diff; defaults to HEAD~1 if not provided
+  local base_sha="${4:-HEAD~1}"
 
   # Validate inputs
   if [[ -z "$json_path" || -z "$repo_root" ]]; then
@@ -181,7 +197,7 @@ audit_wave_types() {
   # Collect changed files via git diff
   # Compare HEAD against HEAD~1 to find files changed in the most recent commit(s)
   local changed_files
-  changed_files=$(cd "$repo_root" && git diff --name-only HEAD~1 HEAD 2>/dev/null | while IFS= read -r f; do
+  changed_files=$(cd "$repo_root" && git diff --name-only "$base_sha" HEAD 2>/dev/null | while IFS= read -r f; do
     printf '%s/%s ' "$repo_root" "$f"
   done)
 
@@ -317,6 +333,7 @@ update_contracts_for_next_wave() {
     .execution.discoveredContracts[$tn] = {
       discoveredInWave: $wave,
       sourceFiles: $sf,
+      consumers: $sf,
       consolidated: true,
       consolidatedFile: $cf
     }

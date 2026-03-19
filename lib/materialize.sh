@@ -120,8 +120,22 @@ generate_definition_file() {
   def_file=$(printf '%s' "$type_entry_json" | jq -r '.definitionFile // ""' 2>/dev/null)
 
   if [[ -z "$def_file" ]]; then
-    printf "[MATERIALIZE] WARNING: no definitionFile for %s, skipping\n" "$type_name" >&2
-    return 0
+    # Infer directory from project structure
+    local inferred_dir
+    inferred_dir=$(infer_shared_types_dir "$repo_root" "$language")
+    # Build filename from type_name: convert CamelCase to kebab-case
+    local kebab_name
+    kebab_name=$(printf '%s' "$type_name" | sed 's/\([A-Z]\)/-\L\1/g' | sed 's/^-//')
+    # Determine extension by language
+    local ext
+    case "$language" in
+      typescript) ext="ts" ;;
+      python) ext="py" ;;
+      go) ext="go" ;;
+      *) ext="ts" ;;
+    esac
+    def_file="${inferred_dir}/${kebab_name}.${ext}"
+    printf "[MATERIALIZE] Inferred definitionFile for %s: %s\n" "$type_name" "$def_file" >&2
   fi
 
   local full_path="$repo_root/$def_file"
@@ -339,7 +353,10 @@ class ${type_name}(Protocol):"
 _generate_go_from_shape() {
   local type_name="$1"
   local type_entry_json="$2"
-  local result="package shared
+  local pkg_name
+  pkg_name=$(printf '%s' "$type_entry_json" | jq -r '.definitionFile // ""' 2>/dev/null | xargs dirname 2>/dev/null | xargs basename 2>/dev/null)
+  pkg_name="${pkg_name:-shared}"
+  local result="package ${pkg_name}
 
 type ${type_name} interface {"
 
