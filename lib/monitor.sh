@@ -240,8 +240,14 @@ post_merge_typecheck() {
 
   # If still no command, skip
   if [[ -z "$typecheck_cmd" ]]; then
-    printf "[TYPECHECK] skip: no typecheck command configured or detected\n"
+    printf "[TYPECHECK] No typecheck command configured or detected. Skipping.\n"
     return 0
+  fi
+
+  # Validate typecheckCommand does not contain shell metacharacters (command injection prevention)
+  if [[ "$typecheck_cmd" =~ [\;\|\&\$\`\(\)] ]]; then
+    printf "[TYPECHECK] ERROR: typecheckCommand contains shell metacharacters — refusing to execute\n" >&2
+    return 1
   fi
 
   printf "[TYPECHECK] running: %s\n" "$typecheck_cmd"
@@ -319,9 +325,14 @@ post_merge_typecheck() {
   if [[ "$error_count" -gt "$baseline" ]]; then
     printf "[TYPECHECK] FAIL: %d errors > baseline %d — reverting merge\n" "$error_count" "$baseline"
     # Stash any dirty tracked files before reverting (e.g., quantum.json updates)
-    git -C "$repo_root" stash push -q 2>/dev/null || true
-    git -C "$repo_root" revert --no-edit -m 1 HEAD 2>/dev/null || true
-    git -C "$repo_root" stash pop -q 2>/dev/null || true
+    local stashed=false
+    if git -C "$repo_root" status --porcelain 2>/dev/null | grep -q .; then
+      git -C "$repo_root" stash push -m "ql-typecheck-revert" -q 2>/dev/null && stashed=true
+    fi
+    if ! git -C "$repo_root" revert --no-edit -m 1 HEAD 2>/dev/null; then
+      printf "[TYPECHECK] CRITICAL: revert failed — manual intervention required\n" >&2
+    fi
+    [[ "$stashed" == "true" ]] && { git -C "$repo_root" stash pop -q 2>/dev/null || true; }
     return 1
   fi
 

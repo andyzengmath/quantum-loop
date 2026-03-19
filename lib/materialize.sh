@@ -5,6 +5,7 @@
 # Source shared utilities
 MATERIALIZE_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$MATERIALIZE_LIB_DIR/common.sh" || { printf "ERROR: common.sh not found\n" >&2; return 1 2>/dev/null || exit 1; }
+source "$MATERIALIZE_LIB_DIR/json-atomic.sh" || { printf "ERROR: json-atomic.sh not found\n" >&2; return 1 2>/dev/null || exit 1; }
 
 # detect_language(repo_root)
 # Detects the primary programming language of a project by checking for config files.
@@ -13,6 +14,16 @@ source "$MATERIALIZE_LIB_DIR/common.sh" || { printf "ERROR: common.sh not found\
 # Returns 0 always; outputs "unknown" for missing/invalid repo_root.
 detect_language() {
   local repo_root="$1"
+  local def_file_hint="${2:-}"
+
+  # If hint provided, use extension as primary signal
+  if [[ -n "$def_file_hint" ]]; then
+    case "$def_file_hint" in
+      *.ts|*.tsx) printf "typescript"; return 0 ;;
+      *.py) printf "python"; return 0 ;;
+      *.go) printf "go"; return 0 ;;
+    esac
+  fi
 
   if [[ -z "$repo_root" || ! -d "$repo_root" ]]; then
     printf "unknown"
@@ -184,6 +195,7 @@ generate_definition_file() {
   # Write the file
   printf '%s' "$content" > "$full_path"
   printf "[MATERIALIZE] Wrote %s to %s\n" "$type_name" "$def_file" >&2
+  printf "%s" "$def_file"
   return 0
 }
 
@@ -439,7 +451,8 @@ materialize_contracts() {
   local type_names
   type_names=$(jq -r '.contracts.shared_types // {} | keys[]' "$json_path" 2>/dev/null | tr -d '\r')
 
-  for type_name in $type_names; do
+  while IFS= read -r type_name; do
+    [[ -z "$type_name" ]] && continue
     local type_entry
     type_entry=$(jq -r --arg tn "$type_name" '.contracts.shared_types[$tn]' "$json_path" 2>/dev/null)
 
@@ -453,23 +466,21 @@ materialize_contracts() {
       continue
     fi
 
-    # Call generate_definition_file
-    generate_definition_file "$type_name" "$type_entry" "$language" "$repo_root"
-
-    # Check if a file was actually written
-    local def_file
-    def_file=$(printf '%s' "$type_entry" | jq -r '.definitionFile // ""' 2>/dev/null)
-    if [[ -n "$def_file" && -f "$repo_root/$def_file" ]]; then
+    # Call generate_definition_file and capture the written path
+    local actual_path
+    actual_path=$(generate_definition_file "$type_name" "$type_entry" "$language" "$repo_root" 2>/dev/null)
+    if [[ -n "$actual_path" ]]; then
       materialized_names+=("$type_name")
-      materialized_files+=("$def_file")
+      materialized_files+=("$actual_path")
     fi
-  done
+  done <<< "$type_names"
 
   # Process execution.discoveredContracts
   local discovered_names
   discovered_names=$(jq -r '.execution.discoveredContracts // {} | keys[]' "$json_path" 2>/dev/null | tr -d '\r')
 
-  for type_name in $discovered_names; do
+  while IFS= read -r type_name; do
+    [[ -z "$type_name" ]] && continue
     local disc_entry
     disc_entry=$(jq -r --arg tn "$type_name" '.execution.discoveredContracts[$tn]' "$json_path" 2>/dev/null)
 
@@ -493,14 +504,15 @@ materialize_contracts() {
     if [[ -n "$def_file" ]]; then
       local synth_entry
       synth_entry=$(printf '%s' "$disc_entry" | jq --arg df "$def_file" '. + {definitionFile: $df}' 2>/dev/null)
-      generate_definition_file "$type_name" "$synth_entry" "$language" "$repo_root"
+      local actual_path
+      actual_path=$(generate_definition_file "$type_name" "$synth_entry" "$language" "$repo_root" 2>/dev/null)
 
-      if [[ -f "$repo_root/$def_file" ]]; then
+      if [[ -n "$actual_path" ]]; then
         materialized_names+=("$type_name")
-        materialized_files+=("$def_file")
+        materialized_files+=("$actual_path")
       fi
     fi
-  done
+  done <<< "$discovered_names"
 
   # If nothing was materialized, log and return
   if [[ ${#materialized_names[@]} -eq 0 ]]; then
@@ -527,9 +539,7 @@ materialize_contracts() {
     "$json_path" 2>/dev/null)
 
   if [[ -n "$updated" ]]; then
-    local tmp_path="${json_path}.tmp"
-    printf '%s\n' "$updated" | jq . > "$tmp_path" 2>/dev/null
-    mv "$tmp_path" "$json_path"
+    write_quantum_json "$json_path" "$updated"
   fi
 
   # Print materialized names to stdout

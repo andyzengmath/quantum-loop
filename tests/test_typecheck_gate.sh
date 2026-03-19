@@ -91,7 +91,7 @@ EOF
 OUTPUT=$(post_merge_typecheck "$TEST_REPO" "$TEST_REPO/quantum.json" 2>&1)
 EXIT_CODE=$?
 assert_eq "No config skip returns 0" "0" "$EXIT_CODE"
-assert_contains "Logs skip message" "[TYPECHECK] skip" "$OUTPUT"
+assert_contains "Logs skip message" "[TYPECHECK] No typecheck command configured or detected. Skipping." "$OUTPUT"
 rm -rf "$TEST_REPO"
 
 # =========================================================================

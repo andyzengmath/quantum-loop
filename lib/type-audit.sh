@@ -5,6 +5,7 @@
 # Source shared utilities
 TYPE_AUDIT_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$TYPE_AUDIT_LIB_DIR/common.sh" || { printf "ERROR: common.sh not found\n" >&2; return 1 2>/dev/null || exit 1; }
+source "$TYPE_AUDIT_LIB_DIR/json-atomic.sh" || { printf "ERROR: json-atomic.sh not found\n" >&2; return 1 2>/dev/null || exit 1; }
 source "$TYPE_AUDIT_LIB_DIR/materialize.sh" || { printf "ERROR: materialize.sh not found\n" >&2; return 1 2>/dev/null || exit 1; }
 
 # grep_duplicate_definitions(repo_root, changed_files_list)
@@ -317,7 +318,6 @@ update_contracts_for_next_wave() {
   # 1. Initialize execution if absent
   # 2. Initialize execution.discoveredContracts if absent
   # 3. Add the new entry
-  local tmp_path="${json_path}.tmp"
   local updated
   updated=$(jq \
     --arg tn "$type_name" \
@@ -344,19 +344,9 @@ update_contracts_for_next_wave() {
     return 1
   fi
 
-  # Atomic write: write to tmp, then mv
-  if ! printf '%s\n' "$updated" > "$tmp_path" 2>/dev/null; then
-    rm -f "$tmp_path"
-    printf 'ERROR: update_contracts_for_next_wave: failed to write tmp file\n' >&2
-    return 1
-  fi
-
-  mv "$tmp_path" "$json_path"
-  local mv_ret=$?
-
-  if [[ $mv_ret -ne 0 ]]; then
-    rm -f "$tmp_path"
-    printf 'ERROR: update_contracts_for_next_wave: atomic rename failed\n' >&2
+  # Atomic write via write_quantum_json
+  if ! write_quantum_json "$json_path" "$updated"; then
+    printf 'ERROR: update_contracts_for_next_wave: atomic write failed\n' >&2
     return 1
   fi
 
