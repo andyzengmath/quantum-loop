@@ -4,7 +4,8 @@
 # Provides: detect_signal(), check_agent_status(), merge_worktree_branch(),
 #           check_agent_timeout(), kill_agent_process(), post_merge_typecheck(),
 #           DEFAULT_AGENT_TIMEOUT
-# Requires: lib/spawn.sh (for AGENT_OUTPUT_FILENAME), lib/materialize.sh (for detect_language)
+# Requires: lib/spawn.sh (for AGENT_OUTPUT_FILENAME), lib/materialize.sh (for detect_language),
+#           lib/json-atomic.sh (for write_quantum_json)
 
 # Source shared utilities
 MONITOR_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -105,8 +106,8 @@ merge_worktree_branch() {
     git -C "$repo_root" stash push -m "ql-auto-stash-before-merge-${worktree_branch}" -q 2>/dev/null && stashed=true
   fi
 
-  # Attempt merge (no squash, no rebase per spec)
-  if git -C "$repo_root" merge "$worktree_branch" --no-edit -q > /dev/null 2>&1; then
+  # Attempt merge (no squash, no rebase per spec; --no-ff ensures merge commit)
+  if git -C "$repo_root" merge --no-ff "$worktree_branch" --no-edit -q > /dev/null 2>&1; then
     [[ "$stashed" == "true" ]] && { git -C "$repo_root" stash pop -q 2>/dev/null || true; }
     return 0
   fi
@@ -244,19 +245,36 @@ post_merge_typecheck() {
     return 0
   fi
 
-  # Validate typecheckCommand does not contain shell metacharacters (command injection prevention)
-  if [[ "$typecheck_cmd" =~ [\;\|\&\$\`\(\)] ]]; then
-    printf "[TYPECHECK] ERROR: typecheckCommand contains shell metacharacters — refusing to execute\n" >&2
+  # Allowlist of known-safe typecheck command prefixes
+  local -a ALLOWED_TYPECHECK_PREFIXES=("tsc" "pyright" "mypy" "go vet" "go build" "npx tsc" "pnpm tsc" "yarn tsc" "pnpm exec tsc" "npx pyright" "bash")
+
+  local allowed=false
+  for prefix in "${ALLOWED_TYPECHECK_PREFIXES[@]}"; do
+    if [[ "$typecheck_cmd" == "$prefix" || "$typecheck_cmd" == "$prefix "* ]]; then
+      allowed=true
+      break
+    fi
+  done
+
+  # Secondary guard: reject shell metacharacters even if prefix matched
+  if [[ "$typecheck_cmd" =~ [\;\|\&\$\`\(\)\>\<\!] ]] || [[ "$typecheck_cmd" == *$'\n'* ]]; then
+    printf "[TYPECHECK] ERROR: typecheckCommand '%s' does not match any allowed prefix — refusing to execute\n" "$typecheck_cmd" >&2
+    return 1
+  fi
+
+  if [[ "$allowed" != "true" ]]; then
+    printf "[TYPECHECK] ERROR: typecheckCommand '%s' does not match any allowed prefix — refusing to execute\n" "$typecheck_cmd" >&2
     return 1
   fi
 
   printf "[TYPECHECK] running: %s\n" "$typecheck_cmd"
 
-  # Run the typecheck command with timeout, capture output and exit code
+  # Execute as array to prevent shell interpretation
+  local -a cmd_array
+  read -ra cmd_array <<< "$typecheck_cmd"
   local tc_output
-  local tc_exit
-  tc_output=$(cd "$repo_root" && timeout "$TYPECHECK_TIMEOUT" bash -c "$typecheck_cmd" 2>&1) || tc_exit=$?
-  tc_exit=${tc_exit:-0}
+  local tc_exit=0
+  tc_output=$(cd "$repo_root" && timeout "$TYPECHECK_TIMEOUT" "${cmd_array[@]}" 2>&1) || tc_exit=$?
 
   # Handle command not found (exit 127)
   if [[ "$tc_exit" -eq 127 ]]; then
@@ -281,7 +299,7 @@ post_merge_typecheck() {
       python)
         # pyright: "N errors, N warnings" on summary line; mypy: "Found N errors"
         local summary_errors
-        summary_errors=$(printf "%s\n" "$tc_output" | grep -oE '[0-9]+ error' | head -1 | grep -oE '[0-9]+')
+        summary_errors=$(printf "%s\n" "$tc_output" | grep -oE '[0-9]+ error' | tail -1 | grep -oE '[0-9]+')
         error_count=${summary_errors:-0}
         ;;
       go)
@@ -309,14 +327,10 @@ post_merge_typecheck() {
   # If no baseline, initialize it
   if [[ -z "$baseline" ]]; then
     printf "[TYPECHECK] baseline initialized: %d errors\n" "$error_count"
-    # Write baseline to JSON using atomic jq pattern
-    local tmp_json="${json_path}.tmp.$$"
-    if jq --argjson count "$error_count" '
-      .execution = (.execution // {}) | .execution.baselineTypecheckErrors = $count
-    ' "$json_path" > "$tmp_json" 2>/dev/null; then
-      mv "$tmp_json" "$json_path"
-    else
-      rm -f "$tmp_json"
+    local updated
+    updated=$(jq --argjson count "$error_count" '.execution = (.execution // {}) | .execution.baselineTypecheckErrors = $count' "$json_path" 2>/dev/null)
+    if [[ -n "$updated" ]]; then
+      write_quantum_json "$json_path" "$updated" || true
     fi
     return 0
   fi
@@ -329,7 +343,15 @@ post_merge_typecheck() {
     if git -C "$repo_root" status --porcelain 2>/dev/null | grep -q .; then
       git -C "$repo_root" stash push -m "ql-typecheck-revert" -q 2>/dev/null && stashed=true
     fi
-    if ! git -C "$repo_root" revert --no-edit -m 1 HEAD 2>/dev/null; then
+    # Verify HEAD is a merge commit before attempting -m 1 revert
+    local parent_count
+    parent_count=$(git -C "$repo_root" cat-file -p HEAD 2>/dev/null | grep -c '^parent ' || echo "0")
+    if [[ "$parent_count" -lt 2 ]]; then
+      printf "[TYPECHECK] CRITICAL: HEAD is not a merge commit (parents: %d) — cannot revert with -m 1\n" "$parent_count" >&2
+      [[ "$stashed" == "true" ]] && { git -C "$repo_root" stash pop -q 2>/dev/null || true; }
+      return 1
+    fi
+    if ! git -C "$repo_root" revert -m 1 --no-edit HEAD 2>/dev/null; then
       printf "[TYPECHECK] CRITICAL: revert failed — manual intervention required\n" >&2
     fi
     [[ "$stashed" == "true" ]] && { git -C "$repo_root" stash pop -q 2>/dev/null || true; }

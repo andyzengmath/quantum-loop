@@ -1458,6 +1458,49 @@ else
 fi
 
 # =========================================================================
+echo "=== Test 70: generate_definition_file — path traversal with ../../../etc/passwd rejected ==="
+GEN_TRAVERSAL_DIR="$TMPDIR/gen_traversal"
+mkdir -p "$GEN_TRAVERSAL_DIR"
+TYPE_JSON_TRAVERSAL='{"definitionFile":"../../../etc/passwd","definition":"malicious content","consumers":["US-002","US-003"]}'
+RESULT_TRAVERSAL=$(generate_definition_file "Evil" "$TYPE_JSON_TRAVERSAL" "typescript" "$GEN_TRAVERSAL_DIR" 2>&1)
+RET_TRAVERSAL=$?
+TOTAL=$((TOTAL + 1))
+if [[ $RET_TRAVERSAL -ne 0 ]]; then
+  PASS=$((PASS + 1))
+  echo "  PASS: Path traversal definitionFile rejected (returns error)"
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: Path traversal definitionFile should be rejected"
+  echo "    return code: $RET_TRAVERSAL"
+fi
+# Verify the file was NOT written
+TOTAL=$((TOTAL + 1))
+if [[ ! -f "$GEN_TRAVERSAL_DIR/../../../etc/passwd" ]]; then
+  PASS=$((PASS + 1))
+  echo "  PASS: Traversal file not written"
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: Traversal file was written!"
+fi
+
+# =========================================================================
+echo "=== Test 71: generate_definition_file — normal path accepted ==="
+GEN_NORMAL_DIR="$TMPDIR/gen_normal_path"
+mkdir -p "$GEN_NORMAL_DIR"
+TYPE_JSON_NORMAL='{"definitionFile":"src/types/Normal.ts","definition":"export interface Normal { ok: boolean; }","consumers":["US-002","US-003"]}'
+RESULT_NORMAL=$(generate_definition_file "Normal" "$TYPE_JSON_NORMAL" "typescript" "$GEN_NORMAL_DIR" 2>&1)
+RET_NORMAL=$?
+TOTAL=$((TOTAL + 1))
+if [[ -f "$GEN_NORMAL_DIR/src/types/Normal.ts" ]]; then
+  PASS=$((PASS + 1))
+  echo "  PASS: Normal definitionFile accepted and written"
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: Normal definitionFile should be accepted"
+  echo "    return code: $RET_NORMAL"
+fi
+
+# =========================================================================
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 if [[ $FAIL -eq 0 ]]; then

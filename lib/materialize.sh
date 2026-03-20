@@ -151,6 +151,28 @@ generate_definition_file() {
 
   local full_path="$repo_root/$def_file"
 
+  # Resolve to absolute path and verify it stays within repo_root
+  local resolved_root
+  resolved_root=$(cd "$repo_root" && pwd -P 2>/dev/null) || resolved_root="$repo_root"
+
+  # Reject obvious path traversal patterns
+  if [[ "$def_file" == *".."* ]]; then
+    printf "[MATERIALIZE] ERROR: definitionFile '%s' contains path traversal — refusing to write\n" "$def_file" >&2
+    return 1
+  fi
+
+  # Ensure the resolved path is under repo root
+  local parent_dir_check
+  parent_dir_check=$(dirname "$full_path")
+  if [[ -d "$parent_dir_check" ]]; then
+    local resolved_parent
+    resolved_parent=$(cd "$parent_dir_check" && pwd -P 2>/dev/null)
+    if [[ "$resolved_parent" != "$resolved_root"* ]]; then
+      printf "[MATERIALIZE] ERROR: definitionFile '%s' resolves outside repo root — refusing to write\n" "$def_file" >&2
+      return 1
+    fi
+  fi
+
   # Extract definition and shape
   local definition
   definition=$(printf '%s' "$type_entry_json" | jq -r '.definition // ""' 2>/dev/null)
@@ -162,8 +184,8 @@ generate_definition_file() {
   local content=""
 
   if [[ -n "$definition" ]]; then
-    # Write definition verbatim (interpret escape sequences)
-    content=$(printf '%b' "$definition")
+    # Write definition verbatim
+    content=$(printf '%s' "$definition")
   elif [[ "$has_shape" == "true" ]]; then
     # Generate from shape based on language
     content=$(_generate_from_shape "$type_name" "$type_entry_json" "$language")
@@ -539,7 +561,9 @@ materialize_contracts() {
     "$json_path" 2>/dev/null)
 
   if [[ -n "$updated" ]]; then
-    write_quantum_json "$json_path" "$updated"
+    write_quantum_json "$json_path" "$updated" || {
+      printf "[MATERIALIZE] ERROR: failed to write materializedContracts\n" >&2
+    }
   fi
 
   # Print materialized names to stdout
