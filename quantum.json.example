@@ -283,7 +283,26 @@
     "shared_types": {
       "priority_enum": {
         "value": "Priority",
-        "pattern": "^[A-Z][a-zA-Z]*$"
+        "pattern": "^[A-Z][a-zA-Z]*$",
+        "definitionFile": "types/task.py",
+        "owner": "US-001",
+        "consumers": ["US-002", "US-003"],
+        "shape": {
+          "methods": [
+            {
+              "name": "fromString",
+              "params": [
+                { "name": "raw", "type": "string" }
+              ],
+              "returns": "Priority"
+            }
+          ],
+          "properties": [
+            { "name": "label", "type": "string", "readonly": true },
+            { "name": "level", "type": "number" }
+          ]
+        },
+        "definition": "interface Priority {\n  readonly label: string;\n  level: number;\n  fromString(raw: string): Priority;\n}"
       },
       "task_status": {
         "value": "TaskStatus"
@@ -291,6 +310,8 @@
     }
   },
   "coverageThreshold": 80,
+  "typecheckCommand": "tsc --noEmit",
+  "_comment_typecheckCommand": "Auto-detect: tsconfig.json -> tsc --noEmit, pyproject.toml with [tool.pyright] -> pyright, mypy config -> mypy ., go.mod -> go vet ./... If absent, auto-detect is used. Set to null to skip.",
   "staleThresholdMinutes": 20,
   "codebasePatterns": [],
   "fileConflicts": [
@@ -311,6 +332,16 @@
     "activeWorktrees": [
       ".ql-wt/US-002",
       ".ql-wt/US-003"
-    ]
+    ],
+    "materializedContracts": ["AliasRegistry", "FeatureCluster"],
+    "discoveredContracts": {
+      "Feature": {
+        "discoveredInWave": 3,
+        "sourceFiles": ["src/api/types.ts", "src/frontend/types.ts"],
+        "consolidated": true,
+        "consolidatedFile": "src/shared/types/feature.ts"
+      }
+    },
+    "baselineTypecheckErrors": 0
   }
 }

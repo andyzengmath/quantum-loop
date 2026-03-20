@@ -153,6 +153,24 @@ When 2+ stories are eligible, spawn implementer subagents in parallel using Clau
 
 ### 3B.1: Mark Stories and Update quantum.json
 
+**Before first wave — initialize baseline typecheck errors:**
+
+Before spawning any agents, run the project's typecheck command once against the repo root to establish a baseline error count. Store the result in `execution.baselineTypecheckErrors`:
+
+```bash
+# Example for TypeScript projects:
+tsc --noEmit 2>&1 | grep -c 'error TS' || echo 0
+# Example for Python projects:
+pyright --outputjson 2>/dev/null | python -c "import sys,json; print(json.load(sys.stdin).get('summary',{}).get('errorCount',0))" || echo 0
+```
+
+```python
+# Store in quantum.json:
+data['execution']['baselineTypecheckErrors'] = <count>
+```
+
+If no typecheck command is configured for the project, set `baselineTypecheckErrors` to `null` and log: `[TYPECHECK] No typecheck command available — post-merge typecheck will be skipped`
+
 Before spawning any agents, mark ALL eligible stories as `in_progress` in a single atomic update:
 
 ```bash
@@ -172,6 +190,75 @@ json.dump(data, open('quantum.json', 'w'), indent=2)
 ```
 
 This prevents race conditions from parallel agents editing quantum.json simultaneously.
+
+### 3B.1B: Materialize Contracts
+
+After marking stories as `in_progress` but **before** spawning any agents, materialize shared type contracts so that all worktree branches include the authoritative type definition files.
+
+1. **Read contract sources from quantum.json:**
+   - `contracts.shared_types` — planner-defined types with `definition`, `shape`, `definitionFile`, `consumers`, and `owner` fields
+   - `execution.discoveredContracts` — types discovered by the L5 wave-end audit in previous waves (only present for waves 2+)
+
+2. **For each type where `consumers.length >= 2`:** call `generate_definition_file()` (from `lib/materialize.sh`) to write the definition to disk:
+   - If `definition` field is present: write content verbatim to `definitionFile` path
+   - If `definition` is absent but `shape` is present: generate from shape using the detected project language template
+   - If neither `definition` nor `shape` is present: skip with warning log
+   - If `definitionFile` already exists with matching content: skip (idempotent)
+   - If `definitionFile` already exists with different content: do NOT overwrite; log `[MATERIALIZE] SKIP <TypeName> — file already exists with different content`
+   - Create parent directories with `mkdir -p` if they don't exist
+
+3. **Single-consumer types are NOT materialized.** Log: `[MATERIALIZE] SKIP <TypeName> — single consumer (consumers.length < 2)`
+
+4. **Commit materialized files** (if any were written):
+   ```bash
+   git add <materialized_files>
+   git commit -m "chore: materialize contracts for Wave <N>"
+   ```
+   This commit becomes the **base for all worktree branches** in this wave. Agents branching from HEAD after this commit will see the materialized type files in their working directory.
+
+5. **Update `execution.materializedContracts`** in quantum.json with the list of materialized type names.
+
+6. **Log each action:**
+   - Materialized: `[MATERIALIZE] <TypeName> → <definitionFile>`
+   - Skipped (single consumer): `[MATERIALIZE] SKIP <TypeName> — single consumer`
+   - Skipped (file exists): `[MATERIALIZE] SKIP <TypeName> — file already exists with different content`
+   - Skipped (no definition/shape): `[MATERIALIZE] SKIP <TypeName> — no definition or shape`
+
+7. **No-op case:** If no multi-consumer contracts exist in either `contracts.shared_types` or `execution.discoveredContracts`, log:
+   ```
+   [MATERIALIZE] No multi-consumer contracts to materialize for Wave <N>
+   ```
+   and skip the commit step entirely.
+
+8. **Subsequent waves:** On wave 2+, also read `execution.discoveredContracts` entries (types discovered by the L5 audit in previous waves) and materialize them following the same rules. This ensures that types missed by the planner but caught at runtime are available to agents in later waves.
+
+**Example orchestrator pseudocode:**
+```python
+# Read sources
+shared_types = quantum_json.get("contracts", {}).get("shared_types", {})
+discovered = quantum_json.get("execution", {}).get("discoveredContracts", {})
+
+# Combine all contract sources
+all_types = {**shared_types, **discovered}
+
+materialized = []
+for name, entry in all_types.items():
+    consumers = entry.get("consumers", [])
+    if len(consumers) < 2:
+        log(f"[MATERIALIZE] SKIP {name} — single consumer")
+        continue
+    result = generate_definition_file(entry, language, repo_root)
+    if result:
+        materialized.append(name)
+        log(f"[MATERIALIZE] {name} → {entry['definitionFile']}")
+
+if materialized:
+    # git add + commit → this is the base for worktree branches
+    run(f"git add {' '.join(files)} && git commit -m 'chore: materialize contracts for Wave {wave_num}'")
+    update_execution_materialized_contracts(quantum_json, materialized)
+else:
+    log(f"[MATERIALIZE] No multi-consumer contracts to materialize for Wave {wave_num}")
+```
 
 ### 3B.2: Spawn Agents
 
@@ -226,6 +313,49 @@ Wait for agent completion notifications. Do NOT poll in a loop — Claude Code a
   If `stash pop` conflicts on quantum.json, **drop the stash** (`git stash drop`) and re-write quantum.json state from scratch via Python. The orchestrator's in-memory knowledge of story statuses is the source of truth, not any stashed file. Never resolve quantum.json merge conflicts by hand — always regenerate programmatically.
 
   **Best practice:** Add `quantum.json` to `.gitignore` at the start of a feature branch to avoid this entirely. The implementer agents are already instructed not to commit quantum.json in parallel mode (see implementer.md, "Parallel mode" section).
+
+### Typecheck Gate
+
+After a successful merge and before running the test suite or inline review, run a post-merge typecheck to catch type regressions introduced by the merged code:
+
+1. **Run `post_merge_typecheck(repo_root, json_path)`:**
+   ```bash
+   # Run the project's typecheck command from the repo root
+   # Example (TypeScript): tsc --noEmit 2>&1
+   # Example (Python): pyright 2>&1
+   ```
+
+2. **Compare against baseline:** Count the errors in the typecheck output and compare to `execution.baselineTypecheckErrors`.
+
+3. **On typecheck failure (errors > baseline):**
+   - Revert the merge: `git revert -m 1 HEAD`
+   - Mark the story as `"failed"` with `"phase": "merge_typecheck"`
+   - Add the typecheck error output to `retries.failureLog`:
+     ```json
+     {
+       "attempt": <number>,
+       "timestamp": "<ISO 8601>",
+       "error": "<typecheck error output>",
+       "phase": "merge_typecheck"
+     }
+     ```
+   - Increment `retries.attempts`
+   - Clear `startedAt` = `null`
+   - Clean up the worktree
+   - Log: `[TYPECHECK] Post-merge typecheck FAILED for US-XXX — merge reverted`
+   - Skip the test suite and inline review for this story
+   - Proceed to the next agent completion or DAG re-query
+
+4. **On typecheck success (errors <= baseline):**
+   - Log: `[TYPECHECK] Post-merge typecheck: PASSED`
+   - Continue to the test suite and inline review
+
+5. **If no typecheck command is available** (`execution.baselineTypecheckErrors` is `null`):
+   - Log: `[TYPECHECK] No typecheck command configured — skipping post-merge typecheck`
+   - Proceed directly to the test suite
+
+The full post-merge sequence is: **merge -> typecheck -> test suite -> inline review**.
+
 - Update quantum.json: story `status: "passed"`, clear `startedAt` = `null`, add progress entry
 
 **On STORY_FAILED:**
@@ -276,6 +406,77 @@ This ensures parallel execution has the same quality bar as sequential, while ad
 ## Step 3C: Integration Check (after each wave)
 
 After stories from a wave are merged, verify they are actually wired together. This catches the "built in isolation, never called" failure pattern.
+
+### 3C.0: Type Audit (Layer 5)
+
+Before checking for dead code, scan the wave's changed files for duplicate type definitions. This catches type divergence that slipped past L1-L4 and feeds discoveries back into contracts for subsequent waves.
+
+**Step 1: Collect changed files from the current wave**
+
+```bash
+# Get all files changed by stories merged in this wave
+WAVE_FILES=$(git diff --name-only <WAVE_BASE_SHA>..HEAD)
+```
+
+**Step 2: Scan for duplicate type definitions**
+
+Run `grep_duplicate_definitions()` (from `lib/type-audit.sh`) on the changed files:
+
+```bash
+# Returns JSON array: [{"name": "Foo", "files": ["a.ts", "b.ts"]}, ...]
+DUPLICATES=$(grep_duplicate_definitions "$REPO_ROOT" "$WAVE_FILES")
+```
+
+**Step 3: Handle results**
+
+- **If no duplicates found:**
+  Log: `[AUDIT] Grep found 0 duplicate type definitions. Skipping agent audit.`
+  Proceed directly to 3C.1.
+
+- **If duplicates found:**
+  1. Log the duplicate names and file locations:
+     ```
+     [AUDIT] Found duplicate type definitions:
+       - Foo: a.ts, b.ts
+       - Bar: c.py, d.py
+     ```
+  2. Spawn a **type-auditor** agent with:
+     - The duplicate type names and their file paths
+     - The contract shape from `quantum.json` `contracts.shared_types` (if an entry exists for that type name)
+     - Instruction to: consolidate the duplicate into a single authoritative definition, update all imports in consuming files, run typecheck to verify, and commit with `"fix: consolidate <TypeName> from wave N"`
+  3. The type-auditor agent inherits the parent orchestrator's model (no separate model config).
+
+**Step 4: Validate auditor results**
+
+After the auditor completes its consolidation commit:
+- Run the full test suite to verify no regressions.
+- **If tests pass:** The consolidation commit is accepted and included in the wave's integration check.
+- **If tests fail:** Revert the auditor's commit and log:
+  ```
+  [AUDIT] Consolidation of <TypeName> broke tests. Reverted.
+  ```
+  The duplicate persists — it will be retried in a future wave or addressed manually.
+
+**Step 5: Update contracts for next wave**
+
+Call `update_contracts_for_next_wave()` (from `lib/type-audit.sh`) for each discovered type:
+- Writes each discovered type to `execution.discoveredContracts` with:
+  - `discoveredInWave`: current wave number
+  - `sourceFiles`: list of files where the duplicate was found
+  - `consolidated`: boolean (true if auditor succeeded, false if reverted or false positive)
+  - `consolidatedFile`: path to the consolidated file (if consolidated)
+- On the next wave, `materialize_contracts()` reads `execution.discoveredContracts` in addition to `contracts.shared_types`, ensuring newly discovered types are materialized for subsequent agents.
+
+**Step 6: Log contract effectiveness metrics**
+
+```
+[AUDIT] Wave N: X duplicates found, Y consolidated, Z false positives
+```
+
+Where:
+- **X** = total duplicate type names detected by grep
+- **Y** = types successfully consolidated by the auditor (tests passed after consolidation)
+- **Z** = types the auditor identified as false positives (same name, different concept — not consolidated)
 
 ### 3C.1: Dead Code Detection
 For each story that just passed, check that its new exports are imported somewhere:
@@ -353,6 +554,50 @@ git diff main...HEAD           # full diff for review
 
 This review is NOT optional. Per-story reviews miss cross-cutting concerns. Field data: the most common post-merge issues (duplicate helpers, inconsistent naming, half-wired pipelines) are only visible at the full-feature level.
 
+### Step 4C: Promote Discovered Contracts
+
+After Step 4B passes and before generating observations, promote runtime-discovered contracts to permanent status so that future executions benefit from them.
+
+1. **Read discovered contracts:** Read `execution.discoveredContracts` from quantum.json. If the field is absent or empty, log `[CONTRACTS] No discovered contracts to promote` and skip to Step 5.
+
+2. **Filter for consolidated entries only:** For each entry in `discoveredContracts`, check the `consolidated` field:
+   - If `consolidated: true` — this is a verified duplicate that was successfully consolidated by the type-auditor agent. Promote it.
+   - If `consolidated: false` — this is a false positive (same name, different concept). Do NOT promote it. Skip silently.
+
+3. **Promote to permanent contracts:** For each `consolidated: true` entry, add a new entry to `contracts.shared_types`:
+   - `value`: the type name (the key from `discoveredContracts`)
+   - `definitionFile`: taken from the entry's `consolidatedFile` field
+   - `consumers`: derived from the entry's `sourceFiles` context (the files that contained duplicate definitions indicate which stories consume the type)
+   - Do NOT duplicate — if `contracts.shared_types` already has an entry with the same `value`, update it rather than adding a duplicate
+
+4. **Write to quantum.json:** The promotion is a quantum.json write, not a separate commit. It is included in the observations commit (Step 5). Use the standard atomic write pattern:
+   ```bash
+   python -c "
+   import json
+   from datetime import datetime, timezone
+   data = json.load(open('quantum.json'))
+   discovered = data.get('execution', {}).get('discoveredContracts', {})
+   promoted = []
+   for name, entry in discovered.items():
+       if entry.get('consolidated', False):
+           new_contract = {
+               'value': name,
+               'definitionFile': entry.get('consolidatedFile', ''),
+               'consumers': entry.get('sourceFiles', [])
+           }
+           # Update existing or insert (shared_types is a dict keyed by type name)
+           data.setdefault('contracts', {}).setdefault('shared_types', {})[name] = new_contract
+           promoted.append(name)
+   data['updatedAt'] = datetime.now(timezone.utc).isoformat()
+   json.dump(data, open('quantum.json', 'w'), indent=2)
+   print(f'[CONTRACTS] Promoted {len(promoted)} discovered types to permanent contracts: {", ".join(promoted)}')
+   "
+   ```
+
+5. **Log the result:**
+   - If types were promoted: `[CONTRACTS] Promoted N discovered types to permanent contracts: TypeA, TypeB, ...`
+   - If no discovered contracts (or none with `consolidated: true`): `[CONTRACTS] No discovered contracts to promote`
+
 ## Step 5: Generate Execution Observations
 
 After the main loop exits (COMPLETE, BLOCKED, or max iterations), generate an observations document:
@@ -362,6 +607,27 @@ After the main loop exits (COMPLETE, BLOCKED, or max iterations), generate an ob
    - **Header:** Date, story counts (passed/failed/blocked/total), execution mode (sequential/parallel), number of iterations, approximate wall-clock time
    - **Failure summary table:** For each failed or blocked story, show story ID, title, failure phase, error message, retry count
    - **Patterns observed:** Recurring failure modes (same root cause in 2+ stories), what worked well, suggested improvements for the pipeline
+   - **Contract Effectiveness:** Summary of how type contracts performed during execution. Include these 7 metrics:
+     | Metric | Description |
+     |--------|-------------|
+     | Contracts defined | N types — total number of contract categories defined in `quantum.json.contracts` |
+     | Materialized | N (multi-consumer only) — contracts that were written to shared files for import by multiple stories |
+     | Divergence prevented | N — types where all consuming agents imported from the materialized contract file instead of inventing their own |
+     | Divergence detected by L5 audit | N (consolidated) — type divergences discovered by the Layer 5 post-merge audit and successfully consolidated |
+     | False positives (L5) | N — cases where L5 flagged a name collision but the types represent different concepts (same name, different semantics — not consolidated) |
+     | Missed | N — divergences not caught by contracts or L5, discovered only in post-merge review or integration testing |
+     | Promoted to permanent contracts | N — contract entries that proved valuable enough to be added to the project's permanent type definitions |
+
+     **How metrics are computed:**
+     - **Contracts defined:** Count the keys in `quantum.json.contracts` (each key is a contract category/type).
+     - **Materialized:** Count entries in `execution.materializedContracts` — these are contracts that were written to shared files because multiple stories consume them.
+     - **Divergence prevented:** For each materialized contract, check whether all consuming stories imported from the materialized file (rather than defining their own version). Count the contracts where all consumers used the shared file.
+     - **Divergence detected by L5 audit:** Count entries in `execution.discoveredContracts` where `consolidated: true` — these are type divergences the Layer 5 audit found and merged into a single definition.
+     - **False positives (L5):** Count entries in `execution.discoveredContracts` where `consolidated: false` — these are name collisions flagged by L5 that turned out to be distinct concepts (same identifier, different semantics).
+     - **Missed:** Count entries in story `retries.failureLog` arrays where `phase` is `"merge_typecheck"` or `"merge_conflict"` — these represent type divergences that escaped both contracts and L5, surfacing only at merge time.
+     - **Promoted to permanent contracts:** Count contracts that were added to the project's permanent type definitions during this execution (tracked in progress entries with action `"contract_promoted"`).
+
+     **This section appears even if all values are 0.** A run with all-zero contract metrics indicates no shared types were defined for this feature, which is itself useful information for future planning.
    - **Raw data:** Full progress log and failure logs in collapsed `<details>` sections
 3. **Commit:** `git add <file> && git commit -m "docs: execution observations for <branchName>"`
 

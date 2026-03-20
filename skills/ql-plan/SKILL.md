@@ -75,6 +75,138 @@ Example contracts block:
 
 Add the `contracts` object to quantum.json at the top level, after `codebasePatterns`.
 
+For language-specific shape and definition examples, read `references/contract-shapes.md` when generating structural contracts for shared types.
+
+### Structural Contract Generation (Enhanced)
+
+After building the basic contracts block above, enhance `shared_types` entries with structural information so that downstream layers (materialization, type audit) can generate real code files.
+
+#### Step 1: Detect Shared Types
+
+Scan all stories' descriptions, acceptance criteria, and task descriptions for type names (classes, interfaces, structs, enums) that appear in **2 or more stories**. These are structural contract candidates.
+
+For each shared type candidate:
+1. **`shape`** — A structured representation of the type's interface:
+   - `properties`: Array of `{name, type, readonly?}` entries
+   - `methods`: Array of `{name, params: [{name, type}], returns}` entries
+2. **`definition`** — A verbatim code string in the project's language (see Step 2 for language detection)
+3. **`owner`** — The story ID that primarily implements/defines the type (usually the story that creates it as an output)
+4. **`consumers`** — Array of story IDs that reference or depend on the type (all stories except the owner)
+5. **`definitionFile`** — The file path where the type definition should live (see "Inferring `definitionFile` Paths" below)
+
+**Anti-rationalization:** If 2+ stories reference a type by name, you MUST generate `shape` and `definition` fields. "It's only used lightly" or "the shape is obvious" are not valid reasons to skip structural contracts. The downstream materializer cannot generate a file without a `definition` or `shape`.
+
+#### Step 2: Detect Project Language
+
+Determine the project's primary language by checking for config files in the project root:
+
+| Config File | Language | `definition` Style |
+|---|---|---|
+| `tsconfig.json` | TypeScript | `export interface X { ... }` or `export type X = { ... }` |
+| `pyproject.toml` or `setup.py` | Python | `class X(Protocol): ...` or `@dataclass class X: ...` |
+| `go.mod` | Go | `type X interface { ... }` or `type X struct { ... }` |
+
+Detection priority: check in the order listed above. If multiple config files exist, use the `definitionFile` extension as a tiebreaker.
+
+#### Step 3: Generate Language-Specific Definitions
+
+Based on the detected language, generate the `definition` string:
+
+**TypeScript:**
+```
+export interface TaskResult {
+  id: string;
+  status: "pending" | "passed" | "failed";
+  output: string;
+  errorMessage?: string;
+}
+```
+
+**Python:**
+```
+from dataclasses import dataclass
+from typing import Optional
+
+@dataclass
+class TaskResult:
+    id: str
+    status: str  # "pending" | "passed" | "failed"
+    output: str
+    error_message: Optional[str] = None
+```
+
+**Go:**
+```
+type TaskResult struct {
+    ID           string `json:"id"`
+    Status       string `json:"status"`
+    Output       string `json:"output"`
+    ErrorMessage string `json:"errorMessage,omitempty"`
+}
+```
+
+#### Step 4: Reference for Examples
+
+See `references/contract-shapes.md` for complete examples of `shape` JSON paired with `definition` strings for all three languages. Load this reference when shared types are detected — it contains guidance on when to generate `definition` (multi-consumer types) vs shape-only (advisory, single-consumer types).
+
+#### Step 5: Inferring `definitionFile` Paths
+
+When a contract entry does not have an explicit `definitionFile`, infer the path from the project's existing directory structure. Check directories in this priority order:
+
+1. `src/shared/types/` — TypeScript convention (most specific)
+2. `src/types/` — common alternative for TypeScript/general
+3. `src/interfaces/` — common alternative for interface-heavy projects
+4. `types/` — project-root convention (some projects keep types at root level)
+5. `shared/` — Python and Go convention
+
+**If a matching directory exists**, use it as the base path for the `definitionFile`. Append the type name in kebab-case with the appropriate language extension (`.ts`, `.py`, `.go`).
+
+**If none of these directories exist**, default based on the detected language:
+- **TypeScript:** `src/shared/types/<kebab-name>.ts`
+- **Python:** `src/shared/<snake_name>.py`
+- **Go:** `internal/shared/<snake_name>.go`
+
+**If `definitionFile` IS explicitly set** in a contract entry (e.g., from user input or a previous run), it takes precedence over any inference. Do not override explicit paths.
+
+#### Complete Enhanced Contract Example
+
+Below is a complete example of a `contracts.shared_types` entry with all enhanced fields. This demonstrates a `TaskResult` type shared between US-003 (which implements it) and US-007/US-009 (which consume it), in a TypeScript project that has an existing `src/types/` directory:
+
+```json
+"contracts": {
+  "shared_types": {
+    "task_result": {
+      "value": "TaskResult",
+      "pattern": "^[A-Z][a-zA-Z]*$",
+      "definitionFile": "src/types/task-result.ts",
+      "owner": "US-003",
+      "consumers": ["US-007", "US-009"],
+      "shape": {
+        "properties": [
+          { "name": "id", "type": "string" },
+          { "name": "status", "type": "'pending' | 'passed' | 'failed'" },
+          { "name": "output", "type": "string" },
+          { "name": "errorMessage", "type": "string", "readonly": false }
+        ],
+        "methods": []
+      },
+      "definition": "export interface TaskResult {\n  id: string;\n  status: 'pending' | 'passed' | 'failed';\n  output: string;\n  errorMessage?: string;\n}"
+    }
+  }
+}
+```
+
+Key points:
+- `definitionFile` was inferred from the existing `src/types/` directory (priority item 2), not hardcoded
+- `owner` is the story that creates the type as its primary output
+- `consumers` lists every other story that references the type
+- `shape` provides a structured representation that downstream tools can use to generate code if `definition` is missing
+- `definition` provides the verbatim code string in the detected language (TypeScript in this case)
+
+#### Stories with No Shared Types
+
+If no type names appear in 2+ stories, do NOT generate `shape` or `definition` fields. The basic contracts block (with `value` and optional `pattern`) is sufficient. This maintains backward compatibility — entries with only `value` and `pattern` remain valid.
+
 ### wiring_verification Generation
 
 Tasks that create new modules, handlers, or components **SHOULD** have a `wiring_verification` object unless wiring is handled by a dependent story via `consumedBy`.
