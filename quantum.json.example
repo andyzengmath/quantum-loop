@@ -84,7 +84,11 @@
         "failureLog": []
       },
       "notes": "",
-      "startedAt": null
+      "startedAt": null,
+      "contractBreaking": false,
+      "_comment_contractBreaking": "Optional. When true, indicates this story modifies a shared contract (type, API, schema) that other stories depend on. Triggers re-validation of all consuming stories after merge.",
+      "fixes": [],
+      "_comment_fixes": "Optional. Array of story IDs that this story fixes or supersedes. Used to track rework chains -- e.g. ['US-010'] means this story fixes a defect introduced by US-010."
     },
     {
       "id": "US-002",
@@ -380,5 +384,107 @@
       }
     },
     "baselineTypecheckErrors": 0
+  },
+  "knownFailures": {
+    "_comment_knownFailures": "Tracks baseline and current test suite state to detect regressions and flaky tests. Baseline is captured at the start of a feature branch; current is updated after each wave.",
+    "baseline": {
+      "_comment_baseline": "Snapshot of the test suite state when the feature branch was created. Used as the reference point for regression detection.",
+      "capturedAt": "2026-03-24T12:00:00Z",
+      "wave": 0,
+      "passCount": 142,
+      "failCount": 2,
+      "skipCount": 3,
+      "failingTests": [
+        {
+          "name": "tests/integration/test_auth.py::test_token_refresh_race",
+          "failingSince": "2026-03-20T08:00:00Z",
+          "introducedBy": "US-010",
+          "expectedFix": "US-015",
+          "error": "TimeoutError: token refresh exceeded 5s deadline"
+        }
+      ]
+    },
+    "current": {
+      "_comment_current": "Live snapshot of the test suite state, updated after each wave completes. Compared against baseline to detect new failures.",
+      "updatedAt": "2026-03-24T14:30:00Z",
+      "capturedAt": "2026-03-24T12:00:00Z",
+      "wave": 2,
+      "passCount": 145,
+      "failCount": 2,
+      "skipCount": 3,
+      "failingTests": [
+        {
+          "name": "tests/integration/test_auth.py::test_token_refresh_race",
+          "failingSince": "2026-03-20T08:00:00Z",
+          "introducedBy": "US-010",
+          "expectedFix": "US-015",
+          "error": "TimeoutError: token refresh exceeded 5s deadline"
+        }
+      ]
+    },
+    "flakyThreshold": 1,
+    "_comment_flakyThreshold": "Number of times a test must fail intermittently before being classified as flaky. Default is 1.",
+    "fullSuiteTimeout": 60,
+    "_comment_fullSuiteTimeout": "Maximum seconds allowed for the full test suite to run before being killed. Default is 60."
+  },
+  "execution": {
+    "_comment_execution": "Runtime configuration for the orchestrator. Contains worktree tracking and merge strategy settings.",
+    "worktreeTracking": {
+      "_comment_worktreeTracking": "Tracks active git worktrees used for parallel agent execution. The orchestrator uses this to manage lifecycle and cleanup.",
+      "activeWorktrees": [
+        {
+          "path": ".ql-wt/US-002",
+          "branch": "worktree-us-002",
+          "storyId": "US-002",
+          "createdAt": "2026-03-24T13:00:00Z",
+          "wave": 2
+        }
+      ],
+      "cleanedThisSession": 0,
+      "_comment_cleanedThisSession": "Count of worktrees cleaned up during the current orchestrator session. Reset to 0 on each session start.",
+      "maxWorktrees": 4,
+      "_comment_maxWorktrees": "Maximum number of concurrent worktrees allowed. Limits parallel agent execution to prevent resource exhaustion."
+    },
+    "mergeStrategy": {
+      "_comment_mergeStrategy": "Defines how the orchestrator resolves merge conflicts when integrating parallel worktree branches back into the main branch. Each rule targets a specific file pattern with a resolution strategy.",
+      "rules": [
+        {
+          "name": "dependency_manifest",
+          "_comment": "Package lock files (package-lock.json, yarn.lock, etc.) use 'ours' version then re-run install to regenerate a consistent lockfile.",
+          "filePattern": "dependency_manifest",
+          "strategy": "ours",
+          "postAction": "install"
+        },
+        {
+          "name": "barrel_export",
+          "_comment": "Barrel/index files (index.ts, __init__.py) are regenerated from the directory listing after merge, since multiple agents may add exports.",
+          "filePattern": "barrel_export",
+          "strategy": "regenerate"
+        },
+        {
+          "name": "new_story_file",
+          "_comment": "Files created by the incoming branch that do not exist on ours. Uses 'theirs' to accept the new file wholesale.",
+          "filePattern": "new_story_file",
+          "strategy": "theirs",
+          "condition": "file_not_on_ours"
+        },
+        {
+          "name": "shared_infrastructure",
+          "_comment": "Shared config or infra files that were already merged in an earlier wave. Uses 'ours' to preserve the earlier merge result.",
+          "filePattern": "shared_infrastructure",
+          "strategy": "ours",
+          "condition": "file_merged_in_earlier_wave"
+        },
+        {
+          "name": "contract_stub",
+          "_comment": "Files listed in materializedContracts. Uses 'theirs' to accept the contract-owner's version as canonical.",
+          "filePattern": "contract_stub",
+          "strategy": "theirs",
+          "condition": "file_in_materializedContracts"
+        }
+      ],
+      "defaultAction": "escalate",
+      "_comment_defaultAction": "When no rule matches a conflicting file, 'escalate' halts the merge and notifies the operator for manual resolution."
+    }
   }
 }
