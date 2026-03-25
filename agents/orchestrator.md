@@ -57,6 +57,31 @@ This prevents merge conflicts from parallel stories editing the same file. Also 
 
 Log: `[DAG] Held back US-XXX (file conflict with US-YYY on <file>)`
 
+### 2.2: Contract-Breaking Story Scheduling
+
+After file-conflict filtering, check for `contractBreaking` stories. A story with `contractBreaking: true` changes shared interfaces — its consumers must not run in the same wave to avoid building against stale contracts.
+
+For each eligible story with `contractBreaking: true`:
+- Find all stories whose `dependsOn` includes this contract-breaking story (its consumers)
+- If any consumers are also eligible in this wave: **hold the consumers to the next wave** (remove them from this wave's eligible list)
+- The contract-breaking story itself runs in this wave — only its consumers are deferred
+
+```python
+# Pseudocode for contractBreaking scheduling
+contract_breakers = [s for s in eligible if s.get('contractBreaking', False)]
+held_back = set()
+for breaker in contract_breakers:
+    for story in eligible:
+        if breaker['id'] in story.get('dependsOn', []) and story['id'] not in held_back:
+            held_back.add(story['id'])
+            log(f"[DAG] Held back {story['id']} (consumer of contract-breaking {breaker['id']})")
+eligible = [s for s in eligible if s['id'] not in held_back]
+```
+
+Log: `[DAG] Held back US-XXX (consumer of contract-breaking US-YYY)`
+
+This prevents interface-changing stories from running in parallel with their consumers. Held-back stories become eligible in the next wave after the contract-breaking story has merged.
+
 **If no eligible stories:**
 - If ALL stories have `status: "passed"` -> output `<quantum>COMPLETE</quantum>`, print summary table, stop
 - Otherwise -> output `<quantum>BLOCKED</quantum>`, report which stories are stuck and why, stop
@@ -152,6 +177,50 @@ Return to Step 2.
 When 2+ stories are eligible, spawn implementer subagents in parallel using Claude Code's native worktree isolation.
 
 ### 3B.1: Mark Stories and Update quantum.json
+
+**Before first wave — source hardening modules and run pre-wave hooks:**
+
+Before spawning any agents, source the hardening modules with graceful fallback:
+
+```bash
+# Source hardening modules (graceful fallback if absent)
+source "$REPO_ROOT/lib/worktree.sh" 2>/dev/null || WORKTREE_MODULE_AVAILABLE=false
+source "$REPO_ROOT/lib/known-failures.sh" 2>/dev/null || KNOWN_FAILURES_MODULE_AVAILABLE=false
+```
+
+**Pre-wave cleanup — remove stale worktrees from previous waves:**
+
+```bash
+if [[ "$WORKTREE_MODULE_AVAILABLE" != "false" ]]; then
+  cleanup_stale_worktrees "$JSON_PATH" "$REPO_ROOT"
+fi
+```
+
+**Pre-spawn capacity check — verify worktree slots available:**
+
+Before each individual agent spawn, call:
+```bash
+if [[ "$WORKTREE_MODULE_AVAILABLE" != "false" ]]; then
+  pre_spawn_check "$JSON_PATH" "$MAX_WORKTREES"
+  # Returns non-zero if at capacity — wait for a slot to free up before spawning
+fi
+```
+
+**Before first wave only — capture known-failures baseline:**
+
+```bash
+if [[ "$KNOWN_FAILURES_MODULE_AVAILABLE" != "false" ]]; then
+  capture_baseline "$REPO_ROOT" "$JSON_PATH"
+fi
+```
+
+**For waves 2+ — capture wave snapshot:**
+
+```bash
+if [[ "$KNOWN_FAILURES_MODULE_AVAILABLE" != "false" ]]; then
+  capture_wave_snapshot "$REPO_ROOT" "$JSON_PATH" "$WAVE_NUM"
+fi
+```
 
 **Before first wave — initialize baseline typecheck errors:**
 
@@ -262,7 +331,26 @@ else:
 
 ### 3B.2: Spawn Agents
 
-For each eligible story (up to 4 concurrent), spawn using the **Agent tool** (NOT the Task tool):
+For each eligible story (up to 4 concurrent):
+
+**After worktree creation — register the worktree:**
+
+```bash
+if [[ "$WORKTREE_MODULE_AVAILABLE" != "false" ]]; then
+  register_worktree "$JSON_PATH" "$STORY_ID" "$WT_PATH" "$WT_BRANCH" "$WAVE_NUM"
+fi
+```
+
+**Before building the agent prompt — gather known-failures context:**
+
+```bash
+KNOWN_FAILURES_CONTEXT=""
+if [[ "$KNOWN_FAILURES_MODULE_AVAILABLE" != "false" ]]; then
+  KNOWN_FAILURES_CONTEXT=$(format_agent_context "$JSON_PATH")
+fi
+```
+
+**Spawn using the Agent tool** (NOT the Task tool):
 
 ```
 Agent tool with:
@@ -281,6 +369,11 @@ Agent tool with:
              # export PYTHONPATH=\"\$(pwd):\$PYTHONPATH\"     # flat-layout
            Or for inline commands:
              PYTHONPATH=src python -m pytest tests/ -x -v
+
+           ## Known Test Failures (pre-existing — do NOT fix these)
+           <INSERT $KNOWN_FAILURES_CONTEXT HERE>
+           If a test in this list fails, it is a pre-existing failure, not a regression you caused.
+           Only investigate test failures that are NOT in this list.
 
            You MUST commit your changes: git add -A && git commit -m 'feat: <STORY_ID> - <Title>'
            Signal completion: <quantum>STORY_PASSED</quantum> or <quantum>STORY_FAILED</quantum>"
@@ -302,7 +395,24 @@ Wait for agent completion notifications. Do NOT poll in a loop — Claude Code a
 
 **On STORY_PASSED:**
 - Log: `[PASSED] US-XXX - Story Title`
-- **Merge the worktree branch.** Claude Code's `isolation: "worktree"` may auto-merge, or you may need to merge manually.
+- **Merge the worktree branch** using the merge-strategy module when available:
+
+  ```bash
+  # Delegate merge to classify_and_merge via lib/merge-strategy.sh
+  source "$REPO_ROOT/lib/merge-strategy.sh" 2>/dev/null || MERGE_STRATEGY_MODULE_AVAILABLE=false
+
+  if [[ "$MERGE_STRATEGY_MODULE_AVAILABLE" != "false" ]]; then
+    # classify_and_merge handles conflict detection, classification, and resolution
+    classify_and_merge "$REPO_ROOT" "$JSON_PATH" "$WT_BRANCH" "$STORY_ID" "$WAVE_NUM"
+    MERGE_RESULT=$?
+  else
+    # Fallback: standard git merge
+    git merge "$WT_BRANCH" --no-edit
+    MERGE_RESULT=$?
+  fi
+  ```
+
+  If `classify_and_merge` encounters conflicts it cannot resolve (returns non-zero with `escalate` action), fall back to the manual merge pattern below.
 
   **Handling quantum.json during merges:** quantum.json should be in `.gitignore` so it doesn't participate in merges. If it IS tracked (some projects track it), or if other local-only files block the merge, use this pattern:
   ```bash
@@ -354,7 +464,44 @@ After a successful merge and before running the test suite or inline review, run
    - Log: `[TYPECHECK] No typecheck command configured — skipping post-merge typecheck`
    - Proceed directly to the test suite
 
-The full post-merge sequence is: **merge -> typecheck -> test suite -> inline review**.
+### Known-Failures Delta Check
+
+After a successful typecheck (or if typecheck is skipped), run the known-failures delta check to detect new test regressions introduced by the merged code:
+
+1. **Run `delta_check(repo_root, json_path, story_id)`:**
+   ```bash
+   if [[ "$KNOWN_FAILURES_MODULE_AVAILABLE" != "false" ]]; then
+     delta_check "$REPO_ROOT" "$JSON_PATH" "$STORY_ID"
+     DELTA_RESULT=$?
+   else
+     DELTA_RESULT=0  # Skip if module not available
+   fi
+   ```
+
+2. **On delta_check failure (non-zero — new regressions above flaky threshold):**
+   - Revert the merge: `git revert -m 1 HEAD`
+   - Mark the story as `"failed"` with `"phase": "merge_regression"`
+   - Add the new failure names to `retries.failureLog`:
+     ```json
+     {
+       "attempt": "<number>",
+       "timestamp": "<ISO 8601>",
+       "error": "New test regressions detected: <failure names from delta_check output>",
+       "phase": "merge_regression"
+     }
+     ```
+   - Increment `retries.attempts`
+   - Clear `startedAt` = `null`
+   - Clean up the worktree
+   - Log: `[KNOWN-FAILURES] Delta check FAILED for US-XXX — merge reverted`
+   - Skip the test suite and inline review for this story
+   - Proceed to the next agent completion or DAG re-query
+
+3. **On delta_check success (returns 0):**
+   - Log: `[KNOWN-FAILURES] Delta check PASSED`
+   - Continue to the test suite and inline review
+
+The full post-merge sequence is: **merge -> typecheck -> delta_check -> test suite -> inline review**.
 
 - Update quantum.json: story `status: "passed"`, clear `startedAt` = `null`, add progress entry
 
@@ -511,6 +658,19 @@ If dead code or pipeline breaks are detected:
 
 This step is NOT optional. Components built but never called are wasted work.
 
+### 3C.4: Post-Wave Worktree Cleanup
+
+After the integration check completes (pass or fail), clean up worktrees for stories that finished in this wave:
+
+```bash
+if [[ "$WORKTREE_MODULE_AVAILABLE" != "false" ]]; then
+  # COMPLETED_STORY_IDS is a space-separated list of story IDs that completed (passed or failed) in this wave
+  cleanup_merged_worktrees "$JSON_PATH" "$REPO_ROOT" "$COMPLETED_STORY_IDS"
+fi
+```
+
+This prevents filesystem limit exhaustion from accumulated worktrees across waves. The function removes the worktree directory, prunes the git worktree list, and updates `execution.worktreeTracking` in quantum.json.
+
 ## Step 4: Final Integration Gate
 
 When DAG query returns no eligible stories and all stories have passed, run final checks before declaring COMPLETE:
@@ -628,6 +788,25 @@ After the main loop exits (COMPLETE, BLOCKED, or max iterations), generate an ob
      - **Promoted to permanent contracts:** Count contracts that were added to the project's permanent type definitions during this execution (tracked in progress entries with action `"contract_promoted"`).
 
      **This section appears even if all values are 0.** A run with all-zero contract metrics indicates no shared types were defined for this feature, which is itself useful information for future planning.
+   - **Module Timing:** Performance metrics for each hardening module. Throughout execution, the orchestrator accumulates timing data from module log messages (each module logs `[TAG] Completed in Nms`). Report a table:
+
+     | Module | Total Invocations | Total Time (ms) | Avg Time (ms) |
+     |--------|-------------------|------------------|----------------|
+     | BARREL-REGEN | N | N | N |
+     | DEP-MANIFEST | N | N | N |
+     | MERGE-STRATEGY | N | N | N |
+     | KNOWN-FAILURES | N | N | N |
+     | WORKTREE | N | N | N |
+
+     **How to accumulate timing data:** Parse log output for lines matching `\[(BARREL-REGEN|DEP-MANIFEST|MERGE-STRATEGY|KNOWN-FAILURES|WORKTREE)\].*Completed in (\d+)ms`. For KNOWN-FAILURES, aggregate across baseline, snapshot, and delta operations. For WORKTREE, aggregate across cleanup and register operations.
+
+     **Performance flag:** If any module's Total Time exceeds **10,000ms (10s)**, flag it in the observations:
+     ```
+     WARNING: Module <NAME> exceeded 10s total execution time (<actual>ms across <N> invocations).
+     Consider profiling or optimizing this module for large codebases.
+     ```
+
+     **This section appears even if all values are 0** (indicating no modules were invoked, e.g., sequential execution).
    - **Raw data:** Full progress log and failure logs in collapsed `<details>` sections
 3. **Commit:** `git add <file> && git commit -m "docs: execution observations for <branchName>"`
 
