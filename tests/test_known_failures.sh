@@ -730,6 +730,447 @@ OUTPUT=$(format_agent_context "$FMT4_REPO/quantum.json")
 assert_empty "format with missing knownFailures returns empty" "$OUTPUT"
 
 # =========================================================================
+echo "=== Test T-033: Additional detect_test_runner and capture_baseline ==="
+# =========================================================================
+
+echo "--- T-033a: capture_baseline with clean suite (10 pass, 0 fail) ---"
+CLEAN_REPO="$TMPDIR_BASE/clean-repo"
+mkdir -p "$CLEAN_REPO/.bin"
+cat > "$CLEAN_REPO/package.json" << 'EJSON'
+{
+  "devDependencies": { "jest": "^29.0.0" }
+}
+EJSON
+cat > "$CLEAN_REPO/.bin/npx" << 'ESCRIPT'
+#!/usr/bin/env bash
+cat << 'EJESTJSON'
+{
+  "numPassedTests": 10,
+  "numFailedTests": 0,
+  "numPendingTests": 0,
+  "testResults": [
+    {"name": "test_a.test.js", "status": "passed"},
+    {"name": "test_b.test.js", "status": "passed"},
+    {"name": "test_c.test.js", "status": "passed"},
+    {"name": "test_d.test.js", "status": "passed"},
+    {"name": "test_e.test.js", "status": "passed"},
+    {"name": "test_f.test.js", "status": "passed"},
+    {"name": "test_g.test.js", "status": "passed"},
+    {"name": "test_h.test.js", "status": "passed"},
+    {"name": "test_i.test.js", "status": "passed"},
+    {"name": "test_j.test.js", "status": "passed"}
+  ]
+}
+EJESTJSON
+ESCRIPT
+chmod +x "$CLEAN_REPO/.bin/npx"
+cat > "$CLEAN_REPO/quantum.json" << 'EQJSON'
+{"stories": []}
+EQJSON
+OLD_PATH="$PATH"
+export PATH="$CLEAN_REPO/.bin:$PATH"
+OUTPUT=$(capture_baseline "$CLEAN_REPO" "$CLEAN_REPO/quantum.json" 2>&1)
+export PATH="$OLD_PATH"
+BL_PASS=$(read_json_field "$CLEAN_REPO/quantum.json" "d.get('knownFailures',{}).get('baseline',{}).get('passCount','MISSING')")
+BL_FAIL=$(read_json_field "$CLEAN_REPO/quantum.json" "d.get('knownFailures',{}).get('baseline',{}).get('failCount','MISSING')")
+BL_SKIP=$(read_json_field "$CLEAN_REPO/quantum.json" "d.get('knownFailures',{}).get('baseline',{}).get('skipCount','MISSING')")
+BL_TESTS_LEN=$(read_json_field "$CLEAN_REPO/quantum.json" "len(d.get('knownFailures',{}).get('baseline',{}).get('failingTests',[]))")
+assert_eq "clean suite passCount" "10" "$BL_PASS"
+assert_eq "clean suite failCount" "0" "$BL_FAIL"
+assert_eq "clean suite skipCount" "0" "$BL_SKIP"
+assert_eq "clean suite failingTests empty" "0" "$BL_TESTS_LEN"
+# Verify current is also initialized
+CUR_PASS=$(read_json_field "$CLEAN_REPO/quantum.json" "d.get('knownFailures',{}).get('current',{}).get('passCount','MISSING')")
+assert_eq "clean suite current passCount" "10" "$CUR_PASS"
+
+echo "--- T-033b: capture_baseline with exactly 5 failures ---"
+FIVE_REPO="$TMPDIR_BASE/five-fail-repo"
+mkdir -p "$FIVE_REPO/.bin"
+cat > "$FIVE_REPO/package.json" << 'EJSON'
+{
+  "devDependencies": { "jest": "^29.0.0" }
+}
+EJSON
+cat > "$FIVE_REPO/.bin/npx" << 'ESCRIPT'
+#!/usr/bin/env bash
+cat << 'EJESTJSON'
+{
+  "numPassedTests": 5,
+  "numFailedTests": 5,
+  "numPendingTests": 0,
+  "testResults": [
+    {"name": "test_a.test.js", "status": "passed"},
+    {"name": "test_b.test.js", "status": "failed", "message": "Error in test_b"},
+    {"name": "test_c.test.js", "status": "passed"},
+    {"name": "test_d.test.js", "status": "failed", "message": "Error in test_d"},
+    {"name": "test_e.test.js", "status": "passed"},
+    {"name": "test_f.test.js", "status": "failed", "message": "Error in test_f"},
+    {"name": "test_g.test.js", "status": "passed"},
+    {"name": "test_h.test.js", "status": "failed", "message": "Error in test_h"},
+    {"name": "test_i.test.js", "status": "passed"},
+    {"name": "test_j.test.js", "status": "failed", "message": "Error in test_j"}
+  ]
+}
+EJESTJSON
+ESCRIPT
+chmod +x "$FIVE_REPO/.bin/npx"
+cat > "$FIVE_REPO/quantum.json" << 'EQJSON'
+{"stories": []}
+EQJSON
+export PATH="$FIVE_REPO/.bin:$PATH"
+OUTPUT=$(capture_baseline "$FIVE_REPO" "$FIVE_REPO/quantum.json" 2>&1)
+export PATH="$OLD_PATH"
+BL_FAIL=$(read_json_field "$FIVE_REPO/quantum.json" "d.get('knownFailures',{}).get('baseline',{}).get('failCount','MISSING')")
+BL_TESTS_LEN=$(read_json_field "$FIVE_REPO/quantum.json" "len(d.get('knownFailures',{}).get('baseline',{}).get('failingTests',[]))")
+assert_eq "5 failures failCount" "5" "$BL_FAIL"
+assert_eq "5 failures failingTests has 5 entries" "5" "$BL_TESTS_LEN"
+# Verify each failure is present
+FAIL_NAMES=$(read_json_field "$FIVE_REPO/quantum.json" "','.join(t['name'] for t in d.get('knownFailures',{}).get('baseline',{}).get('failingTests',[]))")
+assert_contains "5 fail includes test_b" "test_b" "$FAIL_NAMES"
+assert_contains "5 fail includes test_d" "test_d" "$FAIL_NAMES"
+assert_contains "5 fail includes test_f" "test_f" "$FAIL_NAMES"
+assert_contains "5 fail includes test_h" "test_h" "$FAIL_NAMES"
+assert_contains "5 fail includes test_j" "test_j" "$FAIL_NAMES"
+
+echo "--- T-033c: capture_baseline with garbled output (both parses fail) ---"
+GARBLED_REPO="$TMPDIR_BASE/garbled-repo"
+mkdir -p "$GARBLED_REPO/.bin"
+cat > "$GARBLED_REPO/pyproject.toml" << 'ETOML'
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+ETOML
+cat > "$GARBLED_REPO/.bin/pytest" << 'ESCRIPT'
+#!/usr/bin/env bash
+# Completely garbled output -- no PASS/FAIL/ERROR keywords, no structured format
+echo "Segmentation fault (core dumped)"
+echo "Process exited with code 139"
+echo ">>>>>>>>>>>>>>>>>>>>>>><<"
+echo "binary garbage: \x00\x01\x02"
+exit 139
+ESCRIPT
+chmod +x "$GARBLED_REPO/.bin/pytest"
+cat > "$GARBLED_REPO/quantum.json" << 'EQJSON'
+{"stories": []}
+EQJSON
+export PATH="$GARBLED_REPO/.bin:$PATH"
+OUTPUT=$(capture_baseline "$GARBLED_REPO" "$GARBLED_REPO/quantum.json" 2>&1)
+export PATH="$OLD_PATH"
+BL_VAL=$(read_json_field "$GARBLED_REPO/quantum.json" "d.get('knownFailures',{}).get('baseline', 'NOT_SET')")
+assert_eq "garbled output: baseline is null" "None" "$BL_VAL"
+assert_contains "garbled output logs tracking disabled or fallback" "KNOWN-FAILURES" "$OUTPUT"
+
+# =========================================================================
+echo "=== Test T-034: Additional capture_wave_snapshot and delta_check ==="
+# =========================================================================
+
+echo "--- T-034a: capture_wave_snapshot from 0 failures to 3 new failures ---"
+WAVE3_REPO="$TMPDIR_BASE/wave3-repo"
+mkdir -p "$WAVE3_REPO/.bin"
+cat > "$WAVE3_REPO/pyproject.toml" << 'ETOML'
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+ETOML
+cat > "$WAVE3_REPO/.bin/pytest" << 'ESCRIPT'
+#!/usr/bin/env bash
+cat << 'EPYTEST'
+tests/test_a.py::test_one PASSED
+tests/test_a.py::test_two FAILED
+tests/test_a.py::test_three FAILED
+tests/test_a.py::test_four FAILED
+tests/test_a.py::test_five PASSED
+2 passed, 3 failed, 0 skipped
+EPYTEST
+exit 1
+ESCRIPT
+chmod +x "$WAVE3_REPO/.bin/pytest"
+WAVE3_NATIVE=$(_to_native "$WAVE3_REPO/quantum.json")
+python -c "
+import json
+d = {
+    'stories': [],
+    'knownFailures': {
+        'baseline': {
+            'capturedAt': '2026-03-20T00:00:00Z', 'wave': 0,
+            'passCount': 5, 'failCount': 0, 'skipCount': 0,
+            'failingTests': []
+        },
+        'current': {
+            'updatedAt': '2026-03-20T00:00:00Z', 'capturedAt': '2026-03-20T00:00:00Z', 'wave': 0,
+            'passCount': 5, 'failCount': 0, 'skipCount': 0,
+            'failingTests': []
+        },
+        'flakyThreshold': 1,
+        'fullSuiteTimeout': 60
+    }
+}
+with open('$WAVE3_NATIVE', 'w') as f:
+    json.dump(d, f, indent=2)
+"
+export PATH="$WAVE3_REPO/.bin:$PATH"
+OUTPUT=$(capture_wave_snapshot "$WAVE3_REPO" "$WAVE3_REPO/quantum.json" 2 2>&1)
+export PATH="$OLD_PATH"
+CUR_FAIL_COUNT=$(read_json_field "$WAVE3_REPO/quantum.json" "d.get('knownFailures',{}).get('current',{}).get('failCount','MISSING')")
+CUR_FAIL_LEN=$(read_json_field "$WAVE3_REPO/quantum.json" "len(d.get('knownFailures',{}).get('current',{}).get('failingTests',[]))")
+assert_eq "wave3 failCount is 3" "3" "$CUR_FAIL_COUNT"
+assert_eq "wave3 failingTests has 3 entries" "3" "$CUR_FAIL_LEN"
+# Verify failingSince is wave 2
+SINCE_VALS=$(read_json_field "$WAVE3_REPO/quantum.json" "','.join(str(t['failingSince']) for t in d.get('knownFailures',{}).get('current',{}).get('failingTests',[]))")
+assert_contains "wave3 entries have failingSince=2" "2" "$SINCE_VALS"
+
+echo "--- T-034b: capture_wave_snapshot resolves 3 previous failures ---"
+RESOLVE3_REPO="$TMPDIR_BASE/resolve3-repo"
+mkdir -p "$RESOLVE3_REPO/.bin"
+cat > "$RESOLVE3_REPO/pyproject.toml" << 'ETOML'
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+ETOML
+# All tests pass -- 3 previous failures resolved
+cat > "$RESOLVE3_REPO/.bin/pytest" << 'ESCRIPT'
+#!/usr/bin/env bash
+cat << 'EPYTEST'
+tests/test_a.py::test_one PASSED
+tests/test_a.py::test_two PASSED
+tests/test_a.py::test_three PASSED
+tests/test_a.py::test_four PASSED
+tests/test_a.py::test_five PASSED
+5 passed, 0 failed, 0 skipped
+EPYTEST
+exit 0
+ESCRIPT
+chmod +x "$RESOLVE3_REPO/.bin/pytest"
+RESOLVE3_NATIVE=$(_to_native "$RESOLVE3_REPO/quantum.json")
+python -c "
+import json
+d = {
+    'stories': [],
+    'knownFailures': {
+        'baseline': {
+            'capturedAt': '2026-03-20T00:00:00Z', 'wave': 0,
+            'passCount': 5, 'failCount': 0, 'skipCount': 0,
+            'failingTests': []
+        },
+        'current': {
+            'updatedAt': '2026-03-21T00:00:00Z', 'capturedAt': '2026-03-20T00:00:00Z', 'wave': 2,
+            'passCount': 2, 'failCount': 3, 'skipCount': 0,
+            'failingTests': [
+                {'name': 'tests/test_a.py::test_two', 'failingSince': 2, 'introducedBy': None, 'expectedFix': None, 'error': ''},
+                {'name': 'tests/test_a.py::test_three', 'failingSince': 2, 'introducedBy': None, 'expectedFix': None, 'error': ''},
+                {'name': 'tests/test_a.py::test_four', 'failingSince': 2, 'introducedBy': None, 'expectedFix': None, 'error': ''}
+            ]
+        },
+        'flakyThreshold': 1,
+        'fullSuiteTimeout': 60
+    }
+}
+with open('$RESOLVE3_NATIVE', 'w') as f:
+    json.dump(d, f, indent=2)
+"
+export PATH="$RESOLVE3_REPO/.bin:$PATH"
+OUTPUT=$(capture_wave_snapshot "$RESOLVE3_REPO" "$RESOLVE3_REPO/quantum.json" 3 2>&1)
+export PATH="$OLD_PATH"
+CUR_FAIL_COUNT=$(read_json_field "$RESOLVE3_REPO/quantum.json" "d.get('knownFailures',{}).get('current',{}).get('failCount','MISSING')")
+CUR_FAIL_LEN=$(read_json_field "$RESOLVE3_REPO/quantum.json" "len(d.get('knownFailures',{}).get('current',{}).get('failingTests',[]))")
+CUR_PASS_COUNT=$(read_json_field "$RESOLVE3_REPO/quantum.json" "d.get('knownFailures',{}).get('current',{}).get('passCount','MISSING')")
+assert_eq "resolve3 failCount is 0" "0" "$CUR_FAIL_COUNT"
+assert_eq "resolve3 failingTests empty" "0" "$CUR_FAIL_LEN"
+assert_eq "resolve3 passCount is 5" "5" "$CUR_PASS_COUNT"
+
+echo "--- T-034c: capture_wave_snapshot with no change ---"
+NOCHANGE_REPO="$TMPDIR_BASE/nochange-repo"
+mkdir -p "$NOCHANGE_REPO/.bin"
+cat > "$NOCHANGE_REPO/pyproject.toml" << 'ETOML'
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+ETOML
+# Same 2 failures as before
+cat > "$NOCHANGE_REPO/.bin/pytest" << 'ESCRIPT'
+#!/usr/bin/env bash
+cat << 'EPYTEST'
+tests/test_a.py::test_one PASSED
+tests/test_a.py::test_two PASSED
+tests/test_a.py::test_three FAILED
+tests/test_a.py::test_four FAILED
+2 passed, 2 failed, 0 skipped
+EPYTEST
+exit 1
+ESCRIPT
+chmod +x "$NOCHANGE_REPO/.bin/pytest"
+NOCHANGE_NATIVE=$(_to_native "$NOCHANGE_REPO/quantum.json")
+python -c "
+import json
+d = {
+    'stories': [],
+    'knownFailures': {
+        'baseline': {
+            'capturedAt': '2026-03-20T00:00:00Z', 'wave': 0,
+            'passCount': 2, 'failCount': 2, 'skipCount': 0,
+            'failingTests': [
+                {'name': 'tests/test_a.py::test_three', 'failingSince': 1, 'introducedBy': None, 'expectedFix': None, 'error': ''},
+                {'name': 'tests/test_a.py::test_four', 'failingSince': 1, 'introducedBy': None, 'expectedFix': None, 'error': ''}
+            ]
+        },
+        'current': {
+            'updatedAt': '2026-03-20T00:00:00Z', 'capturedAt': '2026-03-20T00:00:00Z', 'wave': 1,
+            'passCount': 2, 'failCount': 2, 'skipCount': 0,
+            'failingTests': [
+                {'name': 'tests/test_a.py::test_three', 'failingSince': 1, 'introducedBy': None, 'expectedFix': None, 'error': ''},
+                {'name': 'tests/test_a.py::test_four', 'failingSince': 1, 'introducedBy': None, 'expectedFix': None, 'error': ''}
+            ]
+        },
+        'flakyThreshold': 1,
+        'fullSuiteTimeout': 60
+    }
+}
+with open('$NOCHANGE_NATIVE', 'w') as f:
+    json.dump(d, f, indent=2)
+"
+export PATH="$NOCHANGE_REPO/.bin:$PATH"
+OUTPUT=$(capture_wave_snapshot "$NOCHANGE_REPO" "$NOCHANGE_REPO/quantum.json" 3 2>&1)
+export PATH="$OLD_PATH"
+CUR_FAIL_COUNT=$(read_json_field "$NOCHANGE_REPO/quantum.json" "d.get('knownFailures',{}).get('current',{}).get('failCount','MISSING')")
+CUR_FAIL_LEN=$(read_json_field "$NOCHANGE_REPO/quantum.json" "len(d.get('knownFailures',{}).get('current',{}).get('failingTests',[]))")
+CUR_WAVE=$(read_json_field "$NOCHANGE_REPO/quantum.json" "d.get('knownFailures',{}).get('current',{}).get('wave','MISSING')")
+assert_eq "nochange failCount stays 2" "2" "$CUR_FAIL_COUNT"
+assert_eq "nochange failingTests still 2" "2" "$CUR_FAIL_LEN"
+assert_eq "nochange wave updated to 3" "3" "$CUR_WAVE"
+
+echo "--- T-034d: delta_check no regressions (baseline 5 failures, same 5) ---"
+DC5_REPO="$TMPDIR_BASE/dc5-repo"
+mkdir -p "$DC5_REPO/.bin"
+cat > "$DC5_REPO/pyproject.toml" << 'ETOML'
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+ETOML
+# 5 known failures, all the same as current
+cat > "$DC5_REPO/.bin/pytest" << 'ESCRIPT'
+#!/usr/bin/env bash
+cat << 'EPYTEST'
+tests/test_a.py::test_one PASSED
+tests/test_a.py::test_two FAILED
+tests/test_a.py::test_three FAILED
+tests/test_a.py::test_four FAILED
+tests/test_a.py::test_five FAILED
+tests/test_a.py::test_six FAILED
+tests/test_a.py::test_seven PASSED
+2 passed, 5 failed, 0 skipped
+EPYTEST
+exit 1
+ESCRIPT
+chmod +x "$DC5_REPO/.bin/pytest"
+DC5_NATIVE=$(_to_native "$DC5_REPO/quantum.json")
+python -c "
+import json
+d = {
+    'stories': [],
+    'knownFailures': {
+        'current': {
+            'updatedAt': '2026-03-20T00:00:00Z', 'wave': 1,
+            'passCount': 2, 'failCount': 5, 'skipCount': 0,
+            'failingTests': [
+                {'name': 'tests/test_a.py::test_two', 'failingSince': 0, 'introducedBy': None, 'expectedFix': None, 'error': ''},
+                {'name': 'tests/test_a.py::test_three', 'failingSince': 0, 'introducedBy': None, 'expectedFix': None, 'error': ''},
+                {'name': 'tests/test_a.py::test_four', 'failingSince': 0, 'introducedBy': None, 'expectedFix': None, 'error': ''},
+                {'name': 'tests/test_a.py::test_five', 'failingSince': 0, 'introducedBy': None, 'expectedFix': None, 'error': ''},
+                {'name': 'tests/test_a.py::test_six', 'failingSince': 0, 'introducedBy': None, 'expectedFix': None, 'error': ''}
+            ]
+        },
+        'flakyThreshold': 1,
+        'fullSuiteTimeout': 60
+    }
+}
+with open('$DC5_NATIVE', 'w') as f:
+    json.dump(d, f, indent=2)
+"
+export PATH="$DC5_REPO/.bin:$PATH"
+OUTPUT=$(delta_check "$DC5_REPO" "$DC5_REPO/quantum.json" "US-010" 2>&1)
+DC_EXIT=$?
+export PATH="$OLD_PATH"
+assert_eq "delta_check 5 known failures returns 0" "0" "$DC_EXIT"
+assert_contains "delta_check 5 known failures logged" "known failures present" "$OUTPUT"
+
+echo "--- T-034e: delta_check with 0 failures (no regressions, clean run) ---"
+DC_CLEAN_REPO="$TMPDIR_BASE/dc-clean-repo"
+mkdir -p "$DC_CLEAN_REPO/.bin"
+cat > "$DC_CLEAN_REPO/pyproject.toml" << 'ETOML'
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+ETOML
+# All tests pass
+cat > "$DC_CLEAN_REPO/.bin/pytest" << 'ESCRIPT'
+#!/usr/bin/env bash
+cat << 'EPYTEST'
+tests/test_a.py::test_one PASSED
+tests/test_a.py::test_two PASSED
+tests/test_a.py::test_three PASSED
+3 passed, 0 failed, 0 skipped
+EPYTEST
+exit 0
+ESCRIPT
+chmod +x "$DC_CLEAN_REPO/.bin/pytest"
+DC_CLEAN_NATIVE=$(_to_native "$DC_CLEAN_REPO/quantum.json")
+python -c "
+import json
+d = {
+    'stories': [],
+    'knownFailures': {
+        'current': {
+            'updatedAt': '2026-03-20T00:00:00Z', 'wave': 1,
+            'passCount': 3, 'failCount': 0, 'skipCount': 0,
+            'failingTests': []
+        },
+        'flakyThreshold': 1,
+        'fullSuiteTimeout': 60
+    }
+}
+with open('$DC_CLEAN_NATIVE', 'w') as f:
+    json.dump(d, f, indent=2)
+"
+export PATH="$DC_CLEAN_REPO/.bin:$PATH"
+OUTPUT=$(delta_check "$DC_CLEAN_REPO" "$DC_CLEAN_REPO/quantum.json" "US-011" 2>&1)
+DC_EXIT=$?
+export PATH="$OLD_PATH"
+assert_eq "delta_check clean run returns 0" "0" "$DC_EXIT"
+assert_contains "delta_check logs timing on clean" "completed in" "$OUTPUT"
+
+# =========================================================================
+echo "=== Test T-035: Additional format_agent_context ==="
+# =========================================================================
+
+echo "--- T-035a: format_agent_context with exactly 3 failures ---"
+FMT5_REPO="$TMPDIR_BASE/fmt5-repo"
+mkdir -p "$FMT5_REPO"
+FMT5_NATIVE=$(_to_native "$FMT5_REPO/quantum.json")
+python -c "
+import json
+d = {
+    'knownFailures': {
+        'current': {
+            'failingTests': [
+                {'name': 'tests/test_auth::test_login', 'failingSince': 1, 'introducedBy': 'US-003', 'expectedFix': 'US-007', 'error': 'timeout'},
+                {'name': 'tests/test_api::test_create', 'failingSince': 2, 'introducedBy': 'US-005', 'expectedFix': 'US-009', 'error': 'not found'},
+                {'name': 'tests/test_db::test_migrate', 'failingSince': 3, 'introducedBy': None, 'expectedFix': None, 'error': 'schema mismatch'}
+            ]
+        }
+    }
+}
+with open('$FMT5_NATIVE', 'w') as f:
+    json.dump(d, f, indent=2)
+"
+OUTPUT=$(format_agent_context "$FMT5_REPO/quantum.json")
+assert_contains "fmt3 includes test_login" "test_auth::test_login" "$OUTPUT"
+assert_contains "fmt3 includes test_create" "test_api::test_create" "$OUTPUT"
+assert_contains "fmt3 includes test_migrate" "test_db::test_migrate" "$OUTPUT"
+assert_contains "fmt3 includes US-007 fix" "US-007" "$OUTPUT"
+assert_contains "fmt3 includes US-009 fix" "US-009" "$OUTPUT"
+assert_contains "fmt3 includes Wave 1" "Wave 1" "$OUTPUT"
+assert_contains "fmt3 includes Wave 2" "Wave 2" "$OUTPUT"
+assert_contains "fmt3 includes Wave 3" "Wave 3" "$OUTPUT"
+assert_contains "fmt3 includes unknown for null fix" "unknown" "$OUTPUT"
+
+echo "--- T-035b: format_agent_context summary ---"
+echo "  (Summary included in final results below)"
+
+# =========================================================================
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 if [[ $FAIL -eq 0 ]]; then
