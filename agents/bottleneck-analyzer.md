@@ -64,7 +64,7 @@ For each detected bottleneck, apply the restructuring rules:
 
 ## Output
 
-Return a JSON object with a `bottlenecks` array. Each entry includes `chain`, `type`, `fix`, `newStories`, `modifiedDependsOn`, and optionally `warning`, `wave`, or `downstreamCount`.
+Return a JSON object with a `bottlenecks` array. Each entry includes `chain`, `type`, `fix`, `newStories`, `modifiedDependsOn`, and optionally `warning`, `wave`, `downstreamCount`, or `downstream` (array of downstream story IDs for fan-out blockers).
 
 If no bottlenecks are detected, return `{ "bottlenecks": [] }`.
 
@@ -77,6 +77,7 @@ Full output example:
       "chain": ["US-003"],
       "type": "fan_out_blocker",
       "downstreamCount": 6,
+      "downstream": ["US-003", "US-004", "US-005", "US-006", "US-007", "US-008"],
       "fix": "extracted",
       "newStories": [
         {
@@ -87,6 +88,7 @@ Full output example:
         }
       ],
       "modifiedDependsOn": [
+        { "storyId": "US-003", "oldDeps": [], "newDeps": ["US-003-A"] },
         { "storyId": "US-004", "oldDeps": ["US-003"], "newDeps": ["US-003-A"] },
         { "storyId": "US-005", "oldDeps": ["US-003"], "newDeps": ["US-003-A"] }
       ]

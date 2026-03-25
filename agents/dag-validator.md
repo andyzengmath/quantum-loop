@@ -47,11 +47,11 @@ Count the number of stories in quantum.json. Read thresholds from `skills/ql-pla
 
 Compute wave assignments via Kahn's algorithm (topological sort). Result: map of `storyId -> waveNumber`.
 
-**Pass wave assignments to the conflict-auditor** so it can classify severity (same-wave overlap = medium, different-wave = low).
-
 **Pass stories with dependsOn, storyType, and priority to the bottleneck-analyzer** for chain/wave/fan-out detection.
 
 **Pass stories with titles, descriptions, acceptance criteria, task descriptions, stop-words, and Jaccard threshold to the duplication-detector.**
+
+**Do NOT pass wave assignments to the conflict-auditor yet** — wait until after restructuring steps 5a and 5b, then recompute waves (see step 5c).
 
 ### (5) Report Merging and Restructuring
 
@@ -100,6 +100,8 @@ Process each confirmed duplication risk from the duplication-detector report:
 
 #### (5c) fileConflicts Recomputation
 
+**Re-run Kahn's algorithm** on the full stories array (including any stubs created in 5a and 5b) to compute updated wave assignments. Then pass the updated stories with fresh `waveAssignment` values to the **conflict-auditor**.
+
 Overwrite the `fileConflicts` array in quantum.json with the conflict-auditor's complete results.
 
 ### (6) Synthetic Dependency Injection for High-Severity Conflicts
@@ -109,8 +111,8 @@ After applying all restructuring from step (5), process high-severity file confl
 For each entry in `fileConflicts` with `severity: "high"`:
 
 1. Collect the conflicting story IDs from the entry's `stories` array.
-2. Sort by `priority` ascending (lowest number = highest priority).
-3. The highest-priority story keeps its existing `dependsOn` unchanged.
+2. Sort by `waveAssignment` ascending first, then by `priority` ascending as tiebreaker. This ensures synthetic edges point forward in the existing topological order.
+3. The first story in the sorted list keeps its existing `dependsOn` unchanged.
 4. Each subsequent story gains a synthetic `dependsOn` edge on the previous story in the chain.
 
 Example: If stories `US-002`, `US-005`, `US-008` all touch `index.ts` (severity: high) and have priorities 2, 3, 5:

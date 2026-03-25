@@ -123,7 +123,7 @@ Return the JSON object with the `fileConflicts` array as your output. Do not inc
 - **Single-story files**: Files that appear in only one story are not conflicts. Discard them silently.
 - **Duplicate filePaths within a story**: If the same file appears in multiple tasks of the same story, count the story only once for that file.
 - **No conflicts found**: If no file appears in 2+ stories, return `{"fileConflicts": []}` (an empty array).
-- **Missing waveAssignment**: If a story lacks a `waveAssignment` field, treat it as wave `0` for severity classification purposes.
+- **Missing waveAssignment**: If a story lacks a `waveAssignment` field, treat its wave as `unknown`. Any conflict involving a story with unknown wave assignment is classified as `"low"` severity (not medium), since wave co-scheduling cannot be determined without wave data.
 
 ## Rules
 

@@ -87,8 +87,8 @@ After processing all flagged pairs, check for transitive overlaps:
 3. For each group with 3+ stories:
    - Merge all pairwise duplication risks into a single group entry
    - Create **ONE** stub for the entire group (not one per pair)
-   - Stub ID derived from the **lowest-numbered story** in the group (e.g., `US-005-A`)
-   - Stub's `dependsOn` = intersection of ALL stories' `dependsOn` arrays
+   - Stub ID derived from the **numerically lowest story** in the group (extract integer from ID, e.g., US-005 → 5; `US-005-A`)
+   - Stub's `dependsOn` = intersection of ALL stories' `dependsOn` arrays. If the intersection is empty (consumers have fully disjoint dependencies), use the **union** instead to ensure the stub has maximum upstream context
    - `sharedConcern` = merged description covering all stories in the group
    - All stories in the group are consumers of the single stub
 
