@@ -207,6 +207,46 @@ Key points:
 
 If no type names appear in 2+ stories, do NOT generate `shape` or `definition` fields. The basic contracts block (with `value` and optional `pattern`) is sufficient. This maintains backward compatibility — entries with only `value` and `pattern` remain valid.
 
+### Story Type Tagging
+
+After building the dependency DAG and contracts, assign a `storyType` field to every story. This field is used by the dag-validator to determine which restructuring is safe.
+
+#### Allowed Values
+
+| `storyType` | Description |
+|---|---|
+| `types-only` | Stories where ALL tasks create type definitions, interfaces, schemas, or `.d.ts` files with no runtime logic. |
+| `config` | Scaffold/config-only stories: migrations, `package.json` changes, Dockerfile, CI yaml, pure markdown. |
+| `test` | Stories that only add tests with no new source code. |
+| `logic` | Everything else (the default). Any story with business logic, API handlers, data processing, or external API calls. |
+
+#### Examples
+
+**`types-only`** — `US-001: Define TaskResult interface`
+Tasks only create `.ts` interface files (e.g., `src/types/task-result.ts`). No runtime logic, no function bodies, no side effects — purely structural type definitions.
+
+**`config`** — `US-002: Set up database migration`
+Tasks only create migration files, update `package.json` dependencies, or modify CI configuration. No `if` statements, no loops, no data transformations.
+
+**`test`** — `US-004: Add unit tests for task filtering`
+Tasks only add test files (e.g., `tests/task-filter.test.ts`). No new source modules are created — only test coverage for existing code.
+
+**`logic`** — `US-003: Implement task filtering API`
+Tasks contain `if`/`loop`/data logic, API route handlers, database queries, or calls to external services. This is the default and the most common type.
+
+#### Anti-Rationalization Guard
+
+> **If a story has any task that implements business logic, API handlers, data processing, or calls external APIs, it is `logic`, not `types-only`. When in doubt, use `logic`.**
+
+Common traps:
+- A story that creates an interface AND a helper function is `logic`, not `types-only` — the helper function is runtime code.
+- A story that creates a schema file with validation logic (e.g., Zod schemas with `.refine()`) is `logic` — refinements execute at runtime.
+- A story that creates config AND a small utility to read that config is `logic` — the utility is runtime code.
+
+#### Default Behavior
+
+If you are unsure, set `storyType` to `logic`. It is always safe to over-classify as `logic` — under-classifying as `types-only` can cause incorrect restructuring by the dag-validator, which may reorder stories that should not be reordered.
+
 ### wiring_verification Generation
 
 Tasks that create new modules, handlers, or components **SHOULD** have a `wiring_verification` object unless wiring is handled by a dependent story via `consumedBy`.
