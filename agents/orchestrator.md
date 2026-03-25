@@ -503,6 +503,8 @@ After a successful typecheck (or if typecheck is skipped), run the known-failure
 
 The full post-merge sequence is: **merge -> typecheck -> delta_check -> test suite -> inline review**.
 
+**Note:** The test suite runs twice — once inside `delta_check` (to compare against known failures) and once explicitly after (to catch semantic merge regressions from combining code from different stories). These serve different purposes: `delta_check` identifies whether failures are new or known; the explicit run catches cross-story integration bugs that only manifest when code is combined on the main branch.
+
 - Update quantum.json: story `status: "passed"`, clear `startedAt` = `null`, add progress entry
 
 **On STORY_FAILED:**
@@ -511,7 +513,7 @@ The full post-merge sequence is: **merge -> typecheck -> delta_check -> test sui
 - Set story `status: "failed"`, clear `startedAt` = `null`
 
 **After each STORY_PASSED merge:**
-- Run the full test suite to catch semantic merge regressions
+- Run the full test suite to catch semantic merge regressions (this is the explicit run, distinct from the delta_check run above)
 - If tests fail after merge: `git revert -m 1 HEAD` to undo the merge commit, mark story failed
 - Run a quick wiring check on the just-merged story's new exports (LSP "Find References" preferred, grep fallback)
 

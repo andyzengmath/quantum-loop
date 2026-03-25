@@ -38,13 +38,11 @@ get_merge_context() {
   local tmp_file
   tmp_file=$(mktemp)
 
-  # On Windows Git Bash, convert to a path Python understands
-  local py_json_path="$json_path"
-  local py_tmp_path="$tmp_file"
-  if command -v cygpath &>/dev/null; then
-    py_json_path=$(cygpath -m "$json_path")
-    py_tmp_path=$(cygpath -m "$tmp_file")
-  fi
+  # On Windows Git Bash, convert to paths Python understands
+  local py_json_path
+  local py_tmp_path
+  py_json_path=$(_to_native_path "$json_path")
+  py_tmp_path=$(_to_native_path "$tmp_file")
 
   python -c "
 import json, sys

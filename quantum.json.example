@@ -365,7 +365,7 @@
     "timeouts": []
   },
   "_comment_dagValidation": "This block is written by the dag-validator agent and is informational only. It describes detected bottlenecks, duplication risks, computed file conflicts, and stubs created during DAG analysis.",
-  "_comment_runtime_fields": "The following fields are added at runtime by the orchestrator and are not part of the initial schema:",
+  "_comment_runtime_fields": "The _execution_example block below is DOCUMENTATION ONLY (prefixed with underscore). It shows what the orchestrator writes to execution.* at runtime. Do NOT copy this block into a real quantum.json -- the orchestrator creates these fields dynamically. Fields shown here: mode, maxParallel, currentWave, activeWorktrees, materializedContracts (file paths), discoveredContracts, baselineTypecheckErrors.",
   "_execution_example": {
     "mode": "parallel",
     "maxParallel": 4,

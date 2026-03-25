@@ -9,17 +9,10 @@
 KF_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$KF_LIB_DIR/common.sh" || { printf "ERROR: common.sh not found\n" >&2; return 1 2>/dev/null || exit 1; }
 
-# _to_native_path(path)
-# Converts a MSYS/Cygwin path to a native Windows path when running on Windows.
-# On Unix, returns the path unchanged. This is needed because Python on Windows
-# cannot read /tmp/ style paths that bash creates via mktemp.
+# _kf_to_native_path - DEPRECATED, use _to_native_path from common.sh
+# Kept as thin wrapper for backward compatibility.
 _kf_to_native_path() {
-  local p="$1"
-  if command -v cygpath &>/dev/null; then
-    cygpath -m "$p"
-  else
-    printf '%s' "$p"
-  fi
+  _to_native_path "$1"
 }
 
 # detect_test_runner(repo_root)

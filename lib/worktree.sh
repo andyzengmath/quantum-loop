@@ -196,17 +196,10 @@ list_worktrees() {
 # Lifecycle tracking functions
 # =============================================================================
 
-# _to_python_path(path)
-# Converts a Git Bash path to a Windows-native path when running on Windows.
-# On non-Windows systems, returns the path unchanged.
-# This is needed because Python on Windows cannot open Git Bash /tmp/ paths.
+# _to_python_path - DEPRECATED, use _to_native_path from common.sh
+# Kept as thin wrapper for backward compatibility with any external callers.
 _to_python_path() {
-  local p="$1"
-  if command -v cygpath &>/dev/null; then
-    cygpath -w "$p"
-  else
-    printf "%s" "$p"
-  fi
+  _to_native_path "$1"
 }
 
 # register_worktree(json_path, story_id, path, branch, wave)
@@ -481,16 +474,18 @@ print(max(waves) if waves else 0)
 import json, sys
 jp = sys.argv[1]
 ids = set(sys.argv[2].split())
+cleaned_count = int(sys.argv[3])
 d = json.load(open(jp))
 wt_tracking = d.get('execution', {}).get('worktreeTracking', {})
 if 'activeWorktrees' in wt_tracking:
     wt_tracking['activeWorktrees'] = [
         wt for wt in wt_tracking['activeWorktrees'] if wt.get('storyId', '') not in ids
     ]
+wt_tracking['cleanedThisSession'] = wt_tracking.get('cleanedThisSession', 0) + cleaned_count
 tmp = jp + '.tmp'
 json.dump(d, open(tmp, 'w'), indent=2)
 import os; os.replace(tmp, jp)
-" "$py_json_path" "$completed_story_ids"
+" "$py_json_path" "$completed_story_ids" "$cleaned"
   fi
 
   printf "[WORKTREE] Removing %d merged worktrees from Wave %s\n" "$cleaned" "$wave"

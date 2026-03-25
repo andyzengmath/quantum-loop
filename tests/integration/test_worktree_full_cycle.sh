@@ -296,10 +296,10 @@ STALE_OUTPUT2=$(cleanup_stale_worktrees "$JSON_PATH" "$TMPDIR" 2>&1)
 assert_dir_not_exists "US-C removed by stale cleanup" "$TMPDIR/.ql-wt/US-C"
 assert_dir_exists "US-D still exists (still in_progress)" "$TMPDIR/.ql-wt/US-D"
 
-# cleanedThisSession should be 1 (from stale cleanup of US-C)
+# cleanedThisSession should be 3 (2 from merged cleanup + 1 from stale cleanup of US-C)
 CLEANED_COUNT=$(_read_json_py "$JSON_PATH" \
   "print(d.get('execution', {}).get('worktreeTracking', {}).get('cleanedThisSession', 0))")
-assert_eq "cleanedThisSession is 1 after stale cleanup of US-C" "1" "$CLEANED_COUNT"
+assert_eq "cleanedThisSession is 3 after merged + stale cleanup" "3" "$CLEANED_COUNT"
 
 # Only 1 should remain (US-D)
 FINAL_COUNT=$(_read_json_py "$JSON_PATH" \
