@@ -6,12 +6,19 @@
 #           DEFAULT_AGENT_TIMEOUT
 # Requires: lib/spawn.sh (for AGENT_OUTPUT_FILENAME), lib/materialize.sh (for detect_language),
 #           lib/json-atomic.sh (for write_quantum_json)
+# Optional: lib/merge-strategy.sh (for classify_and_merge)
+
+# shellcheck disable=SC1091,SC2034,SC2317  # SC1091: sourced files resolved at runtime; SC2034: vars used by callers; SC2317: exit 1 fallback reachable at source-time
 
 # Source shared utilities
 MONITOR_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$MONITOR_LIB_DIR/common.sh" || { printf "ERROR: common.sh not found\n" >&2; return 1 2>/dev/null || exit 1; }
 source "$MONITOR_LIB_DIR/spawn.sh" || { printf "ERROR: spawn.sh not found\n" >&2; return 1 2>/dev/null || exit 1; }
 source "$MONITOR_LIB_DIR/materialize.sh" || { printf "ERROR: materialize.sh not found\n" >&2; return 1 2>/dev/null || exit 1; }
+
+# Graceful optional module loading: merge-strategy.sh provides classify_and_merge()
+MERGE_STRATEGY_AVAILABLE=true
+source "$MONITOR_LIB_DIR/merge-strategy.sh" 2>/dev/null || MERGE_STRATEGY_AVAILABLE=false
 
 # detect_signal(output_file)
 # Scans an agent output file for quantum completion signals.
@@ -99,6 +106,16 @@ merge_worktree_branch() {
     printf "ERROR: merge_worktree_branch requires worktree_branch\n" >&2
     return 1
   fi
+
+  # Delegate to classify_and_merge when merge-strategy module is available
+  # and quantum.json exists at the repo root (needed for merge rules context).
+  # classify_and_merge handles stashing, conflict resolution, and commit internally.
+  if [[ "$MERGE_STRATEGY_AVAILABLE" != "false" ]] && [[ -f "$repo_root/quantum.json" ]]; then
+    classify_and_merge "$worktree_branch" "$repo_root" "$repo_root/quantum.json"
+    return $?
+  fi
+
+  # Fallback: bare git merge (when merge-strategy.sh not available or no quantum.json)
 
   # Stash any dirty working tree state so merge can proceed
   local stashed=false
