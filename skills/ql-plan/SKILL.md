@@ -207,6 +207,82 @@ Key points:
 
 If no type names appear in 2+ stories, do NOT generate `shape` or `definition` fields. The basic contracts block (with `value` and optional `pattern`) is sufficient. This maintains backward compatibility — entries with only `value` and `pattern` remain valid.
 
+### Interface Change Detection
+
+When a story modifies the return type, parameter types, or function/method signatures of code consumed by other stories, it creates a **contract-breaking change**. These changes require explicit coordination to prevent regressions in parallel execution.
+
+#### When to Set `contractBreaking: true`
+
+Set `contractBreaking: true` on any story that:
+
+1. **Changes a return type** of a function, method, or class consumed by another story
+2. **Changes parameter types** (adding required parameters, removing parameters, or changing parameter types) of a shared function or method
+3. **Changes a class/interface signature** (renaming methods, changing method visibility, altering inheritance) that other stories depend on
+
+When `contractBreaking` is set, the story description **MUST** include an explanation of what interface changed and why. This explanation helps the execution engine and human reviewers understand the blast radius.
+
+#### When to Set `fixes`
+
+Set `fixes: ["US-XXX"]` on any story that is specifically designed to resolve regressions or breakage introduced by another story. The `fixes` field is an array of story IDs whose regressions this story addresses.
+
+#### Scheduling Constraint
+
+Stories with `contractBreaking: true` **MUST** have explicit `dependsOn` edges that prevent them from being co-scheduled (running in the same wave) with any story that consumes the changed interface. This ensures consumers always see the final version of the interface, not an in-flight breaking change.
+
+**Rule:** For every consumer of the changed interface, either:
+- The consumer `dependsOn` the contract-breaking story (consumer runs after), OR
+- The contract-breaking story `dependsOn` the consumer (breaking change runs after consumer finishes with old interface)
+
+#### Examples
+
+**Example 1: Breaking change to a shared interface**
+
+US-003 changes the return type of `IParser.parse()` from `string` to `ParseResult`. US-005 and US-008 both call `IParser.parse()`. This is a contract-breaking change because consumers expect the old return type.
+
+```json
+{
+  "id": "US-003",
+  "title": "Refactor IParser.parse() to return ParseResult",
+  "description": "Changes IParser.parse() return type from string to ParseResult. This is contractBreaking because US-005 and US-008 consume IParser.parse() and expect the old return type.",
+  "contractBreaking": true,
+  "dependsOn": [],
+  "storyType": "logic"
+}
+```
+
+US-005 and US-008 must add `"US-003"` to their `dependsOn` arrays so they run after the breaking change lands.
+
+**Example 2: Fixing regressions from a breaking change**
+
+US-004 is created specifically to fix async regressions introduced by US-003's interface change. It patches call sites that were missed or broke unexpectedly.
+
+```json
+{
+  "id": "US-004",
+  "title": "Fix async regressions from IParser refactor",
+  "description": "Fixes async call sites that broke when US-003 changed IParser.parse() return type.",
+  "fixes": ["US-003"],
+  "dependsOn": ["US-003"],
+  "storyType": "logic"
+}
+```
+
+**Example 3: Non-breaking change (no flag needed)**
+
+US-007 adds an optional `verbose` parameter with a default value to `IParser.parse()`. Existing callers continue to work without modification because the parameter is optional.
+
+```json
+{
+  "id": "US-007",
+  "title": "Add optional verbose parameter to IParser.parse()",
+  "description": "Adds optional verbose parameter with default false. Existing callers are unaffected.",
+  "dependsOn": ["US-003"],
+  "storyType": "logic"
+}
+```
+
+Note: `contractBreaking` is **NOT** set because adding an optional parameter with a default value does not change the interface for existing consumers.
+
 ### Story Type Tagging
 
 After building the dependency DAG and contracts, assign a `storyType` field to every story. This field is used by the dag-validator to determine which restructuring is safe.
