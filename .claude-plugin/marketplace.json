@@ -4,15 +4,15 @@
     "name": "andyzengmath"
   },
   "metadata": {
-    "description": "Spec-driven autonomous development loop with PRD generation, dependency DAG execution, two-stage review gates, and Iron Law verification",
-    "version": "0.3.3"
+    "description": "Autonomous spec-driven development pipeline with dependency DAG, parallel worktree execution, two-stage review gates, and DAG intelligence validation",
+    "version": "0.3.5"
   },
   "plugins": [
     {
       "name": "quantum-loop",
       "source": "./",
-      "description": "6 skills (brainstorm, spec, plan, execute, verify, review) and 4 agents (orchestrator, implementer, spec-reviewer, quality-reviewer) for autonomous spec-driven development",
-      "version": "0.3.3",
+      "description": "6 skills (brainstorm, spec, plan, execute, verify, review) and 5 agents (orchestrator, implementer, spec-reviewer, quality-reviewer, dag-validator) for autonomous spec-driven development with DAG intelligence",
+      "version": "0.3.5",
       "keywords": ["autonomous", "prd", "tdd", "verification", "review", "planning", "agent-loop"],
       "category": "productivity"
     }
