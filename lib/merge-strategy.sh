@@ -291,6 +291,10 @@ resolve_conflict() {
         printf "ERROR: barrel-regen.sh not available for regenerate action on %s\n" "$file_path" >&2
         return 1
       fi
+      # During a merge conflict the barrel file contains conflict markers
+      # (<<<<<<, =======, >>>>>>>) which the non-pure-barrel check would flag.
+      # Checkout --ours to get a clean baseline, then regenerate from directory scan.
+      git -C "$repo_root" checkout --ours -- "$file_path" 2>/dev/null || true
       local lang
       lang=$(_detect_language "$file_path")
       if ! regenerate_barrel "$file_path" "$lang" 2>/dev/null; then
