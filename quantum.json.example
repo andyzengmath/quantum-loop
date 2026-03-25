@@ -1,5 +1,6 @@
 {
   "project": "MyApp",
+  "_comment_storyType": "Each story may have a 'storyType' field. Allowed values: 'types-only' (stories that only define types/interfaces/schemas), 'logic' (stories with business logic), 'config' (scaffold/config-only stories), 'test' (test-only stories). When absent, defaults to 'logic'.",
   "branchName": "ql/task-priority",
   "description": "Task Priority System - Add priority levels to tasks with filtering and sorting",
   "prdPath": "tasks/prd-task-priority.md",
@@ -9,6 +10,7 @@
   "stories": [
     {
       "id": "US-001",
+      "storyType": "config",
       "title": "Add priority field to database",
       "description": "As a developer, I need to store task priority so it persists across sessions.",
       "acceptanceCriteria": [
@@ -86,6 +88,7 @@
     },
     {
       "id": "US-002",
+      "storyType": "logic",
       "title": "Display priority indicator on task cards",
       "description": "As a user, I want to see task priority at a glance so I can focus on what matters.",
       "acceptanceCriteria": [
@@ -176,6 +179,7 @@
     },
     {
       "id": "US-003",
+      "storyType": "logic",
       "title": "Filter tasks by priority",
       "description": "As a user, I want to filter the task list by priority so I can see only high-priority items.",
       "acceptanceCriteria": [
