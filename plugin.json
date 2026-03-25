@@ -1,6 +1,6 @@
 {
   "name": "quantum-loop",
-  "version": "0.3.5",
-  "description": "Autonomous spec-driven development pipeline with dependency DAG, parallel worktree execution, two-stage review gates, and DAG intelligence validation",
+  "version": "0.3.6",
+  "description": "Autonomous spec-driven development pipeline with dependency DAG, parallel worktree execution, two-stage review gates, DAG intelligence validation, and modular merge hardening",
   "homepage": "https://github.com/andyzengmath/quantum-loop"
 }
