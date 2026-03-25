@@ -482,6 +482,67 @@ If `quantum-loop.sh` already exists, just inform:
 > "Plan saved to `quantum.json` with [N] stories and [M] total tasks.
 > Run `/quantum-loop:ql-execute` or `./quantum-loop.sh --max-iterations 20`."
 
+## Step 7: DAG Validation
+
+After generating quantum.json, spawn the dag-validator agent to analyze the DAG for bottlenecks, duplication, and file conflicts. The validator runs automatically — no user action required.
+
+### Spawning the dag-validator
+
+Use the Agent tool to spawn the dag-validator agent with `subagent_type` set to the dag-validator agent definition. Pass two arguments: the quantum.json path and the PRD path. Wait for the agent to complete.
+
+### Idempotency handling
+
+If the dag-validator returns "Already validated on \<timestamp\>", skip the remaining validation steps. Print:
+
+> "Plan already validated on \<timestamp\>. Skipping DAG validation."
+
+### Receiving results
+
+The dag-validator returns:
+
+1. A list of stub story IDs (may be empty)
+2. A DAG Health Report text string
+
+### Stub flesh-out
+
+If the dag-validator returned stub story IDs:
+
+1. Re-read quantum.json (the validator has modified it)
+2. For each stub ID, the story will have `STUB:` prefix in its `notes` field and empty `tasks`, `acceptanceCriteria`, and `filePaths`
+3. Re-invoke the planner with a scoped prompt:
+
+> "Flesh out these stub stories: [list IDs]. Read the PRD at [prdPath] and the existing quantum.json for context. For each stub, add tasks (with filePaths, commands, testFirst), acceptanceCriteria, and filePaths. Do NOT modify any other stories. Follow all task sizing, testFirst, and wiring rules from this skill."
+
+4. Write the fleshed-out stories back to quantum.json
+
+### Stub validation
+
+After flesh-out, validate each stub:
+
+- `tasks.length > 0`
+- `acceptanceCriteria.length > 0`
+
+If a stub passes validation: remove the `STUB:` prefix from its `notes` field.
+
+### Revert on failure
+
+If a stub fails validation (empty `tasks` or `acceptanceCriteria`):
+
+1. Remove the stub story from the quantum.json `stories` array
+2. For every other story whose `dependsOn` contains the stub ID, remove the stub ID from their `dependsOn` array
+3. Log in the Health Report:
+
+> "Stub \<ID\> could not be fleshed out — reverted to original DAG structure."
+
+### Output
+
+Print the complete DAG Health Report to the user. This is the last thing the user sees before reviewing quantum.json. Format with clear section headers:
+
+- **Bottlenecks** — sequential chains and fan-out blockers detected
+- **Duplication Risks** — overlapping implementation concerns between stories
+- **File Conflicts** — files touched by multiple stories with severity classification
+- **Stubs Created** — new shared-utility stories extracted by the validator
+
 ## Anti-Rationalization Guards
 
 | Excuse | Reality |
