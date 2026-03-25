@@ -374,7 +374,7 @@
       ".ql-wt/US-002",
       ".ql-wt/US-003"
     ],
-    "materializedContracts": ["AliasRegistry", "FeatureCluster"],
+    "materializedContracts": ["src/shared/types/alias-registry.ts", "src/shared/types/feature-cluster.ts"],
     "discoveredContracts": {
       "Feature": {
         "discoveredInWave": 3,
@@ -397,7 +397,7 @@
       "failingTests": [
         {
           "name": "tests/integration/test_auth.py::test_token_refresh_race",
-          "failingSince": "2026-03-20T08:00:00Z",
+          "failingSince": 0,
           "introducedBy": "US-010",
           "expectedFix": "US-015",
           "error": "TimeoutError: token refresh exceeded 5s deadline"
@@ -415,7 +415,7 @@
       "failingTests": [
         {
           "name": "tests/integration/test_auth.py::test_token_refresh_race",
-          "failingSince": "2026-03-20T08:00:00Z",
+          "failingSince": 0,
           "introducedBy": "US-010",
           "expectedFix": "US-015",
           "error": "TimeoutError: token refresh exceeded 5s deadline"

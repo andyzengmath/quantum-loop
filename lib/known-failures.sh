@@ -273,7 +273,7 @@ if failing_raw.strip():
         if name:
             failing_tests.append({
                 'name': name,
-                'failingSince': now,
+                'failingSince': 0,
                 'introducedBy': None,
                 'expectedFix': None,
                 'error': error
