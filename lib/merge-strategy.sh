@@ -297,11 +297,11 @@ resolve_conflict() {
       git -C "$repo_root" checkout --ours -- "$file_path" 2>/dev/null || true
       local lang
       lang=$(_detect_language "$file_path")
-      if ! regenerate_barrel "$file_path" "$lang" 2>/dev/null; then
+      if ! regenerate_barrel "$repo_root/$file_path" "$lang" 2>/dev/null; then
         printf "ERROR: regenerate_barrel failed for %s\n" "$file_path" >&2
         return 1
       fi
-      git -C "$repo_root" add "$file_path" 2>/dev/null
+      git -C "$repo_root" add "$file_path" 2>/dev/null || true
       ;;
     escalate)
       return 1
@@ -315,8 +315,12 @@ resolve_conflict() {
   # Handle post-action
   if [[ "$post_action" == "install" ]]; then
     if [[ "$DEP_MANIFEST_AVAILABLE" != "false" ]]; then
-      protect_manifest "$repo_root" 2>/dev/null || true
-      run_install "$repo_root" 2>/dev/null || true
+      protect_manifest "$repo_root" "$file_path" 2>/dev/null || true
+      local pm
+      pm=$(detect_package_manager "$repo_root" 2>/dev/null | head -1)
+      if [[ -n "$pm" ]]; then
+        run_install "$repo_root" "$pm" 2>/dev/null || true
+      fi
     fi
   fi
 

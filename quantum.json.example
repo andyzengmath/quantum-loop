@@ -451,34 +451,34 @@
         {
           "name": "dependency_manifest",
           "_comment": "Package lock files (package-lock.json, yarn.lock, etc.) use 'ours' version then re-run install to regenerate a consistent lockfile.",
-          "filePattern": "dependency_manifest",
+          "filePattern": "package.json|package-lock.json|yarn.lock|pnpm-lock.yaml|Cargo.toml|Cargo.lock|pyproject.toml|poetry.lock|go.mod|go.sum|requirements*.txt",
           "strategy": "ours",
           "postAction": "install"
         },
         {
           "name": "barrel_export",
           "_comment": "Barrel/index files (index.ts, __init__.py) are regenerated from the directory listing after merge, since multiple agents may add exports.",
-          "filePattern": "barrel_export",
+          "filePattern": "**/index.ts|**/index.js|**/__init__.py|**/mod.rs",
           "strategy": "regenerate"
         },
         {
           "name": "new_story_file",
-          "_comment": "Files created by the incoming branch that do not exist on ours. Uses 'theirs' to accept the new file wholesale.",
-          "filePattern": "new_story_file",
+          "_comment": "Files created by the incoming branch that do not exist on ours. Uses 'theirs' to accept the new file wholesale. Matched by condition, not pattern.",
+          "filePattern": null,
           "strategy": "theirs",
           "condition": "file_not_on_ours"
         },
         {
           "name": "shared_infrastructure",
-          "_comment": "Shared config or infra files that were already merged in an earlier wave. Uses 'ours' to preserve the earlier merge result.",
-          "filePattern": "shared_infrastructure",
+          "_comment": "Shared config or infra files that were already merged in an earlier wave. Uses 'ours' to preserve the earlier merge result. Matched by condition, not pattern.",
+          "filePattern": null,
           "strategy": "ours",
           "condition": "file_merged_in_earlier_wave"
         },
         {
           "name": "contract_stub",
-          "_comment": "Files listed in materializedContracts. Uses 'theirs' to accept the contract-owner's version as canonical.",
-          "filePattern": "contract_stub",
+          "_comment": "Files listed in materializedContracts. Uses 'theirs' to accept the contract-owner's version as canonical. Matched by condition, not pattern.",
+          "filePattern": null,
           "strategy": "theirs",
           "condition": "file_in_materializedContracts"
         }

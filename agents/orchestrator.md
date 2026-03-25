@@ -403,7 +403,7 @@ Wait for agent completion notifications. Do NOT poll in a loop — Claude Code a
 
   if [[ "$MERGE_STRATEGY_MODULE_AVAILABLE" != "false" ]]; then
     # classify_and_merge handles conflict detection, classification, and resolution
-    classify_and_merge "$REPO_ROOT" "$JSON_PATH" "$WT_BRANCH" "$STORY_ID" "$WAVE_NUM"
+    classify_and_merge "$WT_BRANCH" "$REPO_ROOT" "$JSON_PATH"
     MERGE_RESULT=$?
   else
     # Fallback: standard git merge
