@@ -151,7 +151,8 @@ Before running reviews, verify the story's new code is actually connected:
 
 ### 3A.6: On Success
 ```bash
-git add -A
+# Scope git add to specific files to prevent index.lock contention on main branch
+git add quantum.json <changed_files>
 git commit -m "feat: <Story ID> - <Story Title>"
 ```
 
@@ -656,7 +657,7 @@ If dead code or pipeline breaks are detected:
    - Implement the wiring (import + call + verify)
 3. Run the fix inline (do not spawn a new agent — the orchestrator does this itself)
 4. Re-run the full test suite to confirm the fix
-5. Commit: `git add -A && git commit -m "fix: wire <module> into <caller>"`
+5. Commit: `git add <wired_files> && git commit -m "fix: wire <module> into <caller>"`
 
 This step is NOT optional. Components built but never called are wasted work.
 

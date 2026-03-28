@@ -77,7 +77,7 @@ If typecheck fails:
 ### Step 7: Commit
 
 ```bash
-git add -A
+git add <consolidated_files>
 git commit -m "fix: consolidate <TYPE_NAME> from wave <WAVE>"
 ```
 
