@@ -18,6 +18,9 @@ source "$MERGE_STRATEGY_LIB_DIR/barrel-regen.sh" 2>/dev/null || BARREL_REGEN_AVA
 DEP_MANIFEST_AVAILABLE=true
 source "$MERGE_STRATEGY_LIB_DIR/dep-manifest.sh" 2>/dev/null || DEP_MANIFEST_AVAILABLE=false
 
+MERGE_SEMANTIC_AVAILABLE=true
+source "$MERGE_STRATEGY_LIB_DIR/merge-semantic.sh" 2>/dev/null || MERGE_SEMANTIC_AVAILABLE=false
+
 # get_merge_context(json_path)
 # Reads quantum.json and extracts merge-related context into a temp file.
 # Extracts: materializedContracts, progress[].filesChanged, mergeStrategy.rules, defaultAction.
@@ -249,9 +252,59 @@ _detect_language() {
   esac
 }
 
+# _try_semantic_merge(file_path, repo_root)
+# Attempts semantic merge for a conflicting file by extracting base/ours/theirs
+# from git stage numbers and delegating to semantic_merge().
+# Returns 0 if semantic merge succeeded (file staged), 1 if should fall through.
+_try_semantic_merge() {
+  local file_path="$1"
+  local repo_root="$2"
+
+  # Only attempt if merge-semantic.sh is available
+  if [[ "$MERGE_SEMANTIC_AVAILABLE" != "true" ]]; then
+    return 1
+  fi
+
+  # Check if semantic merge can handle this file
+  if ! can_semantic_merge "$file_path" 2>/dev/null; then
+    return 1
+  fi
+
+  # Extract base (stage 1), ours (stage 2), theirs (stage 3) to temp files
+  local tmp_base tmp_ours tmp_theirs tmp_output
+  tmp_base=$(mktemp)
+  tmp_ours=$(mktemp)
+  tmp_theirs=$(mktemp)
+  tmp_output=$(mktemp)
+
+  local semantic_ok=false
+  if git -C "$repo_root" show ":1:${file_path}" > "$tmp_base" 2>/dev/null && \
+     git -C "$repo_root" show ":2:${file_path}" > "$tmp_ours" 2>/dev/null && \
+     git -C "$repo_root" show ":3:${file_path}" > "$tmp_theirs" 2>/dev/null; then
+
+    if semantic_merge "$tmp_base" "$tmp_ours" "$tmp_theirs" "$tmp_output" 2>/dev/null; then
+      # Semantic merge succeeded -- stage the result
+      cp "$tmp_output" "$repo_root/$file_path" && \
+        git -C "$repo_root" add "$file_path" 2>/dev/null && \
+        semantic_ok=true
+    fi
+  fi
+
+  # Clean up temp files
+  rm -f "$tmp_base" "$tmp_ours" "$tmp_theirs" "$tmp_output"
+
+  if [[ "$semantic_ok" == "true" ]]; then
+    printf "[MERGE-STRATEGY] Semantic merge succeeded for %s\n" "$file_path" >&2
+    return 0
+  fi
+
+  return 1
+}
+
 # resolve_conflict(file_path, action, post_action, repo_root)
 # Resolves a single merge conflict using the specified action.
 # Actions: ours, theirs, regenerate, escalate.
+# For ours/theirs: attempts semantic merge first, falls through on failure.
 # Returns 0 on success, 1 on escalation or failure.
 resolve_conflict() {
   local file_path="$1"
@@ -271,15 +324,21 @@ resolve_conflict() {
 
   case "$action" in
     ours)
-      if ! { git -C "$repo_root" checkout --ours -- "$file_path" 2>/dev/null && \
-             git -C "$repo_root" add "$file_path" 2>/dev/null; }; then
+      # Try semantic merge first; fall through to ours on failure
+      if _try_semantic_merge "$file_path" "$repo_root"; then
+        : # semantic merge succeeded, skip ours checkout
+      elif ! { git -C "$repo_root" checkout --ours -- "$file_path" 2>/dev/null && \
+               git -C "$repo_root" add "$file_path" 2>/dev/null; }; then
         printf "ERROR: resolve_conflict ours failed for %s\n" "$file_path" >&2
         return 1
       fi
       ;;
     theirs)
-      if ! { git -C "$repo_root" checkout --theirs -- "$file_path" 2>/dev/null && \
-             git -C "$repo_root" add "$file_path" 2>/dev/null; }; then
+      # Try semantic merge first; fall through to theirs on failure
+      if _try_semantic_merge "$file_path" "$repo_root"; then
+        : # semantic merge succeeded, skip theirs checkout
+      elif ! { git -C "$repo_root" checkout --theirs -- "$file_path" 2>/dev/null && \
+               git -C "$repo_root" add "$file_path" 2>/dev/null; }; then
         printf "ERROR: resolve_conflict theirs failed for %s\n" "$file_path" >&2
         return 1
       fi
@@ -354,17 +413,36 @@ classify_and_merge() {
   local start_time
   start_time=$(date +%s%3N 2>/dev/null || date +%s)
 
-  # Stash dirty state
+  # Backup quantum.json before stash so we can restore it after merge
+  local qj_backup="${json_path}.merge-bak"
+  if [[ -f "$json_path" ]]; then
+    cp "$json_path" "$qj_backup"
+  fi
+
+  # Helper: restore quantum.json from backup and clean up backup file
+  _restore_quantum_json() {
+    if [[ -f "$qj_backup" ]]; then
+      cp "$qj_backup" "$json_path"
+      rm -f "$qj_backup"
+    fi
+  }
+
+  # Stash dirty state, excluding quantum.json from stash
   local stashed=false
   if git -C "$repo_root" status --porcelain 2>/dev/null | grep -q .; then
-    git -C "$repo_root" stash push -m "ql-auto-stash-before-merge-${worktree_branch}" -q 2>/dev/null && stashed=true
+    git -C "$repo_root" stash push -- ":(exclude)quantum.json" -m "ql-auto-stash-before-merge-${worktree_branch}" -q 2>/dev/null && stashed=true
   fi
+
+  # Reset quantum.json to HEAD so the merge can proceed without
+  # "local changes would be overwritten" errors. The backup preserves the working-tree content.
+  git -C "$repo_root" checkout -- quantum.json 2>/dev/null || true
 
   # Attempt merge with --no-commit so we can inspect conflicts
   if git -C "$repo_root" merge --no-ff "$worktree_branch" --no-commit --no-edit -q 2>/dev/null; then
     # Clean merge -- commit and return
     git -C "$repo_root" commit --no-edit -q 2>/dev/null
     [[ "$stashed" == "true" ]] && { git -C "$repo_root" stash pop -q 2>/dev/null || true; }
+    _restore_quantum_json
 
     local end_time
     end_time=$(date +%s%3N 2>/dev/null || date +%s)
@@ -381,16 +459,18 @@ classify_and_merge() {
     # No conflicts found despite merge failure -- commit what we have
     git -C "$repo_root" commit --no-edit -q 2>/dev/null
     [[ "$stashed" == "true" ]] && { git -C "$repo_root" stash pop -q 2>/dev/null || true; }
+    _restore_quantum_json
     return 0
   fi
 
-  # Get merge context
+  # Get merge context from the backup (original quantum.json may have conflict markers)
   local context_file
-  context_file=$(get_merge_context "$json_path")
+  context_file=$(get_merge_context "$qj_backup")
   if [[ $? -ne 0 || -z "$context_file" ]]; then
     printf "[MERGE-STRATEGY] Failed to get merge context, aborting merge\n" >&2
     git -C "$repo_root" merge --abort 2>/dev/null || true
     [[ "$stashed" == "true" ]] && { git -C "$repo_root" stash pop -q 2>/dev/null || true; }
+    _restore_quantum_json
     return 1
   fi
 
@@ -434,6 +514,7 @@ classify_and_merge() {
     # Abort merge and report
     git -C "$repo_root" merge --abort 2>/dev/null || true
     [[ "$stashed" == "true" ]] && { git -C "$repo_root" stash pop -q 2>/dev/null || true; }
+    _restore_quantum_json
 
     # Print CONFLICT lines for escalated files
     printf "%b" "$escalated_files" | while IFS= read -r efile; do
@@ -451,6 +532,7 @@ classify_and_merge() {
   # All resolved -- commit
   git -C "$repo_root" commit --no-edit -q 2>/dev/null
   [[ "$stashed" == "true" ]] && { git -C "$repo_root" stash pop -q 2>/dev/null || true; }
+  _restore_quantum_json
 
   local end_time
   end_time=$(date +%s%3N 2>/dev/null || date +%s)

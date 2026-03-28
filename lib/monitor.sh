@@ -6,7 +6,7 @@
 #           DEFAULT_AGENT_TIMEOUT
 # Requires: lib/spawn.sh (for AGENT_OUTPUT_FILENAME), lib/materialize.sh (for detect_language),
 #           lib/json-atomic.sh (for write_quantum_json)
-# Optional: lib/merge-strategy.sh (for classify_and_merge)
+# Optional: lib/merge-strategy.sh (for classify_and_merge), lib/resilience.sh (for squash_and_merge)
 
 # shellcheck disable=SC1091,SC2034,SC2317  # SC1091: sourced files resolved at runtime; SC2034: vars used by callers; SC2317: exit 1 fallback reachable at source-time
 
@@ -19,6 +19,10 @@ source "$MONITOR_LIB_DIR/materialize.sh" || { printf "ERROR: materialize.sh not 
 # Graceful optional module loading: merge-strategy.sh provides classify_and_merge()
 MERGE_STRATEGY_AVAILABLE=true
 source "$MONITOR_LIB_DIR/merge-strategy.sh" 2>/dev/null || MERGE_STRATEGY_AVAILABLE=false
+
+# Graceful optional module loading: resilience.sh provides squash_and_merge()
+RESILIENCE_AVAILABLE=true
+source "$MONITOR_LIB_DIR/resilience.sh" 2>/dev/null || RESILIENCE_AVAILABLE=false
 
 # detect_signal(output_file)
 # Scans an agent output file for quantum completion signals.
@@ -105,6 +109,19 @@ merge_worktree_branch() {
   if [[ -z "$worktree_branch" ]]; then
     printf "ERROR: merge_worktree_branch requires worktree_branch\n" >&2
     return 1
+  fi
+
+  # Delegate to squash_and_merge when resilience module is available
+  # and quantum.json exists at the repo root.
+  # squash_and_merge handles squash-merge, commit message, and cleanup internally.
+  if [[ "$RESILIENCE_AVAILABLE" != "false" ]] && [[ -f "$repo_root/quantum.json" ]]; then
+    local story_id story_title json_path="$repo_root/quantum.json"
+    # Extract story_id from branch name (format: ql-wt/US-XXX)
+    story_id="${worktree_branch##*/}"
+    # Extract story_title from quantum.json
+    story_title=$(python -c "import json,sys; d=json.load(open(sys.argv[1])); print(next((s['title'] for s in d.get('stories',[]) if s['id']==sys.argv[2]),''))" "$(_to_native_path "$json_path")" "$story_id" 2>/dev/null) || story_title=""
+    squash_and_merge "$worktree_branch" "$repo_root" "$story_id" "${story_title:-$story_id}" "$json_path"
+    return $?
   fi
 
   # Delegate to classify_and_merge when merge-strategy module is available
