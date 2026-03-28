@@ -569,6 +569,355 @@ else
 fi
 
 # =========================================================================
+# T-013a: Stash exclusion — quantum.json preserved when dirty during merge
+# =========================================================================
+
+echo ""
+echo "=== T-013a: Stash exclusion — quantum.json preserved during merge ==="
+
+# --- Test 35: quantum.json with dirty modifications is preserved after clean merge ---
+echo "--- Test 35: quantum.json unchanged after clean merge with dirty state ---"
+REPO35="$TMPDIR/repo35"
+setup_merge_repo "$REPO35"
+cd "$REPO35" || exit 1
+
+git checkout -b feature-stash-clean >/dev/null 2>&1
+echo "new feature file" > feature.txt
+git add feature.txt >/dev/null 2>&1
+git commit -m "add feature file" >/dev/null 2>&1
+
+git checkout main >/dev/null 2>&1
+create_test_quantum_json "$REPO35"
+git add quantum.json >/dev/null 2>&1
+git commit -m "add quantum.json" >/dev/null 2>&1
+
+# Make quantum.json dirty (uncommitted local modifications)
+echo '{"dirty": true, "local_changes": "should survive merge"}' > "$REPO35/quantum.json"
+DIRTY_CONTENT=$(cat "$REPO35/quantum.json")
+
+OUTPUT=$(classify_and_merge "feature-stash-clean" "$REPO35" "$REPO35/quantum.json" 2>&1)
+EXIT_CODE=$?
+assert_eq "clean merge with dirty quantum.json returns 0" "0" "$EXIT_CODE"
+
+# Verify quantum.json content is restored (dirty state preserved)
+AFTER_CONTENT=$(cat "$REPO35/quantum.json")
+assert_eq "quantum.json content preserved after merge" "$DIRTY_CONTENT" "$AFTER_CONTENT"
+
+# --- Test 36: quantum.json dirty state preserved after conflicting merge (escalation) ---
+echo "--- Test 36: quantum.json preserved after escalated merge with dirty state ---"
+REPO36="$TMPDIR/repo36"
+setup_merge_repo "$REPO36"
+cd "$REPO36" || exit 1
+
+git checkout -b feature-stash-esc >/dev/null 2>&1
+echo "feature version" > file.txt
+git add -A >/dev/null 2>&1
+git commit -m "feature change" >/dev/null 2>&1
+
+git checkout main >/dev/null 2>&1
+echo "main version" > file.txt
+git add -A >/dev/null 2>&1
+git commit -m "main change" >/dev/null 2>&1
+
+create_test_quantum_json "$REPO36"
+git add quantum.json >/dev/null 2>&1
+git commit -m "add quantum.json" >/dev/null 2>&1
+
+# Make quantum.json dirty
+echo '{"dirty": true, "escalation_test": "should survive"}' > "$REPO36/quantum.json"
+DIRTY_CONTENT_36=$(cat "$REPO36/quantum.json")
+
+OUTPUT=$(classify_and_merge "feature-stash-esc" "$REPO36" "$REPO36/quantum.json" 2>&1)
+EXIT_CODE=$?
+assert_eq "escalated merge with dirty quantum.json returns 1" "1" "$EXIT_CODE"
+
+# Verify quantum.json content is restored after merge abort + stash pop
+AFTER_CONTENT_36=$(cat "$REPO36/quantum.json")
+assert_eq "quantum.json preserved after escalated merge" "$DIRTY_CONTENT_36" "$AFTER_CONTENT_36"
+
+# --- Test 37: quantum.json dirty state preserved after all-resolved merge ---
+echo "--- Test 37: quantum.json preserved after resolved merge with dirty state ---"
+REPO37="$TMPDIR/repo37"
+setup_merge_repo "$REPO37"
+cd "$REPO37" || exit 1
+
+git checkout -b feature-stash-resolved >/dev/null 2>&1
+echo '{"name": "test", "version": "5.0.0"}' > package.json
+git add -A >/dev/null 2>&1
+git commit -m "feature pkg change" >/dev/null 2>&1
+
+git checkout main >/dev/null 2>&1
+echo '{"name": "test", "version": "1.5.0"}' > package.json
+git add -A >/dev/null 2>&1
+git commit -m "main pkg change" >/dev/null 2>&1
+
+create_test_quantum_json "$REPO37"
+git add quantum.json >/dev/null 2>&1
+git commit -m "add quantum.json" >/dev/null 2>&1
+
+# Make quantum.json dirty
+echo '{"dirty": true, "resolved_merge": "must survive"}' > "$REPO37/quantum.json"
+DIRTY_CONTENT_37=$(cat "$REPO37/quantum.json")
+
+OUTPUT=$(classify_and_merge "feature-stash-resolved" "$REPO37" "$REPO37/quantum.json" 2>&1)
+EXIT_CODE=$?
+assert_eq "resolved merge with dirty quantum.json returns 0" "0" "$EXIT_CODE"
+
+AFTER_CONTENT_37=$(cat "$REPO37/quantum.json")
+assert_eq "quantum.json preserved after resolved merge" "$DIRTY_CONTENT_37" "$AFTER_CONTENT_37"
+
+# --- Test 38: Merge-bak lifecycle — stash created and cleaned ---
+echo "--- Test 38: Stash list does not leak auto-stash entries ---"
+REPO38="$TMPDIR/repo38"
+setup_merge_repo "$REPO38"
+cd "$REPO38" || exit 1
+
+git checkout -b feature-stash-lifecycle >/dev/null 2>&1
+echo "new file" > new.txt
+git add new.txt >/dev/null 2>&1
+git commit -m "add new.txt" >/dev/null 2>&1
+
+git checkout main >/dev/null 2>&1
+create_test_quantum_json "$REPO38"
+git add quantum.json >/dev/null 2>&1
+git commit -m "add quantum.json" >/dev/null 2>&1
+
+# Make dirty state
+echo "dirty" > "$REPO38/quantum.json"
+
+OUTPUT=$(classify_and_merge "feature-stash-lifecycle" "$REPO38" "$REPO38/quantum.json" 2>&1)
+
+# Stash should be popped after merge — check stash list is empty
+STASH_COUNT=$(git -C "$REPO38" stash list 2>/dev/null | wc -l | tr -d ' ')
+assert_eq "stash popped after merge (stash list empty)" "0" "$STASH_COUNT"
+
+# =========================================================================
+# T-013b: Semantic merge delegation — classify drives resolve
+# =========================================================================
+
+echo ""
+echo "=== T-013b: Semantic merge delegation — classify before resolve ==="
+
+# --- Test 39: Semantic delegation — classify_conflict result drives resolve_conflict ---
+echo "--- Test 39: Semantic delegation — classification drives resolution ---"
+REPO39="$TMPDIR/repo39"
+setup_merge_repo "$REPO39"
+cd "$REPO39" || exit 1
+
+# Feature branch: modify package.json (dependency_manifest -> ours)
+git checkout -b feature-semantic >/dev/null 2>&1
+echo '{"name": "test", "version": "9.0.0"}' > package.json
+git add -A >/dev/null 2>&1
+git commit -m "feature version bump" >/dev/null 2>&1
+
+# Main: conflicting change
+git checkout main >/dev/null 2>&1
+echo '{"name": "test", "version": "1.9.0"}' > package.json
+git add -A >/dev/null 2>&1
+git commit -m "main version bump" >/dev/null 2>&1
+
+create_test_quantum_json "$REPO39"
+
+# Run classify_and_merge and capture stderr (classification logs go to stderr)
+OUTPUT_STDERR=$(classify_and_merge "feature-semantic" "$REPO39" "$REPO39/quantum.json" 2>&1 1>/dev/null)
+OUTPUT_ALL=$(classify_and_merge "feature-semantic" "$REPO39" "$REPO39/quantum.json" 2>&1 || true)
+
+# The classify step should have logged the classification decision
+# Note: Re-run on a fresh repo since first run already merged
+REPO39b="$TMPDIR/repo39b"
+setup_merge_repo "$REPO39b"
+cd "$REPO39b" || exit 1
+
+git checkout -b feature-semantic-b >/dev/null 2>&1
+echo '{"name": "test", "version": "9.0.0"}' > package.json
+git add -A >/dev/null 2>&1
+git commit -m "feature version bump" >/dev/null 2>&1
+
+git checkout main >/dev/null 2>&1
+echo '{"name": "test", "version": "1.9.0"}' > package.json
+git add -A >/dev/null 2>&1
+git commit -m "main version bump" >/dev/null 2>&1
+
+create_test_quantum_json "$REPO39b"
+
+OUTPUT39=$(classify_and_merge "feature-semantic-b" "$REPO39b" "$REPO39b/quantum.json" 2>&1)
+EXIT_CODE39=$?
+assert_eq "semantic delegation merge returns 0" "0" "$EXIT_CODE39"
+# classify_conflict logs "[MERGE-STRATEGY] classify <file> -> <result>" to stderr
+assert_contains "classify logged for package.json" "classify" "$OUTPUT39"
+assert_contains "dependency_manifest classification in log" "dependency_manifest" "$OUTPUT39"
+
+# Verify ours strategy was applied (main's version kept)
+PKG39=$(cat "$REPO39b/package.json")
+assert_contains "ours strategy applied via semantic delegation" "1.9.0" "$PKG39"
+
+# --- Test 40: Semantic delegation — theirs strategy for new_story_file ---
+echo "--- Test 40: Semantic delegation — theirs for new story files ---"
+REPO40="$TMPDIR/repo40"
+setup_merge_repo "$REPO40"
+cd "$REPO40" || exit 1
+
+# Feature branch: add a brand new file (not on main HEAD)
+git checkout -b feature-new-story >/dev/null 2>&1
+echo "brand new handler" > handler.ts
+echo "feature version" > file.txt
+git add -A >/dev/null 2>&1
+git commit -m "add new handler + modify file" >/dev/null 2>&1
+
+# Main: modify file.txt so it conflicts, but handler.ts doesn't exist on main
+git checkout main >/dev/null 2>&1
+echo "main version" > file.txt
+git add -A >/dev/null 2>&1
+git commit -m "main file change" >/dev/null 2>&1
+
+# Note: handler.ts won't conflict because it doesn't exist on main.
+# For theirs test, we need a conflict on a file not in HEAD.
+# Let's create it differently: both branches add the same file.
+REPO40b="$TMPDIR/repo40b"
+mkdir -p "$REPO40b"
+cd "$REPO40b" || return 1
+git init --initial-branch=main . >/dev/null 2>&1
+git config user.email "test@test.com"
+git config user.name "Test"
+echo "base content" > base.txt
+git add -A >/dev/null 2>&1
+git commit -m "initial" >/dev/null 2>&1
+
+# Feature branch adds a file
+git checkout -b feature-new-file >/dev/null 2>&1
+echo "feature content for new-module" > new-module.ts
+git add -A >/dev/null 2>&1
+git commit -m "add new-module on feature" >/dev/null 2>&1
+
+# Main also adds the same file with different content (creating conflict)
+git checkout main >/dev/null 2>&1
+echo "main placeholder for new-module" > new-module.ts
+git add -A >/dev/null 2>&1
+git commit -m "add new-module on main" >/dev/null 2>&1
+
+# new-module.ts exists on HEAD (main), so file_not_on_ours won't match.
+# The theirs strategy test is already covered by the classify_conflict unit tests (Test 10).
+# For integration, verify classify_and_merge with materializedContracts (contract_stub -> theirs)
+REPO40c="$TMPDIR/repo40c"
+setup_merge_repo "$REPO40c"
+cd "$REPO40c" || exit 1
+
+git checkout -b feature-contract >/dev/null 2>&1
+echo "feature config" > config.json
+git add -A >/dev/null 2>&1
+git commit -m "feature config change" >/dev/null 2>&1
+
+git checkout main >/dev/null 2>&1
+echo "main config" > config.json
+git add -A >/dev/null 2>&1
+git commit -m "main config change" >/dev/null 2>&1
+
+# config.json in materializedContracts -> contract_stub:theirs
+create_test_quantum_json "$REPO40c" "" "config.json"
+
+OUTPUT40=$(classify_and_merge "feature-contract" "$REPO40c" "$REPO40c/quantum.json" 2>&1)
+EXIT_CODE40=$?
+assert_eq "theirs via contract_stub delegation returns 0" "0" "$EXIT_CODE40"
+
+# Verify theirs strategy was applied (feature's version kept)
+CFG40=$(cat "$REPO40c/config.json")
+assert_contains "theirs applied: feature config kept" "feature config" "$CFG40"
+assert_contains "semantic classification for contract_stub" "contract_stub" "$OUTPUT40"
+
+# =========================================================================
+# T-013c: Fallback when semantic merge fails
+# =========================================================================
+
+echo ""
+echo "=== T-013c: Fallback when semantic merge fails ==="
+
+# --- Test 41: resolve_conflict returns 1 for regenerate when barrel-regen unavailable ---
+echo "--- Test 41: resolve_conflict fails for regenerate without barrel-regen ---"
+# BARREL_REGEN_AVAILABLE is set to false at top of test file
+REPO41="$TMPDIR/repo41"
+mkdir -p "$REPO41"
+cd "$REPO41" || exit 1
+git init --initial-branch=main . >/dev/null 2>&1
+git config user.email "test@test.com"
+git config user.name "Test"
+echo "export {}" > src_index.ts
+git add -A >/dev/null 2>&1
+git commit -m "initial" >/dev/null 2>&1
+
+# Test resolve_conflict directly with regenerate action (should fail because barrel-regen unavailable)
+resolve_conflict "src_index.ts" "regenerate" "" "$REPO41" >/dev/null 2>&1
+EXIT_CODE41=$?
+assert_eq "regenerate fails when barrel-regen unavailable" "1" "$EXIT_CODE41"
+
+# --- Test 42: resolve_conflict returns 1 for escalate action ---
+echo "--- Test 42: resolve_conflict returns 1 for escalate action ---"
+resolve_conflict "somefile.txt" "escalate" "" "$REPO41" >/dev/null 2>&1
+EXIT_CODE42=$?
+assert_eq "escalate action returns 1" "1" "$EXIT_CODE42"
+
+# --- Test 43: resolve_conflict returns 1 for unknown action ---
+echo "--- Test 43: resolve_conflict returns 1 for unknown action ---"
+resolve_conflict "somefile.txt" "bogus_action" "" "$REPO41" >/dev/null 2>&1
+EXIT_CODE43=$?
+assert_eq "unknown action returns 1" "1" "$EXIT_CODE43"
+
+# --- Test 44: classify_and_merge escalates when resolve_conflict fails (regenerate fallback) ---
+echo "--- Test 44: classify_and_merge escalates on resolve_conflict failure ---"
+REPO44="$TMPDIR/repo44"
+setup_merge_repo "$REPO44"
+cd "$REPO44" || exit 1
+
+# Add index.ts (barrel file)
+echo "export { foo }" > index.ts
+git add -A >/dev/null 2>&1
+git commit --amend -m "initial commit with index.ts" >/dev/null 2>&1
+
+git checkout -b feature-regen-fail >/dev/null 2>&1
+echo "export { foo, bar }" > index.ts
+git add -A >/dev/null 2>&1
+git commit -m "feature barrel update" >/dev/null 2>&1
+
+git checkout main >/dev/null 2>&1
+echo "export { foo, baz }" > index.ts
+git add -A >/dev/null 2>&1
+git commit -m "main barrel update" >/dev/null 2>&1
+
+# Create quantum.json with barrel_export rule using regenerate strategy
+local_py_repo="$REPO44"
+if command -v cygpath &>/dev/null; then
+  local_py_repo=$(cygpath -m "$REPO44")
+fi
+python -c "
+import json
+d = {
+  'project': 'test',
+  'execution': {
+    'mergeStrategy': {
+      'rules': [
+        {'name': 'barrel_export', 'filePattern': '**/index.ts|**/index.js|index.ts|index.js', 'strategy': 'regenerate'}
+      ],
+      'defaultAction': 'escalate'
+    },
+    'materializedContracts': []
+  },
+  'progress': []
+}
+with open('${local_py_repo}/quantum.json', 'w') as f:
+  json.dump(d, f, indent=2)
+"
+
+# With BARREL_REGEN_AVAILABLE=false, the regenerate strategy will fail
+# and classify_and_merge should escalate (abort merge, return 1)
+OUTPUT44=$(classify_and_merge "feature-regen-fail" "$REPO44" "$REPO44/quantum.json" 2>&1)
+EXIT_CODE44=$?
+assert_eq "classify_and_merge returns 1 when regenerate fails" "1" "$EXIT_CODE44"
+assert_contains "CONFLICT reported for barrel file" "CONFLICT" "$OUTPUT44"
+
+# Verify merge was aborted (main content preserved)
+MAIN_INDEX=$(cat "$REPO44/index.ts")
+assert_contains "merge aborted after regen fail" "baz" "$MAIN_INDEX"
+
+# =========================================================================
 # Summary
 # =========================================================================
 cd "$ORIG_DIR" || true
