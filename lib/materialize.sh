@@ -465,7 +465,11 @@ materialize_contracts() {
   local language
   language=$(detect_language "$repo_root")
 
-  # Collect type entries from contracts.shared_types with consumers >= 2
+  # Read fileConflicts file list from quantum.json for smart materialization threshold
+  local file_conflicts_list
+  file_conflicts_list=$(jq -r '.fileConflicts // [] | .[].file // empty' "$json_path" 2>/dev/null | tr -d '\r')
+
+  # Collect type entries from contracts.shared_types with consumers >= 2 OR in fileConflicts
   local materialized_names=()
   local materialized_files=()
 
@@ -483,10 +487,30 @@ materialize_contracts() {
     consumer_count=$(printf '%s' "$type_entry" | jq '.consumers // [] | length' 2>/dev/null)
     consumer_count=${consumer_count:-0}
 
-    if [[ $consumer_count -lt 2 ]]; then
+    # Determine materialization reason
+    local materialize_reason=""
+    if [[ $consumer_count -ge 2 ]]; then
+      materialize_reason="multi-consumer"
+    else
+      # Check if definitionFile is in fileConflicts
+      local def_file
+      def_file=$(printf '%s' "$type_entry" | jq -r '.definitionFile // ""' 2>/dev/null)
+      if [[ -n "$def_file" && -n "$file_conflicts_list" ]]; then
+        while IFS= read -r conflict_file; do
+          if [[ "$conflict_file" == "$def_file" ]]; then
+            materialize_reason="file-conflict prevention"
+            break
+          fi
+        done <<< "$file_conflicts_list"
+      fi
+    fi
+
+    if [[ -z "$materialize_reason" ]]; then
       printf "[MATERIALIZE] SKIP %s — only %d consumer(s)\n" "$type_name" "$consumer_count" >&2
       continue
     fi
+
+    printf "[MATERIALIZE] Materializing %s (%s)\n" "$type_name" "$materialize_reason" >&2
 
     # Call generate_definition_file and capture the written path
     local actual_path
