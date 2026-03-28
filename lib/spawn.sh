@@ -12,12 +12,15 @@ source "$SPAWN_LIB_DIR/common.sh" || { printf "ERROR: common.sh not found\n" >&2
 # Output filename used by spawn_autonomous and read by the monitor
 AGENT_OUTPUT_FILENAME=".ql-agent-output.txt"
 
-# build_agent_prompt(story_id)
+# build_agent_prompt(story_id [completed_tasks])
 # Builds the prompt string that tells an agent which story to implement.
 # The agent runs in a worktree and must NOT write quantum.json.
+# If completed_tasks is non-empty, appends a section telling the agent
+# to skip previously completed tasks.
 # Returns the prompt string on stdout.
 build_agent_prompt() {
   local story_id="$1"
+  local completed_tasks="${2:-}"
 
   _validate_story_id "$story_id" || return 1
 
@@ -46,6 +49,13 @@ Your workflow:
 Uncommitted work is LOST when the worktree is removed.
 Your story ID is ${story_id}. Implement ONLY this story.
 PROMPT
+
+  if [[ -n "$completed_tasks" ]]; then
+    cat <<COMPLETED
+
+Previously completed tasks (DO NOT re-implement): ${completed_tasks}. Start from the next task.
+COMPLETED
+  fi
 }
 
 # build_autonomous_command(story_id, worktree_path)
