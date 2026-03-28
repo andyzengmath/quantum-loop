@@ -289,6 +289,237 @@ assert_contains "logs RESILIENCE prefix" "RESILIENCE" "$OUTPUT"
 rm -rf "$TEST_REPO"
 
 # =========================================================================
+# recover_orphaned_worktrees tests
+# =========================================================================
+echo "=== recover_orphaned_worktrees tests ==="
+
+echo "--- Test: removes orphaned worktree directories ---"
+TEST_REPO=$(setup_test_repo)
+WT_DIR="$TEST_REPO/.ql-wt"
+mkdir -p "$WT_DIR/US-001" "$WT_DIR/US-002"
+
+cat > "$TEST_REPO/quantum.json" <<'JSONEOF'
+{
+  "stories": [
+    {"id": "US-001", "status": "in_progress", "worktree": ".ql-wt/US-001"},
+    {"id": "US-002", "status": "in_progress", "worktree": ".ql-wt/US-002"},
+    {"id": "US-003", "status": "passed"}
+  ],
+  "execution": {
+    "mode": "parallel",
+    "maxParallel": 4,
+    "currentWave": 1,
+    "activeWorktrees": [".ql-wt/US-001", ".ql-wt/US-002"]
+  }
+}
+JSONEOF
+
+OUTPUT=$(recover_orphaned_worktrees "$TEST_REPO/quantum.json" "$TEST_REPO" 2>&1)
+EXIT_CODE=$?
+assert_eq "recover_orphaned_worktrees exits 0" "0" "$EXIT_CODE"
+
+if [[ ! -d "$WT_DIR/US-001" ]]; then
+  TOTAL=$((TOTAL + 1)); echo "  PASS: US-001 worktree dir removed"; PASS=$((PASS + 1))
+else
+  TOTAL=$((TOTAL + 1)); echo "  FAIL: US-001 worktree dir still exists"; FAIL=$((FAIL + 1))
+fi
+
+if [[ ! -d "$WT_DIR/US-002" ]]; then
+  TOTAL=$((TOTAL + 1)); echo "  PASS: US-002 worktree dir removed"; PASS=$((PASS + 1))
+else
+  TOTAL=$((TOTAL + 1)); echo "  FAIL: US-002 worktree dir still exists"; FAIL=$((FAIL + 1))
+fi
+
+rm -rf "$TEST_REPO"
+
+echo "--- Test: resets in_progress stories to pending ---"
+TEST_REPO=$(setup_test_repo)
+WT_DIR="$TEST_REPO/.ql-wt"
+mkdir -p "$WT_DIR/US-001"
+
+cat > "$TEST_REPO/quantum.json" <<'JSONEOF'
+{
+  "stories": [
+    {"id": "US-001", "status": "in_progress", "worktree": ".ql-wt/US-001"},
+    {"id": "US-002", "status": "passed"},
+    {"id": "US-003", "status": "pending"}
+  ],
+  "execution": {
+    "mode": "parallel",
+    "maxParallel": 4,
+    "currentWave": 1,
+    "activeWorktrees": [".ql-wt/US-001"]
+  }
+}
+JSONEOF
+
+recover_orphaned_worktrees "$TEST_REPO/quantum.json" "$TEST_REPO" >/dev/null 2>&1
+
+US001_STATUS=$(jq -r '.stories[] | select(.id == "US-001") | .status' "$TEST_REPO/quantum.json")
+US002_STATUS=$(jq -r '.stories[] | select(.id == "US-002") | .status' "$TEST_REPO/quantum.json")
+US003_STATUS=$(jq -r '.stories[] | select(.id == "US-003") | .status' "$TEST_REPO/quantum.json")
+
+assert_eq "US-001 reset to pending" "pending" "$US001_STATUS"
+assert_eq "US-002 still passed" "passed" "$US002_STATUS"
+assert_eq "US-003 still pending" "pending" "$US003_STATUS"
+
+rm -rf "$TEST_REPO"
+
+echo "--- Test: clears activeWorktrees array ---"
+TEST_REPO=$(setup_test_repo)
+WT_DIR="$TEST_REPO/.ql-wt"
+mkdir -p "$WT_DIR/US-001"
+
+cat > "$TEST_REPO/quantum.json" <<'JSONEOF'
+{
+  "stories": [
+    {"id": "US-001", "status": "in_progress", "worktree": ".ql-wt/US-001"}
+  ],
+  "execution": {
+    "mode": "parallel",
+    "maxParallel": 4,
+    "currentWave": 1,
+    "activeWorktrees": [".ql-wt/US-001"]
+  }
+}
+JSONEOF
+
+recover_orphaned_worktrees "$TEST_REPO/quantum.json" "$TEST_REPO" >/dev/null 2>&1
+
+ACTIVE_COUNT=$(jq '.execution.activeWorktrees | length' "$TEST_REPO/quantum.json")
+assert_eq "activeWorktrees is empty" "0" "$ACTIVE_COUNT"
+
+rm -rf "$TEST_REPO"
+
+echo "--- Test: removes worktree field from recovered stories ---"
+TEST_REPO=$(setup_test_repo)
+WT_DIR="$TEST_REPO/.ql-wt"
+mkdir -p "$WT_DIR/US-001"
+
+cat > "$TEST_REPO/quantum.json" <<'JSONEOF'
+{
+  "stories": [
+    {"id": "US-001", "status": "in_progress", "worktree": ".ql-wt/US-001"}
+  ],
+  "execution": {
+    "mode": "parallel",
+    "maxParallel": 4,
+    "currentWave": 1,
+    "activeWorktrees": [".ql-wt/US-001"]
+  }
+}
+JSONEOF
+
+recover_orphaned_worktrees "$TEST_REPO/quantum.json" "$TEST_REPO" >/dev/null 2>&1
+
+HAS_WORKTREE=$(jq '.stories[] | select(.id == "US-001") | has("worktree")' "$TEST_REPO/quantum.json")
+assert_eq "US-001 worktree field removed" "false" "$HAS_WORKTREE"
+
+rm -rf "$TEST_REPO"
+
+echo "--- Test: backward compat -- no-op when no execution field ---"
+TEST_REPO=$(setup_test_repo)
+
+cat > "$TEST_REPO/quantum.json" <<'JSONEOF'
+{
+  "stories": [
+    {"id": "US-001", "status": "pending"}
+  ]
+}
+JSONEOF
+
+OUTPUT=$(recover_orphaned_worktrees "$TEST_REPO/quantum.json" "$TEST_REPO" 2>&1)
+EXIT_CODE=$?
+assert_eq "no execution field exits 0" "0" "$EXIT_CODE"
+
+rm -rf "$TEST_REPO"
+
+echo "--- Test: no-op when activeWorktrees is empty ---"
+TEST_REPO=$(setup_test_repo)
+
+cat > "$TEST_REPO/quantum.json" <<'JSONEOF'
+{
+  "stories": [
+    {"id": "US-001", "status": "passed"}
+  ],
+  "execution": {
+    "mode": "parallel",
+    "maxParallel": 4,
+    "currentWave": 1,
+    "activeWorktrees": []
+  }
+}
+JSONEOF
+
+OUTPUT=$(recover_orphaned_worktrees "$TEST_REPO/quantum.json" "$TEST_REPO" 2>&1)
+EXIT_CODE=$?
+assert_eq "empty activeWorktrees exits 0" "0" "$EXIT_CODE"
+
+rm -rf "$TEST_REPO"
+
+echo "--- Test: input validation -- missing json_path ---"
+RESULT=$(recover_orphaned_worktrees "" "/tmp" 2>&1)
+EXIT_CODE=$?
+assert_eq "empty json_path returns error" "1" "$EXIT_CODE"
+
+echo "--- Test: input validation -- missing repo_root ---"
+RESULT=$(recover_orphaned_worktrees "/tmp/q.json" "" 2>&1)
+EXIT_CODE=$?
+assert_eq "empty repo_root returns error" "1" "$EXIT_CODE"
+
+echo "--- Test: handles worktree dirs that already disappeared ---"
+TEST_REPO=$(setup_test_repo)
+
+cat > "$TEST_REPO/quantum.json" <<'JSONEOF'
+{
+  "stories": [
+    {"id": "US-001", "status": "in_progress", "worktree": ".ql-wt/US-001"}
+  ],
+  "execution": {
+    "mode": "parallel",
+    "maxParallel": 4,
+    "currentWave": 1,
+    "activeWorktrees": [".ql-wt/US-001"]
+  }
+}
+JSONEOF
+
+OUTPUT=$(recover_orphaned_worktrees "$TEST_REPO/quantum.json" "$TEST_REPO" 2>&1)
+EXIT_CODE=$?
+assert_eq "missing dir still exits 0" "0" "$EXIT_CODE"
+
+US001_STATUS=$(jq -r '.stories[] | select(.id == "US-001") | .status' "$TEST_REPO/quantum.json")
+assert_eq "US-001 reset even if dir missing" "pending" "$US001_STATUS"
+
+rm -rf "$TEST_REPO"
+
+echo "--- Test: warning message includes count ---"
+TEST_REPO=$(setup_test_repo)
+WT_DIR="$TEST_REPO/.ql-wt"
+mkdir -p "$WT_DIR/US-001" "$WT_DIR/US-002"
+
+cat > "$TEST_REPO/quantum.json" <<'JSONEOF'
+{
+  "stories": [
+    {"id": "US-001", "status": "in_progress", "worktree": ".ql-wt/US-001"},
+    {"id": "US-002", "status": "in_progress", "worktree": ".ql-wt/US-002"}
+  ],
+  "execution": {
+    "mode": "parallel",
+    "maxParallel": 4,
+    "currentWave": 1,
+    "activeWorktrees": [".ql-wt/US-001", ".ql-wt/US-002"]
+  }
+}
+JSONEOF
+
+OUTPUT=$(recover_orphaned_worktrees "$TEST_REPO/quantum.json" "$TEST_REPO" 2>&1)
+assert_contains "warning includes count" "2" "$OUTPUT"
+assert_contains "warning mentions orphaned" "orphaned" "$OUTPUT"
+
+rm -rf "$TEST_REPO"
+
+# =========================================================================
 # detect_resumable_work tests
 # =========================================================================
 echo "=== detect_resumable_work tests ==="
