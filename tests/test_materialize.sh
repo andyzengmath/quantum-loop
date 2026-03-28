@@ -1501,11 +1501,11 @@ else
 fi
 
 # =========================================================================
-# Tests for US-006: fileConflicts-based materialization threshold
+# Tests for US-006/US-014: fileConflicts-based materialization threshold
 # =========================================================================
 
 echo ""
-echo "--- US-006: fileConflicts-based materialization tests ---"
+echo "--- US-006/US-014: fileConflicts-based materialization tests ---"
 
 # =========================================================================
 echo "=== Test 72: materialize_contracts — single-consumer type IN fileConflicts is materialized ==="

@@ -434,8 +434,9 @@ type ${type_name} interface {"
 
 # materialize_contracts(json_path, repo_root, wave_num)
 # Reads contracts.shared_types and execution.discoveredContracts from quantum.json.
-# Filters to types with consumers.length >= 2. Calls detect_language() and
-# generate_definition_file() for each. Commits materialized files with git.
+# Filters to types with consumers.length >= 2 OR definitionFile in fileConflicts.
+# Calls detect_language() and generate_definition_file() for each.
+# Commits materialized files with git.
 # Updates execution.materializedContracts via atomic JSON write.
 # Prints materialized type names to stdout (newline-separated).
 # Returns 0 on success, 1 on error.
