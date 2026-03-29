@@ -257,7 +257,7 @@ try {
   process.stderr.write('[MERGE-SEMANTIC] ts-morph parse failure: ' + err.message + '\\n');
   process.exit(1);
 }
-" "$base_native" "$ours_native" "$theirs_native" "$output_native" 2>&2
+" "$base_native" "$ours_native" "$theirs_native" "$output_native" 2>&1
   return $?
 }
 
