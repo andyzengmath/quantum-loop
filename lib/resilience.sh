@@ -245,7 +245,7 @@ squash_and_merge() {
     cp "$json_path" "${json_path}.merge-bak" 2>/dev/null && qj_backup="${json_path}.merge-bak"
   fi
   if git -C "$repo_root" status --porcelain 2>/dev/null | grep -q .; then
-    git -C "$repo_root" stash push -- ":(exclude)quantum.json" -m "ql-resilience-stash-${worktree_branch}" -q 2>/dev/null && stashed=true
+    MSYS_NO_PATHCONV=1 git -C "$repo_root" stash push -q -m "ql-resilience-stash-${worktree_branch}" -- ":(exclude)quantum.json" 2>/dev/null && stashed=true
     # Reset quantum.json in working tree (excluded from stash leaves it dirty)
     git -C "$repo_root" checkout -- quantum.json 2>/dev/null || true
   fi

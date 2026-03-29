@@ -50,11 +50,14 @@ get_merge_context() {
   python -c "
 import json, sys
 
+json_path = sys.argv[1]
+tmp_path = sys.argv[2]
+
 try:
-    with open('${py_json_path}') as f:
+    with open(json_path) as f:
         d = json.load(f)
 except Exception as e:
-    print(f'ERROR: Failed to parse {\"${py_json_path}\"}: {e}', file=sys.stderr)
+    print(f'ERROR: Failed to parse {json_path}: {e}', file=sys.stderr)
     sys.exit(1)
 
 execution = d.get('execution', {})
@@ -74,12 +77,12 @@ for entry in d.get('progress', []):
 # Serialize rules as JSON array (one line)
 rules_json = json.dumps(rules_list)
 
-with open('${py_tmp_path}', 'w', newline='\n') as out:
+with open(tmp_path, 'w', newline='\n') as out:
     out.write(f'defaultAction={default_action}\n')
     out.write(f'materializedContracts={\"|\".join(materialized)}\n')
     out.write(f'filesChanged={\"|\".join(files_changed)}\n')
     out.write(f'rules={rules_json}\n')
-" 2>&1
+" "$py_json_path" "$py_tmp_path" 2>&1
 
   local py_exit=$?
   if [[ $py_exit -ne 0 ]]; then
@@ -167,17 +170,18 @@ classify_conflict() {
     unset IFS
   fi
 
-  # Use Python to iterate rules JSON and find first match
+  # Use Python to iterate rules JSON and find first match.
+  # All values passed via sys.argv to prevent injection via single quotes in file paths.
   local result
-  result=$(python -c "
-import json, sys, fnmatch
+  result=$(printf '%s' "$rules_json" | python -c "
+import json, sys, fnmatch, os
 
-file_path = '${file_path}'
-file_on_ours = '${file_on_ours}'
-file_in_changed = '${file_in_changed}'
-file_in_contracts = '${file_in_contracts}'
-default_action = '${default_action}'
-rules_json = '''${rules_json}'''
+file_path = sys.argv[1]
+file_on_ours = sys.argv[2]
+file_in_changed = sys.argv[3]
+file_in_contracts = sys.argv[4]
+default_action = sys.argv[5]
+rules_json = sys.stdin.read()
 
 try:
     rules = json.loads(rules_json) if rules_json.strip() else []
@@ -205,7 +209,6 @@ for rule in rules:
                 matched = True
                 break
             # Also try matching just the basename
-            import os
             if fnmatch.fnmatch(os.path.basename(file_path), pat):
                 matched = True
                 break
@@ -225,7 +228,7 @@ for rule in rules:
 
 # No match
 print(f'unknown:{default_action}:')
-" 2>&1)
+" "$file_path" "$file_on_ours" "$file_in_changed" "$file_in_contracts" "$default_action" 2>&1)
 
   local py_exit=$?
   if [[ $py_exit -ne 0 ]]; then
@@ -270,12 +273,25 @@ _try_semantic_merge() {
     return 1
   fi
 
-  # Extract base (stage 1), ours (stage 2), theirs (stage 3) to temp files
+  # Extract base (stage 1), ours (stage 2), theirs (stage 3) to temp files.
+  # Preserve original file extension so semantic_merge routes to the correct
+  # AST backend (ts-morph for .ts/.tsx, libcst for .py, diff3 for others).
+  local _ext=""
+  if [[ "$file_path" == *.* ]]; then
+    _ext=".${file_path##*.}"
+  fi
   local tmp_base tmp_ours tmp_theirs tmp_output
   tmp_base=$(mktemp)
   tmp_ours=$(mktemp)
   tmp_theirs=$(mktemp)
   tmp_output=$(mktemp)
+  # Rename with extension for language detection
+  if [[ -n "$_ext" ]]; then
+    mv "$tmp_base" "${tmp_base}${_ext}"; tmp_base="${tmp_base}${_ext}"
+    mv "$tmp_ours" "${tmp_ours}${_ext}"; tmp_ours="${tmp_ours}${_ext}"
+    mv "$tmp_theirs" "${tmp_theirs}${_ext}"; tmp_theirs="${tmp_theirs}${_ext}"
+    mv "$tmp_output" "${tmp_output}${_ext}"; tmp_output="${tmp_output}${_ext}"
+  fi
 
   local semantic_ok=false
   if git -C "$repo_root" show ":1:${file_path}" > "$tmp_base" 2>/dev/null && \
@@ -419,18 +435,21 @@ classify_and_merge() {
     cp "$json_path" "$qj_backup"
   fi
 
-  # Helper: restore quantum.json from backup and clean up backup file
+  # Helper: restore quantum.json from backup and clean up backup file.
+  # Also registered as an EXIT trap to guarantee restoration on unexpected kill.
   _restore_quantum_json() {
+    trap - EXIT  # clear trap to prevent double-fire
     if [[ -f "$qj_backup" ]]; then
-      cp "$qj_backup" "$json_path"
+      cp "$qj_backup" "$json_path" 2>/dev/null
       rm -f "$qj_backup"
     fi
   }
+  trap _restore_quantum_json EXIT
 
   # Stash dirty state, excluding quantum.json from stash
   local stashed=false
   if git -C "$repo_root" status --porcelain 2>/dev/null | grep -q .; then
-    git -C "$repo_root" stash push -- ":(exclude)quantum.json" -m "ql-auto-stash-before-merge-${worktree_branch}" -q 2>/dev/null && stashed=true
+    MSYS_NO_PATHCONV=1 git -C "$repo_root" stash push -q -m "ql-auto-stash-before-merge-${worktree_branch}" -- ":(exclude)quantum.json" 2>/dev/null && stashed=true
   fi
 
   # Reset quantum.json to HEAD so the merge can proceed without

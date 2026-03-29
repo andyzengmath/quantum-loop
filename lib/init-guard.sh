@@ -323,7 +323,7 @@ import os; os.replace(tmp, jp)
 
   local warn_count=0
   if [[ -n "$warnings" ]]; then
-    warn_count=$(printf '%s' "$warnings" | tr '|' '\n' | wc -l)
+    warn_count=$(printf '%s' "$warnings" | awk -F'|' '{print NF}')
   fi
   local blocker_count=0
   if [[ "$force_sequential" == "true" ]]; then
