@@ -238,10 +238,16 @@ squash_and_merge() {
     return 0
   fi
 
-  # Stash quantum.json dirty state to avoid merge conflicts on it
+  # Backup and exclude quantum.json from stash to prevent corruption
   local stashed=false
-  if [[ -n "$json_path" ]] && git -C "$repo_root" status --porcelain 2>/dev/null | grep -q .; then
-    git -C "$repo_root" stash push -m "ql-resilience-stash-${worktree_branch}" -q 2>/dev/null && stashed=true
+  local qj_backup=""
+  if [[ -n "$json_path" ]] && [[ -f "$json_path" ]]; then
+    cp "$json_path" "${json_path}.merge-bak" 2>/dev/null && qj_backup="${json_path}.merge-bak"
+  fi
+  if git -C "$repo_root" status --porcelain 2>/dev/null | grep -q .; then
+    git -C "$repo_root" stash push -- ":(exclude)quantum.json" -m "ql-resilience-stash-${worktree_branch}" -q 2>/dev/null && stashed=true
+    # Reset quantum.json in working tree (excluded from stash leaves it dirty)
+    git -C "$repo_root" checkout -- quantum.json 2>/dev/null || true
   fi
 
   local merge_exit=0
@@ -266,7 +272,11 @@ squash_and_merge() {
     fi
   fi
 
-  # Pop stash if we stashed
+  # Restore quantum.json from backup and pop stash
+  if [[ -n "$qj_backup" ]] && [[ -f "$qj_backup" ]]; then
+    cp "$qj_backup" "$json_path" 2>/dev/null
+    rm -f "$qj_backup"
+  fi
   if [[ "$stashed" == "true" ]]; then
     git -C "$repo_root" stash pop -q 2>/dev/null || true
   fi

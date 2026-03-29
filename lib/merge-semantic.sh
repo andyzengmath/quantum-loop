@@ -39,16 +39,25 @@ else
 fi
 
 # Log available tooling
-printf "merge-semantic: diff3=%s, ts-morph=%s, libcst=%s\n" \
+printf "[MERGE-SEMANTIC] diff3=%s, ts-morph=%s, libcst=%s\n" \
   "$DIFF3_AVAILABLE" "$TSMORPH_AVAILABLE" "$LIBCST_AVAILABLE" >&2
 
 # ---------------------------------------------------------------------------
 # get_semantic_merge_status()
-# Returns comma-separated key=value pairs of backend availability.
+# Returns comma-separated list of available backend names (e.g., "ts-morph,diff3")
+# or "none" if no backends are available.
 # ---------------------------------------------------------------------------
 get_semantic_merge_status() {
-  printf "diff3=%s,ts-morph=%s,libcst=%s" \
-    "$DIFF3_AVAILABLE" "$TSMORPH_AVAILABLE" "$LIBCST_AVAILABLE"
+  local backends=()
+  [[ "$TSMORPH_AVAILABLE" == "true" ]] && backends+=("ts-morph")
+  [[ "$LIBCST_AVAILABLE" == "true" ]] && backends+=("libcst")
+  [[ "$DIFF3_AVAILABLE" == "true" ]] && backends+=("diff3")
+  if [[ ${#backends[@]} -eq 0 ]]; then
+    printf "none"
+  else
+    local IFS=','
+    printf "%s" "${backends[*]}"
+  fi
 }
 
 # ---------------------------------------------------------------------------
@@ -132,10 +141,10 @@ _semantic_diff3_merge() {
   local rc=$?
 
   if [[ $rc -eq 0 ]]; then
-    printf "merge-semantic: diff3 clean merge succeeded\n" >&2
+    printf "[MERGE-SEMANTIC] diff3 clean merge succeeded\n" >&2
     return 0
   elif [[ $rc -eq 1 ]]; then
-    printf "merge-semantic: diff3 merge has conflicts\n" >&2
+    printf "[MERGE-SEMANTIC] diff3 merge has conflicts\n" >&2
     return 1
   else
     printf "ERROR: diff3 failed with exit code %d\n" "$rc" >&2
@@ -222,7 +231,7 @@ try {
       const theirsChanged = theirDecl.text !== baseDecl.text;
       if (oursChanged && theirsChanged && ourDecl.text !== theirDecl.text) {
         // True conflict: same name modified differently on both sides
-        process.stderr.write('merge-semantic: ts-morph conflict on declaration: ' + name + '\\n');
+        process.stderr.write('[MERGE-SEMANTIC] ts-morph conflict on declaration: ' + name + '\\n');
         process.exit(1);
       }
       // Take whichever changed, or ours if both same
@@ -245,7 +254,7 @@ try {
   fs.writeFileSync(outputPath, merged.join('\\n\\n') + '\\n');
   process.exit(0);
 } catch (err) {
-  process.stderr.write('merge-semantic: ts-morph parse failure: ' + err.message + '\\n');
+  process.stderr.write('[MERGE-SEMANTIC] ts-morph parse failure: ' + err.message + '\\n');
   process.exit(1);
 }
 " "$base_native" "$ours_native" "$theirs_native" "$output_native" 2>&2
@@ -345,7 +354,7 @@ try:
             ours_changed = our_info["text"] != base_info["text"]
             theirs_changed = their_info["text"] != base_info["text"]
             if ours_changed and theirs_changed and our_info["text"] != their_info["text"]:
-                print(f"merge-semantic: libcst conflict on statement: {name}", file=sys.stderr)
+                print(f"[MERGE-SEMANTIC] libcst conflict on statement: {name}", file=sys.stderr)
                 sys.exit(1)
             merged.append(our_info["text"] if ours_changed else their_info["text"])
         elif base_info and not their_info:
@@ -363,7 +372,7 @@ try:
 
     sys.exit(0)
 except Exception as e:
-    print(f"merge-semantic: libcst parse failure: {e}", file=sys.stderr)
+    print(f"[MERGE-SEMANTIC] libcst parse failure: {e}", file=sys.stderr)
     sys.exit(1)
 PYMERGE
   return $?
@@ -418,7 +427,7 @@ semantic_merge() {
         if [[ $ts_rc -eq 0 ]]; then
           return 0
         fi
-        printf "merge-semantic: ts-morph merge failed, falling back to diff3\n" >&2
+        printf "[MERGE-SEMANTIC] ts-morph merge failed, falling back to diff3\n" >&2
       fi
       _semantic_diff3_merge "$base_file" "$ours_file" "$theirs_file" "$output_file"
       return $?
@@ -430,7 +439,7 @@ semantic_merge() {
         if [[ $py_rc -eq 0 ]]; then
           return 0
         fi
-        printf "merge-semantic: libcst merge failed, falling back to diff3\n" >&2
+        printf "[MERGE-SEMANTIC] libcst merge failed, falling back to diff3\n" >&2
       fi
       _semantic_diff3_merge "$base_file" "$ours_file" "$theirs_file" "$output_file"
       return $?

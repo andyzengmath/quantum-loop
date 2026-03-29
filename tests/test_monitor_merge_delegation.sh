@@ -313,8 +313,8 @@ if [[ -n "$RESILIENCE_AVAILABLE" ]]; then
 else
   TOTAL=$((TOTAL + 1)); echo "  FAIL: RESILIENCE_AVAILABLE is not set"; FAIL=$((FAIL + 1))
 fi
-# Since lib/resilience.sh does not exist, RESILIENCE_AVAILABLE should be "false"
-assert_eq "RESILIENCE_AVAILABLE is false when resilience.sh missing" "false" "$RESILIENCE_AVAILABLE"
+# lib/resilience.sh exists (created by US-002), so RESILIENCE_AVAILABLE should be "true"
+assert_eq "RESILIENCE_AVAILABLE is true when resilience.sh exists" "true" "$RESILIENCE_AVAILABLE"
 
 # =========================================================================
 echo "=== Test R2: squash_and_merge delegation when RESILIENCE_AVAILABLE=true ==="

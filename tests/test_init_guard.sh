@@ -396,12 +396,12 @@ print('yes' if 'warnings' in ig else 'no')
 ")
 assert_eq "warnings field exists" "yes" "$HAS_WARNINGS"
 
-# Verify prunedRefs field exists
+# Verify prunedWorktrees field exists
 HAS_PRUNED=$(_read_json_field "$PF_JSON" "
 ig = d.get('execution', {}).get('initGuard', {})
-print('yes' if 'prunedRefs' in ig else 'no')
+print('yes' if 'prunedWorktrees' in ig else 'no')
 ")
-assert_eq "prunedRefs field exists" "yes" "$HAS_PRUNED"
+assert_eq "prunedWorktrees field exists" "yes" "$HAS_PRUNED"
 
 # Verify cleanedOrphans field exists
 HAS_CLEANED=$(_read_json_field "$PF_JSON" "

@@ -109,10 +109,11 @@ STATUS_OUTPUT=$(get_semantic_merge_status)
 # Must contain diff3 since diff3 is available on this system
 assert_contains "status contains diff3" "diff3" "$STATUS_OUTPUT"
 
-# --- Test 5: get_semantic_merge_status output is comma-separated ---
-echo "--- Test 5: get_semantic_merge_status format is key=value pairs ---"
-# Output should contain at least "diff3=true" or "diff3=false"
-assert_contains "status has diff3=true" "diff3=true" "$STATUS_OUTPUT"
+# --- Test 5: get_semantic_merge_status output is backend names only ---
+echo "--- Test 5: get_semantic_merge_status format is backend names ---"
+# Output should be backend names like "diff3" or "ts-morph,diff3", not key=value pairs
+# Since diff3 is available, it should appear as a name (not "diff3=true")
+assert_contains "status does not contain =" "diff3" "$STATUS_OUTPUT"
 
 # =========================================================================
 # T-002: can_semantic_merge

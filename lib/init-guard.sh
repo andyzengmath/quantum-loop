@@ -61,9 +61,9 @@ warn_long_path() {
   lower_path=$(printf '%s' "$repo_root" | tr '[:upper:]' '[:lower:]')
 
   if [[ "$lower_path" == *onedrive* ]]; then
-    printf "[INIT-GUARD] WARN: Repo path contains OneDrive (%d chars): %s\n" "$path_len" "$repo_root" >&2
+    printf "[INIT-GUARD] WARN: Repo path contains 'OneDrive' (%d chars). Worktrees will use short paths under /tmp/ql-wt-*.\n" "$path_len" >&2
   else
-    printf "[INIT-GUARD] WARN: Repo path is long (%d chars): %s\n" "$path_len" "$repo_root" >&2
+    printf "[INIT-GUARD] WARN: Repo path is long (%d chars). Consider moving to a shorter path.\n" "$path_len" >&2
   fi
 }
 
@@ -307,8 +307,9 @@ if 'execution' not in d:
 d['execution']['initGuard'] = {
     'ranAt': datetime.datetime.now(datetime.timezone.utc).isoformat(),
     'warnings': warnings.split('|') if warnings else [],
-    'prunedRefs': pruned,
+    'prunedWorktrees': pruned,
     'cleanedOrphans': cleaned,
+    'shortPathBase': '/tmp/ql-wt' if any(w in (warnings or '') for w in ['long_path', 'onedrive_long_path']) else None,
     'forceSequential': force_seq
 }
 
@@ -320,7 +321,14 @@ import os; os.replace(tmp, jp)
     return 1
   }
 
-  printf "[INIT-GUARD] Preflight complete: warnings=%s pruned=%d cleaned=%d forceSequential=%s\n" \
-    "${warnings:-none}" "$pruned_count" "$cleaned_count" "$force_sequential" >&2
+  local warn_count=0
+  if [[ -n "$warnings" ]]; then
+    warn_count=$(printf '%s' "$warnings" | tr '|' '\n' | wc -l)
+  fi
+  local blocker_count=0
+  if [[ "$force_sequential" == "true" ]]; then
+    blocker_count=1
+  fi
+  printf "[INIT-GUARD] Pre-flight complete. %d blockers, %d warnings.\n" "$blocker_count" "$warn_count" >&2
   return 0
 }
