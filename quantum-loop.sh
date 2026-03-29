@@ -115,7 +115,7 @@ if [[ "$PARALLEL_MODE" == "true" ]]; then
   source "$SCRIPT_DIR/lib/worktree.sh" || { printf "ERROR: lib/worktree.sh not found\n"; exit 1; }
   source "$SCRIPT_DIR/lib/spawn.sh" || { printf "ERROR: lib/spawn.sh not found\n"; exit 1; }
   source "$SCRIPT_DIR/lib/monitor.sh" || { printf "ERROR: lib/monitor.sh not found\n"; exit 1; }
-  source "$SCRIPT_DIR/lib/crash-recovery.sh" || { printf "ERROR: lib/crash-recovery.sh not found\n"; exit 1; }
+  source "$SCRIPT_DIR/lib/resilience.sh" || { printf "ERROR: lib/resilience.sh not found\n"; exit 1; }
 fi
 
 # =============================================================================

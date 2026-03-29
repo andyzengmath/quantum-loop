@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Test suite for US-007: merge_worktree_branch() delegation to classify_and_merge()
-# Tests that merge_worktree_branch delegates to classify_and_merge when available,
-# and falls back to bare git merge when not available.
+# Test suite for merge_worktree_branch() delegation to classify_and_merge() and squash_and_merge()
+# Tests that merge_worktree_branch delegates to squash_and_merge when resilience available,
+# falls back to classify_and_merge, and falls back to bare git merge when neither available.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB_DIR="$SCRIPT_DIR/../lib"
@@ -303,6 +303,219 @@ assert_contains "Fallback conflict has CONFLICT line" "CONFLICT:" "$OUTPUT"
 STATUS=$(git -C "$TEST_REPO" status --porcelain)
 assert_eq "Working tree clean after fallback conflict abort" "" "$STATUS"
 rm -rf "$TEST_REPO"
+
+# =========================================================================
+echo "=== Test R1: RESILIENCE_AVAILABLE variable is set after sourcing monitor.sh ==="
+# monitor.sh should set RESILIENCE_AVAILABLE (either true or false depending on whether
+# resilience.sh exists). Since resilience.sh doesn't exist yet, it should be "false".
+if [[ -n "$RESILIENCE_AVAILABLE" ]]; then
+  TOTAL=$((TOTAL + 1)); echo "  PASS: RESILIENCE_AVAILABLE is set"; PASS=$((PASS + 1))
+else
+  TOTAL=$((TOTAL + 1)); echo "  FAIL: RESILIENCE_AVAILABLE is not set"; FAIL=$((FAIL + 1))
+fi
+# lib/resilience.sh exists (created by US-002), so RESILIENCE_AVAILABLE should be "true"
+assert_eq "RESILIENCE_AVAILABLE is true when resilience.sh exists" "true" "$RESILIENCE_AVAILABLE"
+
+# =========================================================================
+echo "=== Test R2: squash_and_merge delegation when RESILIENCE_AVAILABLE=true ==="
+# When RESILIENCE_AVAILABLE is true and squash_and_merge function exists,
+# merge_worktree_branch should delegate to squash_and_merge BEFORE classify_and_merge.
+# We mock squash_and_merge to write its args to a marker file (since OUTPUT=$() runs
+# in a subshell, we cannot use variable tracking).
+
+# Save original state
+ORIG_RESILIENCE=$RESILIENCE_AVAILABLE
+ORIG_MERGE_STRATEGY=$MERGE_STRATEGY_AVAILABLE
+
+# Marker file for capturing squash_and_merge invocation
+SQUASH_MARKER=$(mktemp)
+rm -f "$SQUASH_MARKER"
+
+# Mock squash_and_merge to write arguments to marker file and perform merge
+squash_and_merge() {
+  printf "%s\n" "$*" > "$SQUASH_MARKER"
+  # Perform a real merge so the test repo stays consistent
+  local branch="$1" repo="$2"
+  git -C "$repo" merge --no-ff "$branch" --no-edit -q > /dev/null 2>&1
+  return $?
+}
+
+RESILIENCE_AVAILABLE=true
+MERGE_STRATEGY_AVAILABLE=true
+
+# Create quantum.json with stories for extraction test
+TEST_REPO=$(mktemp -d)
+git -C "$TEST_REPO" init -q
+git -C "$TEST_REPO" commit --allow-empty -m "init" -q
+
+cat > "$TEST_REPO/quantum.json" <<'QJSON'
+{
+  "project": "test",
+  "stories": [
+    {"id": "US-R2", "title": "Resilience delegation test story"}
+  ],
+  "execution": {
+    "mergeStrategy": { "rules": [], "defaultAction": "escalate" }
+  },
+  "progress": []
+}
+QJSON
+git -C "$TEST_REPO" add quantum.json
+git -C "$TEST_REPO" commit -m "add quantum.json" -q
+
+FEATURE_BRANCH="feature-resilience-test"
+git -C "$TEST_REPO" checkout -b "$FEATURE_BRANCH" -q
+
+git -C "$TEST_REPO" checkout -b "ql-wt/US-R2" -q
+printf "resilience content\n" > "$TEST_REPO/resilience-file.txt"
+git -C "$TEST_REPO" add resilience-file.txt
+git -C "$TEST_REPO" commit -m "worktree resilience commit" -q
+
+git -C "$TEST_REPO" checkout "$FEATURE_BRANCH" -q
+
+OUTPUT=$(merge_worktree_branch "$TEST_REPO" "ql-wt/US-R2" 2>&1)
+EXIT_CODE=$?
+
+# Check marker file exists (proves squash_and_merge was called)
+if [[ -f "$SQUASH_MARKER" ]]; then
+  SQUASH_ARGS=$(cat "$SQUASH_MARKER")
+  TOTAL=$((TOTAL + 1)); echo "  PASS: squash_and_merge called when RESILIENCE_AVAILABLE=true"; PASS=$((PASS + 1))
+else
+  SQUASH_ARGS=""
+  TOTAL=$((TOTAL + 1)); echo "  FAIL: squash_and_merge NOT called when RESILIENCE_AVAILABLE=true"; FAIL=$((FAIL + 1))
+fi
+assert_eq "squash_and_merge delegation returns 0" "0" "$EXIT_CODE"
+
+# Verify arguments include story_id extracted from branch name
+assert_contains "squash_and_merge receives branch" "ql-wt/US-R2" "$SQUASH_ARGS"
+assert_contains "squash_and_merge receives story_id" "US-R2" "$SQUASH_ARGS"
+assert_contains "squash_and_merge receives json_path" "quantum.json" "$SQUASH_ARGS"
+
+rm -rf "$TEST_REPO"
+rm -f "$SQUASH_MARKER"
+unset -f squash_and_merge
+
+# =========================================================================
+echo "=== Test R3: story_title extracted from quantum.json ==="
+# squash_and_merge should receive the story title extracted from quantum.json
+
+SQUASH_MARKER=$(mktemp)
+rm -f "$SQUASH_MARKER"
+
+squash_and_merge() {
+  printf "%s\n" "$*" > "$SQUASH_MARKER"
+  local branch="$1" repo="$2"
+  git -C "$repo" merge --no-ff "$branch" --no-edit -q > /dev/null 2>&1
+  return $?
+}
+
+RESILIENCE_AVAILABLE=true
+MERGE_STRATEGY_AVAILABLE=true
+
+TEST_REPO=$(mktemp -d)
+git -C "$TEST_REPO" init -q
+git -C "$TEST_REPO" commit --allow-empty -m "init" -q
+
+cat > "$TEST_REPO/quantum.json" <<'QJSON'
+{
+  "project": "test",
+  "stories": [
+    {"id": "US-R3", "title": "My special title"}
+  ],
+  "execution": {
+    "mergeStrategy": { "rules": [], "defaultAction": "escalate" }
+  },
+  "progress": []
+}
+QJSON
+git -C "$TEST_REPO" add quantum.json
+git -C "$TEST_REPO" commit -m "add quantum.json" -q
+
+FEATURE_BRANCH="feature-title-extract"
+git -C "$TEST_REPO" checkout -b "$FEATURE_BRANCH" -q
+
+git -C "$TEST_REPO" checkout -b "ql-wt/US-R3" -q
+printf "title test\n" > "$TEST_REPO/titletest.txt"
+git -C "$TEST_REPO" add titletest.txt
+git -C "$TEST_REPO" commit -m "worktree title commit" -q
+
+git -C "$TEST_REPO" checkout "$FEATURE_BRANCH" -q
+
+OUTPUT=$(merge_worktree_branch "$TEST_REPO" "ql-wt/US-R3" 2>&1)
+EXIT_CODE=$?
+
+assert_eq "story title delegation returns 0" "0" "$EXIT_CODE"
+if [[ -f "$SQUASH_MARKER" ]]; then
+  SQUASH_ARGS=$(cat "$SQUASH_MARKER")
+  assert_contains "squash_and_merge receives story title" "My special title" "$SQUASH_ARGS"
+else
+  TOTAL=$((TOTAL + 1)); echo "  FAIL: squash_and_merge not called for title test"; FAIL=$((FAIL + 1))
+fi
+
+rm -rf "$TEST_REPO"
+rm -f "$SQUASH_MARKER"
+unset -f squash_and_merge
+
+# =========================================================================
+echo "=== Test R4: Fallback to classify_and_merge when RESILIENCE_AVAILABLE=false ==="
+# When RESILIENCE_AVAILABLE is false but MERGE_STRATEGY_AVAILABLE is true,
+# should skip squash_and_merge and delegate to classify_and_merge instead.
+
+RESILIENCE_AVAILABLE=false
+MERGE_STRATEGY_AVAILABLE=true
+
+TEST_REPO=$(setup_test_repo_with_quantum)
+FEATURE_BRANCH="feature-no-resilience"
+git -C "$TEST_REPO" checkout -b "$FEATURE_BRANCH" -q
+
+git -C "$TEST_REPO" checkout -b "ql-wt/US-R4" -q
+printf "no resilience content\n" > "$TEST_REPO/noresilience.txt"
+git -C "$TEST_REPO" add noresilience.txt
+git -C "$TEST_REPO" commit -m "worktree no resilience commit" -q
+
+git -C "$TEST_REPO" checkout "$FEATURE_BRANCH" -q
+
+OUTPUT=$(merge_worktree_branch "$TEST_REPO" "ql-wt/US-R4" 2>&1)
+EXIT_CODE=$?
+
+assert_eq "Classify_and_merge fallback returns 0" "0" "$EXIT_CODE"
+if [[ -f "$TEST_REPO/noresilience.txt" ]]; then
+  TOTAL=$((TOTAL + 1)); echo "  PASS: classify_and_merge fallback brought file"; PASS=$((PASS + 1))
+else
+  TOTAL=$((TOTAL + 1)); echo "  FAIL: classify_and_merge fallback did not bring file"; FAIL=$((FAIL + 1))
+fi
+rm -rf "$TEST_REPO"
+
+# =========================================================================
+echo "=== Test R5: Fallback to bare merge when both RESILIENCE and MERGE_STRATEGY false ==="
+RESILIENCE_AVAILABLE=false
+MERGE_STRATEGY_AVAILABLE=false
+
+TEST_REPO=$(setup_test_repo_without_quantum)
+FEATURE_BRANCH="feature-bare-fallback"
+git -C "$TEST_REPO" checkout -b "$FEATURE_BRANCH" -q
+
+git -C "$TEST_REPO" checkout -b "ql-wt/US-R5" -q
+printf "bare fallback content\n" > "$TEST_REPO/barefallback.txt"
+git -C "$TEST_REPO" add barefallback.txt
+git -C "$TEST_REPO" commit -m "worktree bare fallback commit" -q
+
+git -C "$TEST_REPO" checkout "$FEATURE_BRANCH" -q
+
+OUTPUT=$(merge_worktree_branch "$TEST_REPO" "ql-wt/US-R5" 2>&1)
+EXIT_CODE=$?
+
+assert_eq "Bare git merge fallback returns 0" "0" "$EXIT_CODE"
+if [[ -f "$TEST_REPO/barefallback.txt" ]]; then
+  TOTAL=$((TOTAL + 1)); echo "  PASS: Bare fallback brought file"; PASS=$((PASS + 1))
+else
+  TOTAL=$((TOTAL + 1)); echo "  FAIL: Bare fallback did not bring file"; FAIL=$((FAIL + 1))
+fi
+rm -rf "$TEST_REPO"
+
+# Restore original values
+RESILIENCE_AVAILABLE=$ORIG_RESILIENCE
+MERGE_STRATEGY_AVAILABLE=$ORIG_MERGE_STRATEGY
 
 # =========================================================================
 echo "=== Test D6: Function signature unchanged (still repo_root, worktree_branch) ==="

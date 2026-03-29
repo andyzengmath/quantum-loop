@@ -22,6 +22,35 @@ You manage the full execution lifecycle for quantum-loop. You read quantum.json,
    ```
 7. Count stories by status and report summary to user
 
+### Init-Guard and Resilience Integration
+
+After branch verification and before counting stories, source the init-guard and resilience modules:
+
+```bash
+# Source init-guard module (graceful fallback)
+INIT_GUARD_AVAILABLE=true
+source "$REPO_ROOT/lib/init-guard.sh" 2>/dev/null || INIT_GUARD_AVAILABLE=false
+
+# Source resilience module (graceful fallback)
+RESILIENCE_AVAILABLE=true
+source "$REPO_ROOT/lib/resilience.sh" 2>/dev/null || RESILIENCE_AVAILABLE=false
+
+# Run pre-flight checks (idempotent within 1 hour)
+if [[ "$INIT_GUARD_AVAILABLE" != "false" ]]; then
+  run_preflight "$REPO_ROOT" "$JSON_PATH"
+fi
+
+# Check forceSequential
+if jq -e '.execution.initGuard.forceSequential == true' "$JSON_PATH" 2>/dev/null; then
+  echo "[ORCHESTRATOR] forceSequential=true — parallel execution disabled"
+  # Force sequential mode even if 2+ stories are eligible
+fi
+```
+
+`run_preflight` performs environment validation (disk space, git version, tool availability) and records results in `execution.initGuard`. It is idempotent: if `execution.initGuard.ranAt` is within the last hour, it skips re-running. If `init-guard.sh` is not present (e.g., older installations), execution continues normally without pre-flight checks.
+
+The `forceSequential` flag, when set by `run_preflight` or manually by the user, forces the orchestrator to use sequential execution (Step 3A) even when 2+ stories are eligible. This is useful when the environment cannot support parallel worktrees (e.g., insufficient disk space or filesystem limitations).
+
 ## Step 1B: Detect Stale Stories
 
 After initialization and before querying the DAG, check for stories stuck in `in_progress`:
@@ -37,6 +66,23 @@ After initialization and before querying the DAG, check for stories stuck in `in
      - If `retries.attempts >= retries.maxAttempts`: set `status = "blocked"`
      - Log: `[STALE] US-XXX - reset to failed after <elapsed> minutes`
 3. Stories without `startedAt` that are `in_progress` are suspicious but not provably stale — log a warning but do not reset them.
+
+### Resumable Work Detection
+
+When a stale story is being reset, check for resumable WIP work before discarding all progress:
+
+```bash
+# For stale stories being reset, check for resumable WIP work
+if [[ "$RESILIENCE_AVAILABLE" != "false" ]]; then
+  resume_info=$(detect_resumable_work "$JSON_PATH" "$REPO_ROOT" "$story_id")
+  if [[ "$resume_info" == resumable:* ]]; then
+    completed_tasks="${resume_info##*:}"
+    # Pass completed_tasks to build_agent_prompt for re-spawn
+  fi
+fi
+```
+
+`detect_resumable_work` (from `lib/resilience.sh`) inspects the stale story's worktree branch for WIP commits. If it finds commits that contain completed task work, it returns `resumable:<completed_task_ids>`. The orchestrator can then pass this information to the re-spawned agent, allowing it to skip already-completed tasks rather than starting from scratch. If no WIP commits are found or the worktree has been cleaned up, it returns `none` and the story starts fresh.
 
 ## Step 2: Query DAG
 
@@ -151,7 +197,8 @@ Before running reviews, verify the story's new code is actually connected:
 
 ### 3A.6: On Success
 ```bash
-git add -A
+# Scope git add to specific files to prevent index.lock contention on main branch
+git add quantum.json <changed_files>
 git commit -m "feat: <Story ID> - <Story Title>"
 ```
 
@@ -395,22 +442,32 @@ Wait for agent completion notifications. Do NOT poll in a loop — Claude Code a
 
 **On STORY_PASSED:**
 - Log: `[PASSED] US-XXX - Story Title`
-- **Merge the worktree branch** using the merge-strategy module when available:
+- **Merge the worktree branch** using `squash_and_merge` (from `lib/resilience.sh`) as the primary merge path when available, falling back to `classify_and_merge` or standard git merge:
 
   ```bash
-  # Delegate merge to classify_and_merge via lib/merge-strategy.sh
-  source "$REPO_ROOT/lib/merge-strategy.sh" 2>/dev/null || MERGE_STRATEGY_MODULE_AVAILABLE=false
-
-  if [[ "$MERGE_STRATEGY_MODULE_AVAILABLE" != "false" ]]; then
-    # classify_and_merge handles conflict detection, classification, and resolution
-    classify_and_merge "$WT_BRANCH" "$REPO_ROOT" "$JSON_PATH"
+  # Use squash_and_merge (from resilience.sh) as primary merge strategy
+  # squash_and_merge handles: multi-commit squash, quantum.json stash exclusion,
+  # and delegates to classify_and_merge for conflict resolution
+  if [[ "$RESILIENCE_AVAILABLE" != "false" ]]; then
+    squash_and_merge "$WT_BRANCH" "$REPO_ROOT" "$JSON_PATH"
     MERGE_RESULT=$?
   else
-    # Fallback: standard git merge
-    git merge "$WT_BRANCH" --no-edit
-    MERGE_RESULT=$?
+    # Fallback: delegate merge to classify_and_merge via lib/merge-strategy.sh
+    source "$REPO_ROOT/lib/merge-strategy.sh" 2>/dev/null || MERGE_STRATEGY_MODULE_AVAILABLE=false
+
+    if [[ "$MERGE_STRATEGY_MODULE_AVAILABLE" != "false" ]]; then
+      # classify_and_merge handles conflict detection, classification, and resolution
+      classify_and_merge "$WT_BRANCH" "$REPO_ROOT" "$JSON_PATH"
+      MERGE_RESULT=$?
+    else
+      # Fallback: standard git merge
+      git merge "$WT_BRANCH" --no-edit
+      MERGE_RESULT=$?
+    fi
   fi
   ```
+
+  `squash_and_merge` collapses the worktree branch's commits into a single merge commit, automatically excludes quantum.json from the stash/merge cycle, and delegates actual conflict resolution to `classify_and_merge`. If `resilience.sh` is not available, the orchestrator falls back to `classify_and_merge` directly or standard git merge.
 
   If `classify_and_merge` encounters conflicts it cannot resolve (returns non-zero with `escalate` action), fall back to the manual merge pattern below.
 
@@ -421,6 +478,8 @@ Wait for agent completion notifications. Do NOT poll in a loop — Claude Code a
   git stash pop                                 # may conflict — see below
   ```
   If `stash pop` conflicts on quantum.json, **drop the stash** (`git stash drop`) and re-write quantum.json state from scratch via Python. The orchestrator's in-memory knowledge of story statuses is the source of truth, not any stashed file. Never resolve quantum.json merge conflicts by hand — always regenerate programmatically.
+
+  **quantum.json stash exclusion:** When using `squash_and_merge` or `classify_and_merge` (from `lib/merge-strategy.sh`), quantum.json stash exclusion is handled automatically. `classify_and_merge()` backs up quantum.json before the merge, excludes it from git stash operations, and restores it after the merge completes. No manual stash handling is needed for quantum.json when these modules are available.
 
   **Best practice:** Add `quantum.json` to `.gitignore` at the start of a feature branch to avoid this entirely. The implementer agents are already instructed not to commit quantum.json in parallel mode (see implementer.md, "Parallel mode" section).
 
@@ -656,7 +715,7 @@ If dead code or pipeline breaks are detected:
    - Implement the wiring (import + call + verify)
 3. Run the fix inline (do not spawn a new agent — the orchestrator does this itself)
 4. Re-run the full test suite to confirm the fix
-5. Commit: `git add -A && git commit -m "fix: wire <module> into <caller>"`
+5. Commit: `git add <wired_files> && git commit -m "fix: wire <module> into <caller>"`
 
 This step is NOT optional. Components built but never called are wasted work.
 
@@ -893,6 +952,76 @@ After each story (pass or fail):
 | Story fails | Log failure, increment retries, return to DAG |
 | All retries exhausted | Story ineligible, downstream stories blocked |
 | All stories blocked | Output BLOCKED with root cause diagnosis |
+
+## New quantum.json Fields: Init-Guard and Resilience
+
+The init-guard and resilience modules introduce the following fields in quantum.json under `execution`:
+
+### execution.initGuard
+
+Populated by `run_preflight()` from `lib/init-guard.sh`. Records the results of environment pre-flight checks:
+
+```json
+{
+  "execution": {
+    "initGuard": {
+      "ranAt": "<ISO 8601>",
+      "warnings": ["<warning message 1>", "<warning message 2>"],
+      "shortPathBase": "<short path base for worktrees on Windows>",
+      "prunedWorktrees": 0,
+      "cleanedOrphans": 0,
+      "forceSequential": false
+    }
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `ranAt` | string (ISO 8601) | Timestamp of the last successful pre-flight run. Used for idempotency: if within 1 hour, `run_preflight` skips re-running. |
+| `warnings` | string[] | Non-fatal warnings from pre-flight checks (e.g., low disk space, old git version). Empty array if no warnings. |
+| `shortPathBase` | string | On Windows, the 8.3 short path base used for worktree creation to avoid MAX_PATH issues. Null on non-Windows systems. |
+| `prunedWorktrees` | number | Count of stale git worktrees pruned during pre-flight cleanup. |
+| `cleanedOrphans` | number | Count of orphaned worktree directories cleaned up during pre-flight. |
+| `forceSequential` | boolean | When `true`, forces the orchestrator to use sequential execution even when 2+ stories are eligible. Set by `run_preflight` when the environment cannot support parallel worktrees, or manually by the user. |
+
+### execution.resilience
+
+Populated by `detect_resumable_work()` and `squash_and_merge()` from `lib/resilience.sh`. Tracks WIP commit recovery and merge operations:
+
+```json
+{
+  "execution": {
+    "resilience": {
+      "wipCommits": {
+        "<story_id>": {
+          "detectedAt": "<ISO 8601>",
+          "completedTasks": ["T-001", "T-002"],
+          "branchRef": "<branch name>",
+          "resumedAt": "<ISO 8601 or null>"
+        }
+      },
+      "squashMerges": {
+        "<story_id>": {
+          "mergedAt": "<ISO 8601>",
+          "commitsSquashed": 3,
+          "quantumJsonExcluded": true
+        }
+      }
+    }
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `wipCommits.<story_id>.detectedAt` | string (ISO 8601) | When WIP commits were detected for a stale story. |
+| `wipCommits.<story_id>.completedTasks` | string[] | Task IDs that were completed before the story went stale, as determined from WIP commit analysis. |
+| `wipCommits.<story_id>.branchRef` | string | The worktree branch containing the WIP commits. |
+| `wipCommits.<story_id>.resumedAt` | string or null | When the story was re-spawned with resumed task context. Null if not yet resumed. |
+| `squashMerges.<story_id>.mergedAt` | string (ISO 8601) | When the squash merge was performed. |
+| `squashMerges.<story_id>.commitsSquashed` | number | Number of individual commits squashed into the merge commit. |
+| `squashMerges.<story_id>.quantumJsonExcluded` | boolean | Whether quantum.json was automatically excluded from the merge (should always be `true` when using `squash_and_merge`). |
 
 ## Anti-Rationalization Guards
 

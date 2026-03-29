@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Test suite for lib/crash-recovery.sh
-# Tests orphaned worktree detection and cleanup
+# Test suite for crash recovery (recover_orphaned_worktrees)
+# Now sourced from lib/resilience.sh (supersedes lib/crash-recovery.sh)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB_DIR="$SCRIPT_DIR/../lib"
@@ -12,12 +12,12 @@ TOTAL=0
 source "$LIB_DIR/common.sh"
 source "$LIB_DIR/json-atomic.sh"
 
-# Source the library under test
-if [[ ! -f "$LIB_DIR/crash-recovery.sh" ]]; then
-  echo "SKIP: lib/crash-recovery.sh not found (RED phase)"
+# Source the library under test -- now in resilience.sh
+if [[ ! -f "$LIB_DIR/resilience.sh" ]]; then
+  echo "SKIP: lib/resilience.sh not found (RED phase)"
   exit 1
 fi
-source "$LIB_DIR/crash-recovery.sh"
+source "$LIB_DIR/resilience.sh"
 
 assert_eq() {
   local test_name="$1" expected="$2" actual="$3"

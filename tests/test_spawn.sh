@@ -220,6 +220,44 @@ done
 rm -rf "$WT1" "$WT2" "$WT3" "$MOCK_BIN2" "$PID_DIR"
 
 # =========================================================================
+echo "=== Test 14: build_agent_prompt without completed_tasks has no skip section ==="
+PROMPT=$(build_agent_prompt "US-005")
+TOTAL=$((TOTAL + 1))
+if echo "$PROMPT" | grep -q "Previously completed tasks"; then
+  echo "  FAIL: Prompt without completed_tasks should NOT contain skip section"
+  FAIL=$((FAIL + 1))
+else
+  echo "  PASS: Prompt without completed_tasks has no skip section"
+  PASS=$((PASS + 1))
+fi
+
+# =========================================================================
+echo "=== Test 15: build_agent_prompt with empty completed_tasks has no skip section ==="
+PROMPT=$(build_agent_prompt "US-005" "")
+TOTAL=$((TOTAL + 1))
+if echo "$PROMPT" | grep -q "Previously completed tasks"; then
+  echo "  FAIL: Prompt with empty completed_tasks should NOT contain skip section"
+  FAIL=$((FAIL + 1))
+else
+  echo "  PASS: Prompt with empty completed_tasks has no skip section"
+  PASS=$((PASS + 1))
+fi
+
+# =========================================================================
+echo "=== Test 16: build_agent_prompt with completed_tasks includes skip section ==="
+PROMPT=$(build_agent_prompt "US-005" "T-001,T-002")
+assert_contains "Prompt contains Previously completed tasks" "Previously completed tasks" "$PROMPT"
+assert_contains "Prompt contains task list" "T-001,T-002" "$PROMPT"
+assert_contains "Prompt contains skip instruction" "DO NOT re-implement" "$PROMPT"
+assert_contains "Prompt contains start instruction" "Start from the next task" "$PROMPT"
+
+# =========================================================================
+echo "=== Test 17: build_agent_prompt with single completed task ==="
+PROMPT=$(build_agent_prompt "US-007" "T-001")
+assert_contains "Prompt contains single task" "T-001" "$PROMPT"
+assert_contains "Prompt contains skip section for single task" "Previously completed tasks" "$PROMPT"
+
+# =========================================================================
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 if [[ $FAIL -eq 0 ]]; then

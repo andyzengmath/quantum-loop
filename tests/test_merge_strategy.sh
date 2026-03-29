@@ -569,6 +569,368 @@ else
 fi
 
 # =========================================================================
+# T-001: quantum.json backup/restore and stash exclusion
+# =========================================================================
+
+echo "=== T-001: quantum.json backup/restore and stash exclusion ==="
+
+# --- Test 35: quantum.json dirty content preserved when branch also modifies quantum.json ---
+# This is the critical scenario: orchestrator has modified quantum.json in working tree,
+# AND the feature branch also has a different quantum.json. Without backup/restore,
+# the merge would overwrite the orchestrator's changes.
+echo "--- Test 35: quantum.json dirty content preserved when branch modifies it ---"
+REPO35="$TMPDIR/repo35"
+setup_merge_repo "$REPO35"
+cd "$REPO35" || exit 1
+
+# Add quantum.json to initial commit on main
+create_test_quantum_json "$REPO35"
+git add quantum.json >/dev/null 2>&1
+git commit -m "add quantum.json" >/dev/null 2>&1
+
+# Feature branch: modify quantum.json to something different
+git checkout -b feature-qj-conflict >/dev/null 2>&1
+echo '{"project":"test","_branch_marker":"from-feature-branch"}' > quantum.json
+echo "feature file" > feature.txt
+git add -A >/dev/null 2>&1
+git commit -m "feature changes with different quantum.json" >/dev/null 2>&1
+
+# Back on main: make the orchestrator's dirty quantum.json
+git checkout main >/dev/null 2>&1
+echo '{"project":"test","_orchestrator_marker":"orchestrator-dirty-state"}' > quantum.json
+
+# The merge should preserve the orchestrator's dirty quantum.json via backup/restore
+OUTPUT=$(classify_and_merge "feature-qj-conflict" "$REPO35" "$REPO35/quantum.json" 2>&1)
+EXIT_CODE=$?
+
+# Key assertion: quantum.json should have the orchestrator's content, NOT the feature branch's
+QJ35=$(cat "$REPO35/quantum.json")
+assert_contains "quantum.json has orchestrator content after merge" "orchestrator-dirty-state" "$QJ35"
+assert_not_contains "quantum.json does NOT have feature branch content" "from-feature-branch" "$QJ35"
+
+# --- Test 36: backup file is cleaned up after successful merge ---
+echo "--- Test 36: backup file cleaned up after merge ---"
+TOTAL=$((TOTAL + 1))
+if [[ ! -f "$REPO35/quantum.json.merge-bak" ]]; then
+  echo "  PASS: quantum.json.merge-bak cleaned up"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: quantum.json.merge-bak still exists"
+  FAIL=$((FAIL + 1))
+fi
+
+# --- Test 37: quantum.json restored after escalation (merge abort) ---
+echo "--- Test 37: quantum.json restored after merge abort ---"
+REPO37="$TMPDIR/repo37"
+setup_merge_repo "$REPO37"
+cd "$REPO37" || exit 1
+
+# Commit quantum.json on main
+create_test_quantum_json "$REPO37"
+git add quantum.json >/dev/null 2>&1
+git commit -m "add quantum.json" >/dev/null 2>&1
+
+# Feature branch: modify file.txt (will conflict) AND quantum.json
+git checkout -b feature-abort >/dev/null 2>&1
+echo "feature version" > file.txt
+echo '{"_branch":"feature-abort-branch"}' > quantum.json
+git add -A >/dev/null 2>&1
+git commit -m "feature changes" >/dev/null 2>&1
+
+# Main: conflicting file.txt change
+git checkout main >/dev/null 2>&1
+echo "main version" > file.txt
+git add -A >/dev/null 2>&1
+git commit -m "main changes" >/dev/null 2>&1
+
+# Make quantum.json dirty (orchestrator state)
+echo '{"_orchestrator":"abort-test-orchestrator-state"}' > quantum.json
+
+OUTPUT=$(classify_and_merge "feature-abort" "$REPO37" "$REPO37/quantum.json" 2>&1)
+EXIT_CODE=$?
+assert_eq "escalation returns 1" "1" "$EXIT_CODE"
+
+# Verify quantum.json was restored to orchestrator's dirty content
+QJ37=$(cat "$REPO37/quantum.json")
+assert_contains "quantum.json restored after abort" "abort-test-orchestrator-state" "$QJ37"
+assert_not_contains "quantum.json does NOT have feature branch content after abort" "feature-abort-branch" "$QJ37"
+
+# Verify backup file cleaned up
+TOTAL=$((TOTAL + 1))
+if [[ ! -f "$REPO37/quantum.json.merge-bak" ]]; then
+  echo "  PASS: backup cleaned up after abort"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: backup still exists after abort"
+  FAIL=$((FAIL + 1))
+fi
+
+echo ""
+echo "=== T-001 Results so far: $PASS/$TOTAL passed, $FAIL failed ==="
+echo ""
+
+# =========================================================================
+# T-002: Semantic merge delegation in resolve_conflict
+# =========================================================================
+
+echo "=== T-002: Semantic merge delegation in resolve_conflict ==="
+
+# --- Test 38: MERGE_SEMANTIC_AVAILABLE is set (false when merge-semantic.sh absent) ---
+echo "--- Test 38: MERGE_SEMANTIC_AVAILABLE variable exists ---"
+TOTAL=$((TOTAL + 1))
+if [[ -n "${MERGE_SEMANTIC_AVAILABLE+x}" ]]; then
+  echo "  PASS: MERGE_SEMANTIC_AVAILABLE is defined"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: MERGE_SEMANTIC_AVAILABLE is not defined"
+  FAIL=$((FAIL + 1))
+fi
+
+# --- Test 39: Semantic merge used when available and succeeds ---
+# Set up a repo with a conflict in ours/theirs case, with a mock semantic merge
+echo "--- Test 39: Semantic merge delegates for ours conflict ---"
+REPO39="$TMPDIR/repo39"
+setup_merge_repo "$REPO39"
+cd "$REPO39" || exit 1
+
+# Create mock merge-semantic.sh in the lib dir that always succeeds
+MOCK_SEMANTIC="$MERGE_STRATEGY_LIB_DIR/merge-semantic.sh"
+cat > "$MOCK_SEMANTIC" << 'MOCKEOF'
+#!/usr/bin/env bash
+# Mock merge-semantic.sh for testing
+can_semantic_merge() {
+  return 0
+}
+semantic_merge() {
+  local base="$1" ours="$2" theirs="$3" output="$4"
+  # Produce a "semantically merged" output combining content
+  echo "SEMANTIC_MERGED_RESULT" > "$output"
+  return 0
+}
+MOCKEOF
+
+# Re-source merge-strategy.sh to pick up the mock
+source "$LIB_DIR/merge-strategy.sh"
+
+# Verify MERGE_SEMANTIC_AVAILABLE is now true
+assert_eq "MERGE_SEMANTIC_AVAILABLE true with mock" "true" "$MERGE_SEMANTIC_AVAILABLE"
+
+# Set up a conflict scenario
+git checkout -b feature-semantic >/dev/null 2>&1
+echo '{"name": "test", "version": "2.0.0"}' > package.json
+git add -A >/dev/null 2>&1
+git commit -m "feature pkg" >/dev/null 2>&1
+
+git checkout main >/dev/null 2>&1
+echo '{"name": "test", "version": "1.1.0"}' > package.json
+git add -A >/dev/null 2>&1
+git commit -m "main pkg" >/dev/null 2>&1
+
+# Set up merge state manually so we can call resolve_conflict with staged conflicts
+create_test_quantum_json "$REPO39"
+git add quantum.json >/dev/null 2>&1
+git commit -m "add quantum.json" >/dev/null 2>&1
+
+# Start merge to get conflict state
+git merge --no-ff feature-semantic --no-commit --no-edit -q 2>/dev/null || true
+
+# Verify we have a conflict on package.json
+CONFLICT_CHECK=$(git diff --name-only --diff-filter=U 2>/dev/null)
+TOTAL=$((TOTAL + 1))
+if echo "$CONFLICT_CHECK" | grep -q "package.json"; then
+  echo "  PASS: package.json is in conflict state"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: package.json not in conflict state (conflicts: $CONFLICT_CHECK)"
+  FAIL=$((FAIL + 1))
+fi
+
+# Call resolve_conflict with ours action -- should try semantic merge first
+resolve_conflict "package.json" "ours" "" "$REPO39" 2>/dev/null
+RC=$?
+assert_eq "resolve_conflict with semantic merge succeeds" "0" "$RC"
+
+# The file should contain the semantic merge result, NOT the ours version
+PKG39=$(cat "$REPO39/package.json")
+assert_contains "semantic merge result used instead of ours" "SEMANTIC_MERGED_RESULT" "$PKG39"
+
+# Clean up merge state
+git merge --abort 2>/dev/null || git reset --hard HEAD 2>/dev/null || true
+
+# --- Test 40: Semantic merge fallback when semantic_merge returns 1 ---
+echo "--- Test 40: Fallback to ours when semantic merge fails ---"
+REPO40="$TMPDIR/repo40"
+setup_merge_repo "$REPO40"
+cd "$REPO40" || exit 1
+
+# Create mock that can_semantic_merge succeeds but semantic_merge fails
+cat > "$MOCK_SEMANTIC" << 'MOCKEOF'
+#!/usr/bin/env bash
+can_semantic_merge() {
+  return 0
+}
+semantic_merge() {
+  return 1
+}
+MOCKEOF
+source "$LIB_DIR/merge-strategy.sh"
+
+git checkout -b feature-sem-fail >/dev/null 2>&1
+echo '{"name": "test", "version": "2.0.0"}' > package.json
+git add -A >/dev/null 2>&1
+git commit -m "feature pkg" >/dev/null 2>&1
+
+git checkout main >/dev/null 2>&1
+echo '{"name": "test", "version": "1.1.0"}' > package.json
+git add -A >/dev/null 2>&1
+git commit -m "main pkg" >/dev/null 2>&1
+create_test_quantum_json "$REPO40"
+git add quantum.json >/dev/null 2>&1
+git commit -m "add quantum.json" >/dev/null 2>&1
+
+git merge --no-ff feature-sem-fail --no-commit --no-edit -q 2>/dev/null || true
+
+resolve_conflict "package.json" "ours" "" "$REPO40" 2>/dev/null
+RC=$?
+assert_eq "resolve_conflict falls through to ours on semantic failure" "0" "$RC"
+
+# Should have ours version (1.1.0 from main) since semantic merge failed
+PKG40=$(cat "$REPO40/package.json")
+assert_contains "ours version used after semantic fallback" "1.1.0" "$PKG40"
+assert_not_contains "semantic result NOT present" "SEMANTIC_MERGED_RESULT" "$PKG40"
+
+git merge --abort 2>/dev/null || git reset --hard HEAD 2>/dev/null || true
+
+# --- Test 41: Theirs action also tries semantic merge ---
+echo "--- Test 41: Theirs action delegates to semantic merge ---"
+REPO41="$TMPDIR/repo41"
+setup_merge_repo "$REPO41"
+cd "$REPO41" || exit 1
+
+# Create mock that succeeds
+cat > "$MOCK_SEMANTIC" << 'MOCKEOF'
+#!/usr/bin/env bash
+can_semantic_merge() {
+  return 0
+}
+semantic_merge() {
+  local base="$1" ours="$2" theirs="$3" output="$4"
+  echo "SEMANTIC_THEIRS_RESULT" > "$output"
+  return 0
+}
+MOCKEOF
+source "$LIB_DIR/merge-strategy.sh"
+
+git checkout -b feature-sem-theirs >/dev/null 2>&1
+echo '{"name": "test", "version": "2.0.0"}' > package.json
+git add -A >/dev/null 2>&1
+git commit -m "feature pkg" >/dev/null 2>&1
+
+git checkout main >/dev/null 2>&1
+echo '{"name": "test", "version": "1.1.0"}' > package.json
+git add -A >/dev/null 2>&1
+git commit -m "main pkg" >/dev/null 2>&1
+create_test_quantum_json "$REPO41"
+git add quantum.json >/dev/null 2>&1
+git commit -m "add quantum.json" >/dev/null 2>&1
+
+git merge --no-ff feature-sem-theirs --no-commit --no-edit -q 2>/dev/null || true
+
+resolve_conflict "package.json" "theirs" "" "$REPO41" 2>/dev/null
+RC=$?
+assert_eq "theirs with semantic merge succeeds" "0" "$RC"
+
+PKG41=$(cat "$REPO41/package.json")
+assert_contains "semantic merge result used for theirs case" "SEMANTIC_THEIRS_RESULT" "$PKG41"
+
+git merge --abort 2>/dev/null || git reset --hard HEAD 2>/dev/null || true
+
+# --- Test 42: No semantic merge when MERGE_SEMANTIC_AVAILABLE is false ---
+echo "--- Test 42: No semantic merge when unavailable ---"
+REPO42="$TMPDIR/repo42"
+setup_merge_repo "$REPO42"
+cd "$REPO42" || exit 1
+
+# Remove mock and re-source
+rm -f "$MOCK_SEMANTIC"
+source "$LIB_DIR/merge-strategy.sh"
+assert_eq "MERGE_SEMANTIC_AVAILABLE false without module" "false" "$MERGE_SEMANTIC_AVAILABLE"
+
+git checkout -b feature-no-sem >/dev/null 2>&1
+echo '{"name": "test", "version": "2.0.0"}' > package.json
+git add -A >/dev/null 2>&1
+git commit -m "feature pkg" >/dev/null 2>&1
+
+git checkout main >/dev/null 2>&1
+echo '{"name": "test", "version": "1.1.0"}' > package.json
+git add -A >/dev/null 2>&1
+git commit -m "main pkg" >/dev/null 2>&1
+create_test_quantum_json "$REPO42"
+git add quantum.json >/dev/null 2>&1
+git commit -m "add quantum.json" >/dev/null 2>&1
+
+git merge --no-ff feature-no-sem --no-commit --no-edit -q 2>/dev/null || true
+
+resolve_conflict "package.json" "ours" "" "$REPO42" 2>/dev/null
+RC=$?
+assert_eq "ours without semantic merge succeeds" "0" "$RC"
+
+PKG42=$(cat "$REPO42/package.json")
+assert_contains "ours version used when semantic unavailable" "1.1.0" "$PKG42"
+
+git merge --abort 2>/dev/null || git reset --hard HEAD 2>/dev/null || true
+
+# --- Test 43: can_semantic_merge returns 1 - skip semantic merge ---
+echo "--- Test 43: can_semantic_merge returns 1 - skip semantic ---"
+REPO43="$TMPDIR/repo43"
+setup_merge_repo "$REPO43"
+cd "$REPO43" || exit 1
+
+cat > "$MOCK_SEMANTIC" << 'MOCKEOF'
+#!/usr/bin/env bash
+can_semantic_merge() {
+  return 1
+}
+semantic_merge() {
+  echo "SHOULD_NOT_BE_CALLED" > "$4"
+  return 0
+}
+MOCKEOF
+source "$LIB_DIR/merge-strategy.sh"
+
+git checkout -b feature-cant-sem >/dev/null 2>&1
+echo '{"name": "test", "version": "2.0.0"}' > package.json
+git add -A >/dev/null 2>&1
+git commit -m "feature pkg" >/dev/null 2>&1
+
+git checkout main >/dev/null 2>&1
+echo '{"name": "test", "version": "1.1.0"}' > package.json
+git add -A >/dev/null 2>&1
+git commit -m "main pkg" >/dev/null 2>&1
+create_test_quantum_json "$REPO43"
+git add quantum.json >/dev/null 2>&1
+git commit -m "add quantum.json" >/dev/null 2>&1
+
+git merge --no-ff feature-cant-sem --no-commit --no-edit -q 2>/dev/null || true
+
+resolve_conflict "package.json" "ours" "" "$REPO43" 2>/dev/null
+RC=$?
+assert_eq "ours when can_semantic_merge returns 1" "0" "$RC"
+
+PKG43=$(cat "$REPO43/package.json")
+assert_contains "ours version used when can_semantic_merge fails" "1.1.0" "$PKG43"
+assert_not_contains "semantic_merge not called" "SHOULD_NOT_BE_CALLED" "$PKG43"
+
+git merge --abort 2>/dev/null || git reset --hard HEAD 2>/dev/null || true
+
+# Clean up mock
+rm -f "$MOCK_SEMANTIC"
+
+echo ""
+echo "=== T-002 Results so far: $PASS/$TOTAL passed, $FAIL failed ==="
+echo ""
+
+# =========================================================================
 # Summary
 # =========================================================================
 cd "$ORIG_DIR" || true

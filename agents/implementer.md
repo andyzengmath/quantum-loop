@@ -65,6 +65,38 @@ python -c "import <module>; print(<module>.__file__)"
 
 For Node.js projects, worktree isolation is usually sufficient since `node_modules` is per-directory. For Go projects, worktree isolation works natively (module paths are directory-relative).
 
+## WIP Commits (Worktree Mode)
+
+In worktree mode, the orchestrator may terminate and re-spawn your agent if it detects a stale process. To avoid losing work, make **WIP (work-in-progress) commits** frequently.
+
+### When to WIP Commit
+
+- **After any file changes:** If you have written or edited files, commit before moving to the next task.
+- **Tasks taking longer than 2 minutes:** If a task involves multiple steps (e.g., write test, run test, write implementation, run test), commit after each successful step rather than waiting until the entire task is complete.
+
+### WIP Commit Format
+
+```bash
+git add -A && git commit -m "wip: <story_id> <task_id> - <title>"
+```
+
+Example: `git add -A && git commit -m "wip: US-005 T-002 - Add validation logic"`
+
+### WIP Commits Do Not Require Passing Tests
+
+Unlike the final commit, WIP commits are checkpoints to preserve progress. You do **not** need to run or pass tests before a WIP commit. The orchestrator will squash WIP commits into the final commit when the story passes.
+
+### completedTasks Skip Logic
+
+When the orchestrator re-spawns your agent after a crash or timeout, it may include a list of **previously completed tasks** in the prompt. If the prompt contains a "Previously completed tasks" section:
+
+1. **Do NOT re-implement** any task listed as previously completed
+2. **Verify** the completed tasks' artifacts exist on disk (files, tests, etc.)
+3. **Start from the next task** that is not in the completed list
+4. If a completed task's artifacts are missing or broken, treat it as not completed and re-implement it
+
+This avoids wasting time re-doing work that was already committed via WIP commits before the agent was terminated.
+
 ## Implementation Process
 
 For each task in the story's `tasks` array, in order:

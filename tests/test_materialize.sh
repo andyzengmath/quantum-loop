@@ -1501,6 +1501,270 @@ else
 fi
 
 # =========================================================================
+# Tests for US-006/US-014: fileConflicts-based materialization threshold
+# =========================================================================
+
+echo ""
+echo "--- US-006/US-014: fileConflicts-based materialization tests ---"
+
+# =========================================================================
+echo "=== Test 72: materialize_contracts — single-consumer type IN fileConflicts is materialized ==="
+MC_FC1="$TMPDIR/mc_fc_single_conflict"
+mkdir -p "$MC_FC1"
+touch "$MC_FC1/tsconfig.json"
+cat > "$MC_FC1/quantum.json" << 'QJSON'
+{
+  "contracts": {
+    "shared_types": {
+      "ConflictType": {
+        "value": "ConflictType",
+        "definitionFile": "src/types/ConflictType.ts",
+        "definition": "export interface ConflictType { id: string; }",
+        "owner": "US-001",
+        "consumers": ["US-002"]
+      }
+    }
+  },
+  "fileConflicts": [
+    {
+      "file": "src/types/ConflictType.ts",
+      "stories": ["US-002", "US-003"],
+      "resolvedBy": "materialize"
+    }
+  ],
+  "execution": {}
+}
+QJSON
+(cd "$MC_FC1" && git init -q && git add -A && git commit -m "init" -q) 2>/dev/null
+RESULT_FC1=$(materialize_contracts "$MC_FC1/quantum.json" "$MC_FC1" 1 2>&1)
+TOTAL=$((TOTAL + 1))
+if [[ -f "$MC_FC1/src/types/ConflictType.ts" ]]; then
+  PASS=$((PASS + 1))
+  echo "  PASS: Single-consumer type in fileConflicts WAS materialized"
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: Single-consumer type in fileConflicts should be materialized"
+  echo "    stderr/stdout: $RESULT_FC1"
+fi
+
+# =========================================================================
+echo "=== Test 73: materialize_contracts — fileConflicts materialization logs '(file-conflict prevention)' ==="
+TOTAL=$((TOTAL + 1))
+if echo "$RESULT_FC1" | grep -q "(file-conflict prevention)"; then
+  PASS=$((PASS + 1))
+  echo "  PASS: Log contains '(file-conflict prevention)'"
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: Expected '(file-conflict prevention)' in log output"
+  echo "    actual: $RESULT_FC1"
+fi
+
+# =========================================================================
+echo "=== Test 74: materialize_contracts — multi-consumer type logs '(multi-consumer)' ==="
+MC_FC2="$TMPDIR/mc_fc_multi_log"
+mkdir -p "$MC_FC2"
+touch "$MC_FC2/tsconfig.json"
+cat > "$MC_FC2/quantum.json" << 'QJSON'
+{
+  "contracts": {
+    "shared_types": {
+      "MultiType": {
+        "value": "MultiType",
+        "definitionFile": "src/types/MultiType.ts",
+        "definition": "export interface MultiType { x: number; }",
+        "owner": "US-001",
+        "consumers": ["US-002", "US-003"]
+      }
+    }
+  },
+  "execution": {}
+}
+QJSON
+(cd "$MC_FC2" && git init -q && git add -A && git commit -m "init" -q) 2>/dev/null
+RESULT_FC2=$(materialize_contracts "$MC_FC2/quantum.json" "$MC_FC2" 1 2>&1)
+TOTAL=$((TOTAL + 1))
+if echo "$RESULT_FC2" | grep -q "(multi-consumer)"; then
+  PASS=$((PASS + 1))
+  echo "  PASS: Multi-consumer type logs '(multi-consumer)'"
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: Expected '(multi-consumer)' in log output"
+  echo "    actual: $RESULT_FC2"
+fi
+
+# =========================================================================
+echo "=== Test 75: materialize_contracts — single-consumer NOT in fileConflicts still skipped ==="
+MC_FC3="$TMPDIR/mc_fc_single_no_conflict"
+mkdir -p "$MC_FC3"
+touch "$MC_FC3/tsconfig.json"
+cat > "$MC_FC3/quantum.json" << 'QJSON'
+{
+  "contracts": {
+    "shared_types": {
+      "SafeType": {
+        "value": "SafeType",
+        "definitionFile": "src/types/SafeType.ts",
+        "definition": "export interface SafeType { ok: boolean; }",
+        "owner": "US-001",
+        "consumers": ["US-002"]
+      }
+    }
+  },
+  "fileConflicts": [
+    {
+      "file": "src/types/OtherFile.ts",
+      "stories": ["US-005", "US-006"]
+    }
+  ],
+  "execution": {}
+}
+QJSON
+(cd "$MC_FC3" && git init -q && git add -A && git commit -m "init" -q) 2>/dev/null
+RESULT_FC3=$(materialize_contracts "$MC_FC3/quantum.json" "$MC_FC3" 1 2>&1)
+TOTAL=$((TOTAL + 1))
+if [[ ! -f "$MC_FC3/src/types/SafeType.ts" ]]; then
+  PASS=$((PASS + 1))
+  echo "  PASS: Single-consumer type NOT in fileConflicts still skipped"
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: Single-consumer type not in fileConflicts should be skipped"
+fi
+
+# =========================================================================
+echo "=== Test 76: materialize_contracts — mix of multi-consumer, fileConflict, and plain single ==="
+MC_FC4="$TMPDIR/mc_fc_mix"
+mkdir -p "$MC_FC4"
+touch "$MC_FC4/tsconfig.json"
+cat > "$MC_FC4/quantum.json" << 'QJSON'
+{
+  "contracts": {
+    "shared_types": {
+      "MultiA": {
+        "value": "MultiA",
+        "definitionFile": "src/types/MultiA.ts",
+        "definition": "export interface MultiA { a: string; }",
+        "owner": "US-001",
+        "consumers": ["US-002", "US-003"]
+      },
+      "ConflictB": {
+        "value": "ConflictB",
+        "definitionFile": "src/types/ConflictB.ts",
+        "definition": "export interface ConflictB { b: number; }",
+        "owner": "US-001",
+        "consumers": ["US-004"]
+      },
+      "PlainC": {
+        "value": "PlainC",
+        "definitionFile": "src/types/PlainC.ts",
+        "definition": "export interface PlainC { c: boolean; }",
+        "owner": "US-001",
+        "consumers": ["US-005"]
+      }
+    }
+  },
+  "fileConflicts": [
+    {
+      "file": "src/types/ConflictB.ts",
+      "stories": ["US-004", "US-007"]
+    }
+  ],
+  "execution": {}
+}
+QJSON
+(cd "$MC_FC4" && git init -q && git add -A && git commit -m "init" -q) 2>/dev/null
+RESULT_FC4=$(materialize_contracts "$MC_FC4/quantum.json" "$MC_FC4" 1 2>&1)
+MC_FC4_OK=true
+# MultiA (multi-consumer) should be materialized
+if [[ ! -f "$MC_FC4/src/types/MultiA.ts" ]]; then
+  MC_FC4_OK=false
+  echo "    DETAIL: MultiA.ts missing (should exist, multi-consumer)"
+fi
+# ConflictB (single consumer but in fileConflicts) should be materialized
+if [[ ! -f "$MC_FC4/src/types/ConflictB.ts" ]]; then
+  MC_FC4_OK=false
+  echo "    DETAIL: ConflictB.ts missing (should exist, file-conflict)"
+fi
+# PlainC (single consumer, not in fileConflicts) should NOT be materialized
+if [[ -f "$MC_FC4/src/types/PlainC.ts" ]]; then
+  MC_FC4_OK=false
+  echo "    DETAIL: PlainC.ts exists (should NOT exist, single consumer no conflict)"
+fi
+TOTAL=$((TOTAL + 1))
+if [[ "$MC_FC4_OK" == "true" ]]; then
+  PASS=$((PASS + 1))
+  echo "  PASS: Mix of multi-consumer, fileConflict, and plain single handled correctly"
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: Mix scenario not handled correctly"
+  echo "    output: $RESULT_FC4"
+fi
+
+# =========================================================================
+echo "=== Test 77: materialize_contracts — no fileConflicts key in quantum.json (backward compat) ==="
+MC_FC5="$TMPDIR/mc_fc_no_key"
+mkdir -p "$MC_FC5"
+touch "$MC_FC5/tsconfig.json"
+cat > "$MC_FC5/quantum.json" << 'QJSON'
+{
+  "contracts": {
+    "shared_types": {
+      "LoneType": {
+        "value": "LoneType",
+        "definitionFile": "src/types/LoneType.ts",
+        "definition": "export interface LoneType {}",
+        "owner": "US-001",
+        "consumers": ["US-002"]
+      }
+    }
+  },
+  "execution": {}
+}
+QJSON
+(cd "$MC_FC5" && git init -q && git add -A && git commit -m "init" -q) 2>/dev/null
+RESULT_FC5=$(materialize_contracts "$MC_FC5/quantum.json" "$MC_FC5" 1 2>&1)
+TOTAL=$((TOTAL + 1))
+if [[ ! -f "$MC_FC5/src/types/LoneType.ts" ]]; then
+  PASS=$((PASS + 1))
+  echo "  PASS: No fileConflicts key — single-consumer still skipped (backward compat)"
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: Should skip single-consumer when no fileConflicts key"
+fi
+
+# =========================================================================
+echo "=== Test 78: materialize_contracts — empty fileConflicts array (backward compat) ==="
+MC_FC6="$TMPDIR/mc_fc_empty_array"
+mkdir -p "$MC_FC6"
+touch "$MC_FC6/tsconfig.json"
+cat > "$MC_FC6/quantum.json" << 'QJSON'
+{
+  "contracts": {
+    "shared_types": {
+      "SoloType": {
+        "value": "SoloType",
+        "definitionFile": "src/types/SoloType.ts",
+        "definition": "export interface SoloType {}",
+        "owner": "US-001",
+        "consumers": ["US-002"]
+      }
+    }
+  },
+  "fileConflicts": [],
+  "execution": {}
+}
+QJSON
+(cd "$MC_FC6" && git init -q && git add -A && git commit -m "init" -q) 2>/dev/null
+RESULT_FC6=$(materialize_contracts "$MC_FC6/quantum.json" "$MC_FC6" 1 2>&1)
+TOTAL=$((TOTAL + 1))
+if [[ ! -f "$MC_FC6/src/types/SoloType.ts" ]]; then
+  PASS=$((PASS + 1))
+  echo "  PASS: Empty fileConflicts array — single-consumer still skipped"
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: Should skip single-consumer when fileConflicts is empty"
+fi
+
+# =========================================================================
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 if [[ $FAIL -eq 0 ]]; then
