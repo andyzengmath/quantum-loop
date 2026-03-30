@@ -693,8 +693,13 @@ REPO39="$TMPDIR/repo39"
 setup_merge_repo "$REPO39"
 cd "$REPO39" || exit 1
 
-# Create mock merge-semantic.sh in the lib dir that always succeeds
+# Backup the real merge-semantic.sh before overwriting with mock
 MOCK_SEMANTIC="$MERGE_STRATEGY_LIB_DIR/merge-semantic.sh"
+MOCK_SEMANTIC_BACKUP=""
+if [[ -f "$MOCK_SEMANTIC" ]]; then
+  MOCK_SEMANTIC_BACKUP="$TMPDIR/merge-semantic.sh.bak"
+  cp "$MOCK_SEMANTIC" "$MOCK_SEMANTIC_BACKUP"
+fi
 cat > "$MOCK_SEMANTIC" << 'MOCKEOF'
 #!/usr/bin/env bash
 # Mock merge-semantic.sh for testing
@@ -709,7 +714,8 @@ semantic_merge() {
 }
 MOCKEOF
 
-# Re-source merge-strategy.sh to pick up the mock
+# Re-source merge-strategy.sh to pick up the mock (unset source guards first)
+unset _MERGE_STRATEGY_LOADED _MERGE_SEMANTIC_LOADED
 source "$LIB_DIR/merge-strategy.sh"
 
 # Verify MERGE_SEMANTIC_AVAILABLE is now true
@@ -773,6 +779,7 @@ semantic_merge() {
   return 1
 }
 MOCKEOF
+unset _MERGE_STRATEGY_LOADED _MERGE_SEMANTIC_LOADED
 source "$LIB_DIR/merge-strategy.sh"
 
 git checkout -b feature-sem-fail >/dev/null 2>&1
@@ -819,6 +826,7 @@ semantic_merge() {
   return 0
 }
 MOCKEOF
+unset _MERGE_STRATEGY_LOADED _MERGE_SEMANTIC_LOADED
 source "$LIB_DIR/merge-strategy.sh"
 
 git checkout -b feature-sem-theirs >/dev/null 2>&1
@@ -851,8 +859,9 @@ REPO42="$TMPDIR/repo42"
 setup_merge_repo "$REPO42"
 cd "$REPO42" || exit 1
 
-# Remove mock and re-source
+# Remove mock and re-source (unset source guards to allow re-loading)
 rm -f "$MOCK_SEMANTIC"
+unset _MERGE_STRATEGY_LOADED _MERGE_SEMANTIC_LOADED
 source "$LIB_DIR/merge-strategy.sh"
 assert_eq "MERGE_SEMANTIC_AVAILABLE false without module" "false" "$MERGE_SEMANTIC_AVAILABLE"
 
@@ -896,6 +905,7 @@ semantic_merge() {
   return 0
 }
 MOCKEOF
+unset _MERGE_STRATEGY_LOADED _MERGE_SEMANTIC_LOADED
 source "$LIB_DIR/merge-strategy.sh"
 
 git checkout -b feature-cant-sem >/dev/null 2>&1
@@ -923,8 +933,12 @@ assert_not_contains "semantic_merge not called" "SHOULD_NOT_BE_CALLED" "$PKG43"
 
 git merge --abort 2>/dev/null || git reset --hard HEAD 2>/dev/null || true
 
-# Clean up mock
+# Clean up mock and restore original merge-semantic.sh
 rm -f "$MOCK_SEMANTIC"
+if [[ -n "$MOCK_SEMANTIC_BACKUP" && -f "$MOCK_SEMANTIC_BACKUP" ]]; then
+  cp "$MOCK_SEMANTIC_BACKUP" "$MOCK_SEMANTIC"
+  rm -f "$MOCK_SEMANTIC_BACKUP"
+fi
 
 echo ""
 echo "=== T-002 Results so far: $PASS/$TOTAL passed, $FAIL failed ==="

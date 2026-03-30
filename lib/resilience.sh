@@ -91,6 +91,7 @@ recover_orphaned_worktrees() {
   local story_ids_in_progress
   story_ids_in_progress=$(jq -r '.stories[] | select(.status == "in_progress") | .id' "$json_path" 2>/dev/null)
   for sid in $story_ids_in_progress; do
+    _validate_story_id "$sid" || continue
     local wt_branch="ql-wt/${sid}"
     if git -C "$repo_root" rev-parse --verify "$wt_branch" >/dev/null 2>&1 \
        && git -C "$repo_root" merge-base --is-ancestor "$wt_branch" HEAD 2>/dev/null; then
@@ -148,7 +149,10 @@ wip_commit() {
     return 1
   fi
 
-  local commit_msg="wip: ${story_id} ${task_id} - ${task_title}"
+  # Sanitize title: strip control characters to prevent commit message injection
+  local safe_title
+  safe_title=$(printf '%s' "$task_title" | tr -d '\000-\037')
+  local commit_msg="wip: ${story_id} ${task_id} - ${safe_title}"
   local has_changes=false
 
   # Check for file changes
@@ -193,9 +197,12 @@ get_completed_tasks() {
     return 1
   fi
 
-  # Get all commit subjects, grep for WIP pattern, extract task IDs, deduplicate
+  # Get all commit subjects, filter for WIP pattern, extract task IDs, deduplicate.
+  # Use grep -F for the fixed prefix to avoid regex metacharacter issues in story_id,
+  # then grep for the task ID pattern in the remaining lines.
   git -C "$worktree_path" log --oneline --format=%s 2>/dev/null \
-    | grep "^wip: ${story_id} T-[0-9]" \
+    | grep -F "wip: ${story_id} T-" \
+    | grep "^wip: " \
     | sed "s/^wip: ${story_id} \(T-[0-9]*\).*/\1/" \
     | awk '!seen[$0]++' \
     || true
@@ -263,7 +270,9 @@ squash_and_merge() {
     fi
   else
     # Multiple commits: squash merge
-    local squash_msg="feat: ${story_id} - ${story_title}"
+    local safe_story_title
+    safe_story_title=$(printf '%s' "$story_title" | tr -d '\000-\037')
+    local squash_msg="feat: ${story_id} - ${safe_story_title}"
     git -C "$repo_root" merge --squash "$worktree_branch" -q 2>/dev/null
     merge_exit=$?
     if [[ "$merge_exit" -eq 0 ]]; then

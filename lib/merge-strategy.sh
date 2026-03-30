@@ -7,6 +7,10 @@
 
 # shellcheck disable=SC1091,SC2317  # SC1091: sourced files resolved at runtime; SC2317: exit 1 fallback reachable at source-time
 
+# Source guard: prevent double-loading (sourced by both monitor.sh and resilience.sh)
+[[ -n "$_MERGE_STRATEGY_LOADED" ]] && return 0 2>/dev/null || true
+_MERGE_STRATEGY_LOADED=true
+
 # Source shared utilities
 MERGE_STRATEGY_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$MERGE_STRATEGY_LIB_DIR/common.sh" || { printf "ERROR: common.sh not found\n" >&2; return 1 2>/dev/null || exit 1; }
@@ -426,7 +430,7 @@ classify_and_merge() {
     return 1
   fi
 
-  local start_time
+  local start_time end_time elapsed
   start_time=$(date +%s%3N 2>/dev/null || date +%s)
 
   # Backup quantum.json before stash so we can restore it after merge
@@ -437,14 +441,14 @@ classify_and_merge() {
 
   # Helper: restore quantum.json from backup and clean up backup file.
   # Also registered as an EXIT trap to guarantee restoration on unexpected kill.
-  _restore_quantum_json() {
+  __cam_restore_qj() {
     trap - EXIT  # clear trap to prevent double-fire
     if [[ -f "$qj_backup" ]]; then
       cp "$qj_backup" "$json_path" 2>/dev/null
       rm -f "$qj_backup"
     fi
   }
-  trap _restore_quantum_json EXIT
+  trap __cam_restore_qj EXIT
 
   # Stash dirty state, excluding quantum.json from stash
   local stashed=false
@@ -461,11 +465,10 @@ classify_and_merge() {
     # Clean merge -- commit and return
     git -C "$repo_root" commit --no-edit -q 2>/dev/null
     [[ "$stashed" == "true" ]] && { git -C "$repo_root" stash pop -q 2>/dev/null || true; }
-    _restore_quantum_json
+    __cam_restore_qj
 
-    local end_time
     end_time=$(date +%s%3N 2>/dev/null || date +%s)
-    local elapsed=$((end_time - start_time))
+    elapsed=$((end_time - start_time))
     printf "[MERGE-STRATEGY] Clean merge of %s. Merge completed in %sms\n" "$worktree_branch" "$elapsed" >&2
     return 0
   fi
@@ -478,7 +481,7 @@ classify_and_merge() {
     # No conflicts found despite merge failure -- commit what we have
     git -C "$repo_root" commit --no-edit -q 2>/dev/null
     [[ "$stashed" == "true" ]] && { git -C "$repo_root" stash pop -q 2>/dev/null || true; }
-    _restore_quantum_json
+    __cam_restore_qj
     return 0
   fi
 
@@ -489,7 +492,7 @@ classify_and_merge() {
     printf "[MERGE-STRATEGY] Failed to get merge context, aborting merge\n" >&2
     git -C "$repo_root" merge --abort 2>/dev/null || true
     [[ "$stashed" == "true" ]] && { git -C "$repo_root" stash pop -q 2>/dev/null || true; }
-    _restore_quantum_json
+    __cam_restore_qj
     return 1
   fi
 
@@ -533,16 +536,15 @@ classify_and_merge() {
     # Abort merge and report
     git -C "$repo_root" merge --abort 2>/dev/null || true
     [[ "$stashed" == "true" ]] && { git -C "$repo_root" stash pop -q 2>/dev/null || true; }
-    _restore_quantum_json
+    __cam_restore_qj
 
     # Print CONFLICT lines for escalated files
     printf "%b" "$escalated_files" | while IFS= read -r efile; do
       [[ -n "$efile" ]] && printf "CONFLICT: %s\n" "$efile"
     done
 
-    local end_time
     end_time=$(date +%s%3N 2>/dev/null || date +%s)
-    local elapsed=$((end_time - start_time))
+    elapsed=$((end_time - start_time))
     printf "[MERGE-STRATEGY] Resolved %s/%s conflicts (escalated). Merge completed in %sms\n" \
       "$resolved_count" "$total_conflicts" "$elapsed" >&2
     return 1
@@ -551,11 +553,10 @@ classify_and_merge() {
   # All resolved -- commit
   git -C "$repo_root" commit --no-edit -q 2>/dev/null
   [[ "$stashed" == "true" ]] && { git -C "$repo_root" stash pop -q 2>/dev/null || true; }
-  _restore_quantum_json
+  __cam_restore_qj
 
-  local end_time
   end_time=$(date +%s%3N 2>/dev/null || date +%s)
-  local elapsed=$((end_time - start_time))
+  elapsed=$((end_time - start_time))
   printf "[MERGE-STRATEGY] Resolved %s/%s conflicts. Merge completed in %sms\n" \
     "$resolved_count" "$total_conflicts" "$elapsed" >&2
   return 0

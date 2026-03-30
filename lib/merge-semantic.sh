@@ -7,6 +7,11 @@
 
 # shellcheck disable=SC1091,SC2317
 
+# Source guard: prevent double-loading (this module is sourced by merge-strategy.sh
+# which is sourced by both monitor.sh and resilience.sh)
+[[ -n "$_MERGE_SEMANTIC_LOADED" ]] && return 0 2>/dev/null || true
+_MERGE_SEMANTIC_LOADED=true
+
 # Source shared utilities
 MERGE_SEMANTIC_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$MERGE_SEMANTIC_LIB_DIR/common.sh" || { printf "ERROR: common.sh not found\n" >&2; return 1 2>/dev/null || exit 1; }
@@ -195,7 +200,9 @@ function getDeclName(node) {
 
 function getTopLevelDecls(sourceFile) {
   const decls = new Map();
-  for (const child of sourceFile.getChildren()[0].getChildren()) {
+  const children = sourceFile.getChildren();
+  if (!children.length || !children[0].getChildren) return decls;
+  for (const child of children[0].getChildren()) {
     const kind = child.getKindName();
     if (kind === 'EndOfFileToken') continue;
     const name = getDeclName(child);

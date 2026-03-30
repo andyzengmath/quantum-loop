@@ -280,7 +280,7 @@ post_merge_typecheck() {
   fi
 
   # Allowlist of known-safe typecheck command prefixes
-  local -a ALLOWED_TYPECHECK_PREFIXES=("tsc" "pyright" "mypy" "go vet" "go build" "npx tsc" "pnpm tsc" "yarn tsc" "pnpm exec tsc" "npx pyright" "bash")
+  local -a ALLOWED_TYPECHECK_PREFIXES=("tsc" "pyright" "mypy" "go vet" "go build" "npx tsc" "pnpm tsc" "yarn tsc" "pnpm exec tsc" "npx pyright")
 
   local allowed=false
   for prefix in "${ALLOWED_TYPECHECK_PREFIXES[@]}"; do

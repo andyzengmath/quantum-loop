@@ -352,8 +352,15 @@ quantum-loop/
 │   ├── spawn.sh          # Agent spawning (autonomous mode)
 │   ├── monitor.sh        # Agent polling, signal detection, merge-on-pass
 │   ├── json-atomic.sh    # Atomic quantum.json writes (tmp + mv)
-│   └── crash-recovery.sh # Orphaned worktree cleanup on startup
-├── tests/                # Shell test suites (79+ tests)
+│   ├── init-guard.sh     # Environment detection and preflight checks
+│   ├── resilience.sh     # WIP commits, squash-on-merge, crash recovery
+│   ├── merge-semantic.sh # AST-aware 3-way merge (ts-morph, libcst, diff3)
+│   ├── merge-strategy.sh # Category-based merge conflict resolution
+│   ├── materialize.sh    # Contract type materialization
+│   ├── barrel-regen.sh   # Barrel/index file regeneration
+│   ├── known-failures.sh # Test failure tracking across waves
+│   └── dep-manifest.sh   # Dependency manifest protection
+├── tests/                # Shell test suites (800+ tests)
 │   ├── test_dag_query.sh
 │   ├── test_worktree.sh
 │   ├── test_spawn.sh
@@ -361,6 +368,11 @@ quantum-loop/
 │   ├── test_timeout.sh
 │   ├── test_json_atomic.sh
 │   ├── test_crash_recovery.sh
+│   ├── test_init_guard.sh
+│   ├── test_resilience.sh
+│   ├── test_merge_semantic.sh
+│   ├── test_merge_strategy.sh
+│   ├── test_materialize.sh
 │   ├── test_stale_detection.sh
 │   ├── test_started_at.sh
 │   ├── test_final_sweep.sh
