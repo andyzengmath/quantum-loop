@@ -271,11 +271,15 @@ _try_semantic_merge() {
   fi
 
   # Extract base (stage 1), ours (stage 2), theirs (stage 3) to temp files
-  local tmp_base tmp_ours tmp_theirs tmp_output
-  tmp_base=$(mktemp)
-  tmp_ours=$(mktemp)
-  tmp_theirs=$(mktemp)
-  tmp_output=$(mktemp)
+  # Use a temp directory with proper extensions so semantic_merge routes correctly
+  local ext="${file_path##*.}"
+  ext="${ext,,}"
+  local tmp_dir
+  tmp_dir=$(mktemp -d)
+  local tmp_base="$tmp_dir/base.${ext}"
+  local tmp_ours="$tmp_dir/ours.${ext}"
+  local tmp_theirs="$tmp_dir/theirs.${ext}"
+  local tmp_output="$tmp_dir/output.${ext}"
 
   local semantic_ok=false
   if git -C "$repo_root" show ":1:${file_path}" > "$tmp_base" 2>/dev/null && \
@@ -291,7 +295,7 @@ _try_semantic_merge() {
   fi
 
   # Clean up temp files
-  rm -f "$tmp_base" "$tmp_ours" "$tmp_theirs" "$tmp_output"
+  rm -rf "$tmp_dir"
 
   if [[ "$semantic_ok" == "true" ]]; then
     printf "[MERGE-STRATEGY] Semantic merge succeeded for %s\n" "$file_path" >&2

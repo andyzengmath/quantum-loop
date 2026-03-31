@@ -82,7 +82,7 @@ if [[ "$RESILIENCE_AVAILABLE" != "false" ]]; then
 fi
 ```
 
-`detect_resumable_work` (from `lib/resilience.sh`) inspects the stale story's worktree branch for WIP commits. If it finds commits that contain completed task work, it returns `resumable:<completed_task_ids>`. The orchestrator can then pass this information to the re-spawned agent, allowing it to skip already-completed tasks rather than starting from scratch. If no WIP commits are found or the worktree has been cleaned up, it returns `none` and the story starts fresh.
+`detect_resumable_work` (from `lib/resilience.sh`) inspects the stale story's worktree branch for WIP commits. If it finds commits that contain completed task work, it returns `resumable:<completed_task_ids>`. The orchestrator can then pass this information to the re-spawned agent, allowing it to skip already-completed tasks rather than starting from scratch. If no WIP commits are found or the worktree has been cleaned up, it returns `fresh` and the story starts from the beginning.
 
 ## Step 2: Query DAG
 
@@ -449,7 +449,7 @@ Wait for agent completion notifications. Do NOT poll in a loop — Claude Code a
   # squash_and_merge handles: multi-commit squash, quantum.json stash exclusion,
   # and delegates to classify_and_merge for conflict resolution
   if [[ "$RESILIENCE_AVAILABLE" != "false" ]]; then
-    squash_and_merge "$WT_BRANCH" "$REPO_ROOT" "$JSON_PATH"
+    squash_and_merge "$WT_BRANCH" "$REPO_ROOT" "$STORY_ID" "$STORY_TITLE" "$JSON_PATH"
     MERGE_RESULT=$?
   else
     # Fallback: delegate merge to classify_and_merge via lib/merge-strategy.sh

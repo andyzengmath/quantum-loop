@@ -238,22 +238,10 @@ squash_and_merge() {
     return 0
   fi
 
-  # Backup and exclude quantum.json from stash to prevent corruption
-  local stashed=false
-  local qj_backup=""
-  if [[ -n "$json_path" ]] && [[ -f "$json_path" ]]; then
-    cp "$json_path" "${json_path}.merge-bak" 2>/dev/null && qj_backup="${json_path}.merge-bak"
-  fi
-  if git -C "$repo_root" status --porcelain 2>/dev/null | grep -q .; then
-    git -C "$repo_root" stash push -- ":(exclude)quantum.json" -m "ql-resilience-stash-${worktree_branch}" -q 2>/dev/null && stashed=true
-    # Reset quantum.json in working tree (excluded from stash leaves it dirty)
-    git -C "$repo_root" checkout -- quantum.json 2>/dev/null || true
-  fi
-
   local merge_exit=0
 
   if [[ "$commit_count" -le 1 ]]; then
-    # Single commit: delegate to classify_and_merge or bare --no-ff
+    # Single commit: delegate to classify_and_merge (manages its own stash/backup)
     if [[ "$MERGE_STRATEGY_AVAILABLE" == "true" ]] && [[ -n "$json_path" ]] && type classify_and_merge &>/dev/null; then
       classify_and_merge "$worktree_branch" "$repo_root" "$json_path"
       merge_exit=$?
@@ -262,23 +250,38 @@ squash_and_merge() {
       merge_exit=$?
     fi
   else
-    # Multiple commits: squash merge
-    local squash_msg="feat: ${story_id} - ${story_title}"
+    # Multiple commits: squash merge — handle stash/backup here (no delegation)
+    local stashed=false
+    local qj_backup=""
+    if [[ -n "$json_path" ]] && [[ -f "$json_path" ]]; then
+      cp "$json_path" "${json_path}.merge-bak" 2>/dev/null && qj_backup="${json_path}.merge-bak"
+    fi
+    if git -C "$repo_root" status --porcelain 2>/dev/null | grep -q .; then
+      git -C "$repo_root" stash push -- ":(exclude)quantum.json" -m "ql-resilience-stash-${worktree_branch}" -q 2>/dev/null && stashed=true
+      git -C "$repo_root" checkout -- quantum.json 2>/dev/null || true
+    fi
+
+    local safe_title
+    safe_title=$(printf '%s' "$story_title" | tr -d '\000-\037')
+    local squash_msg="feat: ${story_id} - ${safe_title}"
     git -C "$repo_root" merge --squash "$worktree_branch" -q 2>/dev/null
     merge_exit=$?
     if [[ "$merge_exit" -eq 0 ]]; then
       git -C "$repo_root" commit -m "$squash_msg" -q 2>/dev/null
       merge_exit=$?
+      if [[ "$merge_exit" -ne 0 ]]; then
+        git -C "$repo_root" reset HEAD -q 2>/dev/null || true
+      fi
     fi
-  fi
 
-  # Restore quantum.json from backup and pop stash
-  if [[ -n "$qj_backup" ]] && [[ -f "$qj_backup" ]]; then
-    cp "$qj_backup" "$json_path" 2>/dev/null
-    rm -f "$qj_backup"
-  fi
-  if [[ "$stashed" == "true" ]]; then
-    git -C "$repo_root" stash pop -q 2>/dev/null || true
+    # Restore quantum.json from backup and pop stash
+    if [[ -n "$qj_backup" ]] && [[ -f "$qj_backup" ]]; then
+      cp "$qj_backup" "$json_path" 2>/dev/null
+      rm -f "$qj_backup"
+    fi
+    if [[ "$stashed" == "true" ]]; then
+      git -C "$repo_root" stash pop -q 2>/dev/null || true
+    fi
   fi
 
   if [[ "$merge_exit" -ne 0 ]]; then
