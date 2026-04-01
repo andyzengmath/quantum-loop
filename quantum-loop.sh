@@ -22,7 +22,7 @@ set -euo pipefail
 # Options:
 #   --max-iterations N   Maximum iterations before stopping (default: 20)
 #   --max-retries N      Max retry attempts per story (default: 3)
-#   --tool TOOL          AI tool to use: "claude" (default) or "amp"
+#   --tool TOOL          AI tool to use (default: "claude"). Any runner in runners/*.json.
 #   --parallel           Enable parallel execution of independent stories
 #   --max-parallel N     Maximum concurrent agents in parallel mode (default: 4)
 #   --help               Show this help message
@@ -30,7 +30,7 @@ set -euo pipefail
 # Prerequisites:
 #   - quantum.json must exist in the current directory (run /quantum-loop:plan first)
 #   - jq must be installed
-#   - claude or amp CLI must be installed
+#   - The selected runner CLI must be installed (see runners/*.json)
 # =============================================================================
 
 # Defaults
@@ -84,20 +84,9 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Validate tool
-if [[ "$TOOL" != "claude" && "$TOOL" != "amp" ]]; then
-  printf "ERROR: --tool must be 'claude' or 'amp'. Got: %s\n" "$TOOL"
-  exit 1
-fi
-
 # Validate dependencies
 if ! command -v jq &>/dev/null; then
   printf "ERROR: jq is required. Install it: https://jqlang.github.io/jq/download/\n"
-  exit 1
-fi
-
-if ! command -v "$TOOL" &>/dev/null; then
-  printf "ERROR: %s CLI not found. Please install it first.\n" "$TOOL"
   exit 1
 fi
 
@@ -110,6 +99,19 @@ fi
 # Source library functions
 source "$SCRIPT_DIR/lib/common.sh" || { printf "ERROR: lib/common.sh not found\n"; exit 1; }
 source "$SCRIPT_DIR/lib/json-atomic.sh" || { printf "ERROR: lib/json-atomic.sh not found\n"; exit 1; }
+source "$SCRIPT_DIR/lib/runner.sh" || { printf "ERROR: lib/runner.sh not found\n"; exit 1; }
+
+# Load runner manifest (validates tool name, binary existence, sets RUNNER_* vars)
+runner_load "$TOOL" || exit 1
+runner_ensure_instructions || true
+
+# Experimental tier warning
+if [[ "$RUNNER_TIER" == "experimental" && "${NON_INTERACTIVE:-}" != "true" ]]; then
+  printf "\nWARNING: Runner '%s' is experimental (tier: %s).\n" "$RUNNER_NAME" "$RUNNER_TIER"
+  printf "Experimental runners may not reliably emit quantum signals.\n"
+  printf "Press Enter to continue or Ctrl-C to abort...\n"
+  read -r
+fi
 if [[ "$PARALLEL_MODE" == "true" ]]; then
   source "$SCRIPT_DIR/lib/dag-query.sh" || { printf "ERROR: lib/dag-query.sh not found\n"; exit 1; }
   source "$SCRIPT_DIR/lib/worktree.sh" || { printf "ERROR: lib/worktree.sh not found\n"; exit 1; }
@@ -343,7 +345,9 @@ printf "===========================================\n"
 printf "  Quantum-Loop Autonomous Development\n"
 printf "===========================================\n"
 printf "  Branch:      %s\n" "$BRANCH"
-printf "  Tool:        %s\n" "$TOOL"
+printf "  Runner:      %s (%s)\n" "$RUNNER_NAME" "$RUNNER_BINARY"
+printf "  Tier:        %s\n" "$RUNNER_TIER"
+printf "  Instruction: %s\n" "$RUNNER_INSTRUCTION_NATIVE"
 printf "  Max Iter:    %s\n" "$MAX_ITERATIONS"
 printf "  Max Retries: %s\n" "$MAX_RETRIES"
 if [[ "$PARALLEL_MODE" == "true" ]]; then
@@ -768,62 +772,56 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
   # Spawn fresh AI instance
   # -------------------------------------------------------------------------
 
-  PROMPT_FILE="$SCRIPT_DIR/CLAUDE.md"
-  if [[ "$TOOL" == "amp" && -f "$SCRIPT_DIR/prompt.md" ]]; then
-    PROMPT_FILE="$SCRIPT_DIR/prompt.md"
-  fi
+  printf "Spawning %s for story %s...\n" "$RUNNER_NAME" "$STORY_ID"
 
-  printf "Spawning %s for story %s...\n" "$TOOL" "$STORY_ID"
+  # Build the prompt for the runner
+  AGENT_PROMPT="Implement story $STORY_ID from quantum.json. This is iteration $ITERATION."
 
-  if [[ "$TOOL" == "claude" ]]; then
-    OUTPUT=$(claude --dangerously-skip-permissions --print \
-      -p "$(cat "$PROMPT_FILE")" \
-      -- "Implement story $STORY_ID from quantum.json. This is iteration $ITERATION." 2>&1) || true
-  else
-    OUTPUT=$(printf "%s\n\nImplement story %s from quantum.json. This is iteration %d." \
-      "$(cat "$PROMPT_FILE")" "$STORY_ID" "$ITERATION" | amp 2>&1) || true
-  fi
+  # Build and execute the runner command
+  RUNNER_CMD=$(runner_build_cmd "$AGENT_PROMPT" 2>/dev/null)
+  OUTPUT=$(eval "$RUNNER_CMD" 2>&1) || true
 
   # -------------------------------------------------------------------------
   # Process output
   # -------------------------------------------------------------------------
 
-  if echo "$OUTPUT" | grep -q "<quantum>COMPLETE</quantum>"; then
-    final_verification_sweep
-    printf "\n===========================================\n"
-    printf "  <quantum>COMPLETE</quantum>\n"
-    printf "  All stories passed! Feature is done.\n"
-    printf "===========================================\n"
-    print_summary_table
-    exit 0
+  # Parse runner output for signals (uses heuristics if enabled for non-Claude runners)
+  runner_parse_output "$OUTPUT" 0
 
-  elif echo "$OUTPUT" | grep -q "<quantum>STORY_PASSED</quantum>"; then
-    printf "Story %s PASSED. Continuing to next story...\n" "$STORY_ID"
-    # Clear startedAt on completion
-    json_atomic_update ".stories |= map(if .id == \"$STORY_ID\" then .startedAt = null else . end)"
-
-  elif echo "$OUTPUT" | grep -q "<quantum>STORY_FAILED</quantum>"; then
-    printf "Story %s FAILED (attempt %d). Will retry if attempts remain.\n" "$STORY_ID" "$((STORY_ATTEMPT + 1))"
-    # Clear startedAt on failure
-    json_atomic_update ".stories |= map(if .id == \"$STORY_ID\" then .startedAt = null else . end)"
-
-  elif echo "$OUTPUT" | grep -q "<quantum>BLOCKED</quantum>"; then
-    # Clear startedAt before exiting so recovery starts clean
-    json_atomic_update ".stories |= map(if .id == \"$STORY_ID\" then .startedAt = null else . end)"
-    printf "\n===========================================\n"
-    printf "  <quantum>BLOCKED</quantum>\n"
-    printf "  Agent reports no executable stories.\n"
-    printf "===========================================\n"
-    print_summary_table
-    exit 1
-
-  else
-    printf "WARNING: No recognized signal in output. Story may not have completed cleanly.\n"
-    printf "Last 10 lines of output:\n"
-    echo "$OUTPUT" | tail -10
-    # Clear startedAt and mark failed so stale detection doesn't burn a retry on next startup
-    json_atomic_update ".stories |= map(if .id == \"$STORY_ID\" then .startedAt = null | .status = \"failed\" else . end)"
-  fi
+  case "$SIGNAL_RESULT" in
+    COMPLETE)
+      final_verification_sweep
+      printf "\n===========================================\n"
+      printf "  <quantum>COMPLETE</quantum>\n"
+      printf "  All stories passed! Feature is done.\n"
+      printf "===========================================\n"
+      print_summary_table
+      exit 0
+      ;;
+    STORY_PASSED)
+      printf "Story %s PASSED. Continuing to next story...\n" "$STORY_ID"
+      json_atomic_update ".stories |= map(if .id == \"$STORY_ID\" then .startedAt = null else . end)"
+      ;;
+    STORY_FAILED)
+      printf "Story %s FAILED (attempt %d). Will retry if attempts remain.\n" "$STORY_ID" "$((STORY_ATTEMPT + 1))"
+      json_atomic_update ".stories |= map(if .id == \"$STORY_ID\" then .startedAt = null else . end)"
+      ;;
+    BLOCKED)
+      json_atomic_update ".stories |= map(if .id == \"$STORY_ID\" then .startedAt = null else . end)"
+      printf "\n===========================================\n"
+      printf "  <quantum>BLOCKED</quantum>\n"
+      printf "  Agent reports no executable stories.\n"
+      printf "===========================================\n"
+      print_summary_table
+      exit 1
+      ;;
+    *)
+      printf "WARNING: No recognized signal in output. Story may not have completed cleanly.\n"
+      printf "Last 10 lines of output:\n"
+      echo "$OUTPUT" | tail -10
+      json_atomic_update ".stories |= map(if .id == \"$STORY_ID\" then .startedAt = null | .status = \"failed\" else . end)"
+      ;;
+  esac
 
   # Brief pause between iterations
   sleep 2
