@@ -24,16 +24,32 @@ source "$MONITOR_LIB_DIR/merge-strategy.sh" 2>/dev/null || MERGE_STRATEGY_AVAILA
 RESILIENCE_AVAILABLE=true
 source "$MONITOR_LIB_DIR/resilience.sh" 2>/dev/null || RESILIENCE_AVAILABLE=false
 
-# detect_signal(output_file)
+# detect_signal(output_file [worktree_path])
 # Scans an agent output file for quantum completion signals.
+# Uses runner_parse_output() when available for heuristic fallback support.
 # Returns "STORY_PASSED", "STORY_FAILED", or "" on stdout.
 detect_signal() {
   local output_file="$1"
+  local wt_path="${2:-.}"
 
   if [[ -z "$output_file" || ! -f "$output_file" ]]; then
     return 0
   fi
 
+  local output
+  output=$(cat "$output_file")
+
+  # Use runner_parse_output if available (supports heuristic fallback for non-Claude runners)
+  if type runner_parse_output &>/dev/null && [[ -n "${RUNNER_NAME:-}" ]]; then
+    runner_parse_output "$output" 0 "$wt_path" 2>/dev/null
+    if [[ -n "${SIGNAL_RESULT:-}" ]]; then
+      printf "%s" "$SIGNAL_RESULT"
+      return 0
+    fi
+    return 0
+  fi
+
+  # Fallback: direct grep (original behavior for backward compatibility)
   if grep -q '<quantum>STORY_PASSED</quantum>' "$output_file" 2>/dev/null; then
     printf "STORY_PASSED"
     return 0

@@ -8,6 +8,8 @@
 # Source shared utilities
 SPAWN_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SPAWN_LIB_DIR/common.sh" || { printf "ERROR: common.sh not found\n" >&2; return 1 2>/dev/null || exit 1; }
+# shellcheck source=lib/runner.sh
+source "$SPAWN_LIB_DIR/runner.sh" 2>/dev/null || true
 
 # Output filename used by spawn_autonomous and read by the monitor
 AGENT_OUTPUT_FILENAME=".ql-agent-output.txt"
@@ -75,8 +77,14 @@ build_autonomous_command() {
   local prompt
   prompt=$(build_agent_prompt "$story_id") || return 1
 
-  # Build the command that will be run in the background
-  printf 'cd %q && claude --print -p %q' "$worktree_path" "$prompt"
+  # Build the command using the runner adapter (falls back to claude if runner not loaded)
+  if type runner_build_cmd &>/dev/null && [[ -n "${RUNNER_NAME:-}" ]]; then
+    local cmd
+    cmd=$(runner_build_cmd "$prompt" 2>/dev/null) || return 1
+    printf 'cd %q && %s' "$worktree_path" "$cmd"
+  else
+    printf 'cd %q && claude --print -p %q' "$worktree_path" "$prompt"
+  fi
 }
 
 # spawn_autonomous(story_id, worktree_path)
@@ -102,9 +110,19 @@ spawn_autonomous() {
   prompt=$(build_agent_prompt "$story_id") || return 1
   local output_file="${worktree_path}/${AGENT_OUTPUT_FILENAME}"
 
-  # Spawn in background, capture output to file
-  # --dangerously-skip-permissions required: background agents have no TTY for permission prompts
-  (cd "$worktree_path" && claude --dangerously-skip-permissions --print -p "$prompt" > "$output_file" 2>&1) &
+  # Ensure instruction file exists in worktree
+  if type runner_ensure_instructions &>/dev/null && [[ -n "${RUNNER_NAME:-}" ]]; then
+    runner_ensure_instructions "$worktree_path" 2>/dev/null || true
+  fi
+
+  # Spawn in background using runner adapter (falls back to claude if runner not loaded)
+  if type runner_build_cmd &>/dev/null && [[ -n "${RUNNER_NAME:-}" ]]; then
+    local cmd
+    cmd=$(runner_build_cmd "$prompt" 2>/dev/null) || return 1
+    (cd "$worktree_path" && eval "$cmd" > "$output_file" 2>&1) &
+  else
+    (cd "$worktree_path" && claude --dangerously-skip-permissions --print -p "$prompt" > "$output_file" 2>&1) &
+  fi
   local pid=$!
 
   printf "%s" "$pid"
