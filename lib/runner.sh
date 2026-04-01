@@ -238,9 +238,9 @@ runner_build_cmd() {
   if [[ -f "$hook_file" ]]; then
     # shellcheck disable=SC1090
     source "$hook_file"
-    # Call pre_spawn if defined
+    # Call pre_spawn if defined (hook output goes to stderr)
     if type pre_spawn &>/dev/null; then
-      pre_spawn 2>&1 >&2
+      pre_spawn
     fi
   fi
 
