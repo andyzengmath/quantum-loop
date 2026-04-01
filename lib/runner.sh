@@ -74,6 +74,12 @@ runner_load() {
   local binary
   binary=$(jq -r '.binary' "$manifest")
 
+  # Validate binary name — reject shell metacharacters
+  if [[ ! "$binary" =~ ^[a-zA-Z0-9_./-]+$ ]]; then
+    printf "ERROR: Invalid binary name in manifest: '%s'\n" "$binary" >&2
+    return 1
+  fi
+
   # Check binary exists on PATH
   if ! command -v "$binary" &>/dev/null; then
     local hint
@@ -110,6 +116,15 @@ runner_load() {
   RUNNER_EXTRA_FLAGS=""
   # shellcheck disable=SC2034
   RUNNER_OVERRIDE_SIGNAL=""
+
+  # Validate manifest-sourced flags — reject shell metacharacters
+  local _flag_val
+  for _flag_val in "$RUNNER_HEADLESS_FLAGS" "$RUNNER_AUTO_APPROVE_FLAGS" "$RUNNER_PROMPT_FLAG"; do
+    if [[ "$_flag_val" =~ [\;\|\&\$\`\(\)\>\<\!\{\}] ]]; then
+      printf "ERROR: Unsafe characters in runner manifest flags: '%s'\n" "$_flag_val" >&2
+      return 1
+    fi
+  done
 
   printf "[RUNNER] Loaded %s (%s) — tier: %s\n" "$RUNNER_NAME" "$RUNNER_BINARY" "$RUNNER_TIER" >&2
   return 0
@@ -243,10 +258,18 @@ runner_build_cmd() {
   # Initialize hook-extensible extra flags
   RUNNER_EXTRA_FLAGS="${RUNNER_EXTRA_FLAGS:-}"
 
-  # Source runner-specific hooks if available
+  # Source runner-specific hooks if available (path validated to stay inside hooks dir)
   local hooks_dir="$RUNNER_LIB_DIR/../runners/hooks"
   local hook_file="$hooks_dir/${RUNNER_NAME}-hooks.sh"
   if [[ -f "$hook_file" ]]; then
+    # Verify hook file is inside the expected directory (prevent symlink/traversal attacks)
+    local real_hook real_hooks_dir
+    real_hook=$(cd "$(dirname "$hook_file")" && pwd)/$(basename "$hook_file")
+    real_hooks_dir=$(cd "$hooks_dir" 2>/dev/null && pwd)
+    if [[ -n "$real_hooks_dir" && "$real_hook" != "$real_hooks_dir"/* ]]; then
+      printf "ERROR: Hook file outside expected directory: %s\n" "$real_hook" >&2
+      return 1
+    fi
     # shellcheck disable=SC1090
     source "$hook_file"
     # Call pre_spawn if defined (hook output goes to stderr)
@@ -264,10 +287,10 @@ runner_build_cmd() {
       [[ -n "$RUNNER_AUTO_APPROVE_FLAGS" ]] && cmd="$cmd $RUNNER_AUTO_APPROVE_FLAGS"
       [[ -n "$RUNNER_EXTRA_FLAGS" ]] && cmd="$cmd $RUNNER_EXTRA_FLAGS"
       cmd="$cmd $RUNNER_PROMPT_FLAG"
-      # Quote the prompt for safe shell evaluation
+      # Quote the prompt using printf %q for safe shell evaluation
       local escaped_prompt
-      escaped_prompt=$(printf '%s' "$final_prompt" | sed "s/'/'\\\\''/g")
-      cmd="$cmd '${escaped_prompt}'"
+      escaped_prompt=$(printf '%q' "$final_prompt")
+      cmd="$cmd $escaped_prompt"
       ;;
     positional)
       cmd="$RUNNER_BINARY"
@@ -275,13 +298,13 @@ runner_build_cmd() {
       [[ -n "$RUNNER_AUTO_APPROVE_FLAGS" ]] && cmd="$cmd $RUNNER_AUTO_APPROVE_FLAGS"
       [[ -n "$RUNNER_EXTRA_FLAGS" ]] && cmd="$cmd $RUNNER_EXTRA_FLAGS"
       local escaped_prompt
-      escaped_prompt=$(printf '%s' "$final_prompt" | sed "s/'/'\\\\''/g")
-      cmd="$cmd '${escaped_prompt}'"
+      escaped_prompt=$(printf '%q' "$final_prompt")
+      cmd="$cmd $escaped_prompt"
       ;;
     stdin)
       local escaped_prompt
-      escaped_prompt=$(printf '%s' "$final_prompt" | sed "s/'/'\\\\''/g")
-      cmd="printf '%s' '${escaped_prompt}' | $RUNNER_BINARY"
+      escaped_prompt=$(printf '%q' "$final_prompt")
+      cmd="printf '%s' $escaped_prompt | $RUNNER_BINARY"
       [[ -n "$RUNNER_HEADLESS_FLAGS" ]] && cmd="$cmd $RUNNER_HEADLESS_FLAGS"
       [[ -n "$RUNNER_AUTO_APPROVE_FLAGS" ]] && cmd="$cmd $RUNNER_AUTO_APPROVE_FLAGS"
       [[ -n "$RUNNER_EXTRA_FLAGS" ]] && cmd="$cmd $RUNNER_EXTRA_FLAGS"

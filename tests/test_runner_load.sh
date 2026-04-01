@@ -128,7 +128,7 @@ rm -rf "$TMPDIR_MANIFEST"
 
 # ── Summary ──
 echo ""
-echo "Results: $PASS passed, $FAIL failed out of $TOTAL tests"
+echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 if [[ $FAIL -gt 0 ]]; then
   exit 1
 fi

@@ -150,3 +150,32 @@ clear_story_worktree() {
 
   write_quantum_json "$json_path" "$updated"
 }
+
+# json_atomic_update(jq_filter [json_path])
+# Applies a jq filter to quantum.json (or specified path) atomically.
+# Uses write_quantum_json for safe tmp+mv semantics.
+# Returns 0 on success, 1 on failure.
+json_atomic_update() {
+  local filter="$1"
+  local json_path="${2:-quantum.json}"
+
+  if [[ -z "$filter" ]]; then
+    printf "ERROR: json_atomic_update requires a jq filter\n" >&2
+    return 1
+  fi
+
+  if [[ ! -f "$json_path" ]]; then
+    printf "ERROR: json_atomic_update: file not found: %s\n" "$json_path" >&2
+    return 1
+  fi
+
+  local updated
+  updated=$(jq "$filter" "$json_path" 2>/dev/null)
+
+  if [[ -z "$updated" ]]; then
+    printf "ERROR: json_atomic_update: jq filter produced empty output\n" >&2
+    return 1
+  fi
+
+  write_quantum_json "$json_path" "$updated"
+}

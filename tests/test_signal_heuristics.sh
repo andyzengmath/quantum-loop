@@ -127,9 +127,17 @@ runner_parse_output "some output with no signal" 0 2>/dev/null
 assert_eq "heuristics disabled → STORY_FAILED" "STORY_FAILED" "$SIGNAL_RESULT"
 assert_eq "heuristics disabled → confidence=high" "high" "$SIGNAL_CONFIDENCE"
 
+# ── Test: runner_parse_output exact signal wins over nonzero exit ──
+echo "Test: runner_parse_output_exact_signal_over_exit_code"
+# When exit_code != 0 but an exact signal is present, runner_parse_output trusts the signal
+# (heuristics are only consulted when there is NO exact signal)
+runner_parse_output "<quantum>STORY_PASSED</quantum>" 1 2>/dev/null
+assert_eq "exact signal wins over nonzero exit" "STORY_PASSED" "$SIGNAL_RESULT"
+assert_eq "confidence is exact (not high)" "exact" "$SIGNAL_CONFIDENCE"
+
 # ── Summary ──
 echo ""
-echo "Results: $PASS passed, $FAIL failed out of $TOTAL tests"
+echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 if [[ $FAIL -gt 0 ]]; then
   exit 1
 fi

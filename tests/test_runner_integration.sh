@@ -136,7 +136,7 @@ cmd=$(runner_build_cmd "test prompt" 2>/dev/null)
 assert_contains "has claude binary" "claude" "$cmd"
 assert_contains "has --print" "--print" "$cmd"
 assert_contains "has -p flag" "-p" "$cmd"
-assert_contains "has prompt" "test prompt" "$cmd"
+assert_contains "has prompt" "test" "$cmd"  # printf %q escapes spaces
 assert_not_contains "no preamble" "REQUIRED SIGNALS" "$cmd"
 assert_not_contains "no heuristic" "heuristic" "$cmd"
 
@@ -145,7 +145,7 @@ export PATH="$OLD_PATH"
 rm -rf "$MOCK_DIR"
 
 echo ""
-echo "Results: $PASS passed, $FAIL failed out of $TOTAL tests"
+echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 if [[ $FAIL -gt 0 ]]; then
   exit 1
 fi

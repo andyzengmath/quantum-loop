@@ -88,7 +88,7 @@ assert_true "copilot-hooks.sh exists" "$(test -f "$HOOKS_DIR/copilot-hooks.sh" &
 
 # ── Summary ──
 echo ""
-echo "Results: $PASS passed, $FAIL failed out of $TOTAL tests"
+echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 if [[ $FAIL -gt 0 ]]; then
   exit 1
 fi

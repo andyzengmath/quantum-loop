@@ -207,6 +207,50 @@ detect_stale_stories() {
 }
 
 # =============================================================================
+# Safe test command execution (allowlist + metacharacter rejection)
+# =============================================================================
+
+# Allowlist of known-safe test command prefixes
+ALLOWED_TEST_PREFIXES=("npm test" "npx jest" "npx vitest" "yarn test" "pnpm test" "python -m pytest" "pytest" "cargo test" "go test" "make test" "bash tests/" "shellcheck")
+
+# validate_and_run_test_cmd(cmd, [work_dir])
+# Validates a test command against the allowlist and rejects shell metacharacters.
+# Executes via array splitting (no eval). Returns the command's exit code.
+validate_and_run_test_cmd() {
+  local cmd="$1"
+  local work_dir="${2:-.}"
+
+  if [[ -z "$cmd" ]]; then
+    return 1
+  fi
+
+  # Reject shell metacharacters
+  if [[ "$cmd" =~ [\;\|\&\$\`\(\)\>\<\!] ]] || [[ "$cmd" == *$'\n'* ]]; then
+    printf "ERROR: Test command contains unsafe characters: %s\n" "$cmd" >&2
+    return 1
+  fi
+
+  # Check allowlist
+  local allowed=false
+  for prefix in "${ALLOWED_TEST_PREFIXES[@]}"; do
+    if [[ "$cmd" == "$prefix" || "$cmd" == "$prefix "* ]]; then
+      allowed=true
+      break
+    fi
+  done
+
+  if [[ "$allowed" != "true" ]]; then
+    printf "ERROR: Test command '%s' does not match any allowed prefix — refusing to execute\n" "$cmd" >&2
+    return 1
+  fi
+
+  # Execute as array to prevent shell interpretation
+  local -a cmd_array
+  read -ra cmd_array <<< "$cmd"
+  (cd "$work_dir" && "${cmd_array[@]}" >/dev/null 2>&1)
+}
+
+# =============================================================================
 # Final verification sweep before declaring COMPLETE
 # =============================================================================
 
@@ -222,7 +266,7 @@ final_verification_sweep() {
   fi
 
   if [[ -n "$TEST_CMD" ]]; then
-    if eval "$TEST_CMD" >/dev/null 2>&1; then
+    if validate_and_run_test_cmd "$TEST_CMD"; then
       printf "[FINAL SWEEP] Test suite passed.\n"
     else
       printf "[FINAL SWEEP] FAILED: test suite. Cannot declare COMPLETE.\n"
@@ -556,7 +600,7 @@ if [[ "$PARALLEL_MODE" == "true" ]]; then
                 fi
               fi
               if [[ -n "$TEST_CMD" ]]; then
-                if ! (cd "$REPO_ROOT" && eval "$TEST_CMD" >/dev/null 2>&1); then
+                if ! validate_and_run_test_cmd "$TEST_CMD" "$REPO_ROOT"; then
                   printf "[REGRESSION] %s - tests fail after merge, reverting\n" "$SID"
                   git -C "$REPO_ROOT" revert -m 1 HEAD --no-edit >/dev/null 2>&1 || true
                   jq --arg id "$SID" '
