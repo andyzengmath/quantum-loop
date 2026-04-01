@@ -167,3 +167,52 @@ runner_inject_preamble() {
   printf '%s\n\n---\n\n%s' "$preamble" "$prompt"
   return 0
 }
+
+# Source signal heuristics if available
+if [[ -f "$RUNNER_LIB_DIR/signal-heuristics.sh" ]]; then
+  # shellcheck source=lib/signal-heuristics.sh
+  source "$RUNNER_LIB_DIR/signal-heuristics.sh"
+fi
+
+# runner_parse_output(output, exit_code, [worktree_path])
+# Parses runner output for quantum signals. Falls back to heuristics if enabled.
+# Sets globals: SIGNAL_RESULT and SIGNAL_CONFIDENCE
+runner_parse_output() {
+  local output="$1"
+  local exit_code="$2"
+  local wt_path="${3:-.}"
+
+  # shellcheck disable=SC2034
+  SIGNAL_RESULT=""
+  # shellcheck disable=SC2034
+  SIGNAL_CONFIDENCE=""
+
+  # Always try exact signal match first (even for Claude)
+  local signals
+  signals=$(echo "$output" | grep -oE '<quantum>[[:space:]]*(STORY_PASSED|STORY_FAILED|COMPLETE|BLOCKED)[[:space:]]*</quantum>' || true)
+
+  if [[ -n "$signals" ]]; then
+    local last_signal
+    last_signal=$(echo "$signals" | tail -1 | sed 's/<quantum>[[:space:]]*//' | sed 's/[[:space:]]*<\/quantum>//')
+    # shellcheck disable=SC2034
+    SIGNAL_RESULT="$last_signal"
+    # shellcheck disable=SC2034
+    SIGNAL_CONFIDENCE="exact"
+    echo "[RUNNER] Signal: $last_signal (exact, confidence=exact)" >&2
+    return 0
+  fi
+
+  # No exact signal — try heuristics if enabled
+  if [[ "$RUNNER_HEURISTIC_FALLBACK" == "true" ]] && type parse_agent_output &>/dev/null; then
+    parse_agent_output "$output" "$exit_code" "$wt_path"
+    return 0
+  fi
+
+  # No signal and heuristics disabled — fail
+  # shellcheck disable=SC2034
+  SIGNAL_RESULT="STORY_FAILED"
+  # shellcheck disable=SC2034
+  SIGNAL_CONFIDENCE="high"
+  echo "[RUNNER] Signal: FAILED (no signal detected, heuristics disabled, confidence=high)" >&2
+  return 0
+}
