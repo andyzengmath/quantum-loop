@@ -1,0 +1,27 @@
+{
+  "name": "claude",
+  "displayName": "Claude Code",
+  "binary": "claude",
+  "tier": "guaranteed",
+  "installHint": "npm install -g @anthropic-ai/claude-code",
+  "version": ">=1.0.0",
+  "invocation": {
+    "promptDelivery": "flag",
+    "promptFlag": "-p",
+    "headlessFlags": ["--print"],
+    "autoApproveFlags": ["--dangerously-skip-permissions"],
+    "outputFlags": [],
+    "extraFlags": [],
+    "stdinPipe": false
+  },
+  "instructionFile": {
+    "native": "CLAUDE.md",
+    "fallbackFrom": null,
+    "autoGenerate": false
+  },
+  "signals": {
+    "preambleInjection": false,
+    "heuristicFallback": false
+  },
+  "quirks": {}
+}
