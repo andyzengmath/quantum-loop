@@ -1,0 +1,27 @@
+{
+  "name": "amp",
+  "displayName": "Amp CLI",
+  "binary": "amp",
+  "tier": "experimental",
+  "installHint": "npm install -g @anthropic-ai/amp",
+  "version": ">=0.1.0",
+  "invocation": {
+    "promptDelivery": "stdin",
+    "promptFlag": null,
+    "headlessFlags": [],
+    "autoApproveFlags": ["--dangerously-allow-all"],
+    "outputFlags": [],
+    "extraFlags": [],
+    "stdinPipe": true
+  },
+  "instructionFile": {
+    "native": "CLAUDE.md",
+    "fallbackFrom": null,
+    "autoGenerate": false
+  },
+  "signals": {
+    "preambleInjection": true,
+    "heuristicFallback": true
+  },
+  "quirks": {}
+}

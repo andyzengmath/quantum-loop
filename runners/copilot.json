@@ -1,0 +1,27 @@
+{
+  "name": "copilot",
+  "displayName": "GitHub Copilot CLI",
+  "binary": "copilot",
+  "tier": "experimental",
+  "installHint": "gh extension install github/gh-copilot",
+  "version": ">=1.0.0",
+  "invocation": {
+    "promptDelivery": "flag",
+    "promptFlag": "-p",
+    "headlessFlags": [],
+    "autoApproveFlags": ["--allow-all"],
+    "outputFlags": [],
+    "extraFlags": [],
+    "stdinPipe": false
+  },
+  "instructionFile": {
+    "native": "CLAUDE.md",
+    "fallbackFrom": null,
+    "autoGenerate": false
+  },
+  "signals": {
+    "preambleInjection": true,
+    "heuristicFallback": true
+  },
+  "quirks": {}
+}
