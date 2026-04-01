@@ -142,3 +142,28 @@ runner_ensure_instructions() {
   echo "[RUNNER] Generated $RUNNER_INSTRUCTION_NATIVE from $RUNNER_INSTRUCTION_FALLBACK" >&2
   return 0
 }
+
+# runner_inject_preamble(prompt)
+# Prepends the quantum-loop signal protocol preamble to the prompt for non-Claude runners.
+# When RUNNER_PREAMBLE_INJECTION is false, returns prompt unchanged.
+runner_inject_preamble() {
+  local prompt="$1"
+
+  if [[ "$RUNNER_PREAMBLE_INJECTION" != "true" ]]; then
+    printf '%s' "$prompt"
+    return 0
+  fi
+
+  local preamble_path="$RUNNER_LIB_DIR/../runners/preamble.md"
+  if [[ ! -f "$preamble_path" ]]; then
+    echo "[RUNNER] WARNING: preamble.md not found, sending prompt without preamble" >&2
+    printf '%s' "$prompt"
+    return 0
+  fi
+
+  local preamble
+  preamble=$(cat "$preamble_path")
+
+  printf '%s\n\n---\n\n%s' "$preamble" "$prompt"
+  return 0
+}
