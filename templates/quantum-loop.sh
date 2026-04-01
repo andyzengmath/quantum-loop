@@ -79,6 +79,11 @@ fi
 # ─── Runner Manifest Loading ───
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RUNNERS_DIR="$SCRIPT_DIR/runners"
+# Validate tool name (prevents path traversal and injection)
+if [[ ! "$TOOL" =~ ^[A-Za-z0-9_-]+$ ]]; then
+  echo "ERROR: Invalid tool name: '$TOOL' (must be alphanumeric with hyphens/underscores)"
+  exit 1
+fi
 RUNNER_MANIFEST="$RUNNERS_DIR/$TOOL.json"
 
 # Runner config defaults (used when runners/ directory is absent or for hardcoded Claude fallback)
@@ -95,21 +100,18 @@ RUNNER_HEURISTIC_FALLBACK="false"
 RUNNER_INSTRUCTION_NATIVE="CLAUDE.md"
 
 if [[ -d "$RUNNERS_DIR" && -f "$RUNNER_MANIFEST" ]]; then
-  # Load from manifest using node
-  eval "$(node -e "
-    const m = require('$RUNNER_MANIFEST');
-    console.log('RUNNER_NAME=' + JSON.stringify(m.name));
-    console.log('RUNNER_BINARY=' + JSON.stringify(m.binary));
-    console.log('RUNNER_TIER=' + JSON.stringify(m.tier));
-    console.log('RUNNER_PROMPT_DELIVERY=' + JSON.stringify(m.invocation.promptDelivery));
-    console.log('RUNNER_PROMPT_FLAG=' + JSON.stringify(m.invocation.promptFlag || ''));
-    console.log('RUNNER_HEADLESS_FLAGS=' + JSON.stringify(m.invocation.headlessFlags.join(' ')));
-    console.log('RUNNER_AUTO_APPROVE_FLAGS=' + JSON.stringify(m.invocation.autoApproveFlags.join(' ')));
-    console.log('RUNNER_STDIN_PIPE=' + JSON.stringify(String(m.invocation.stdinPipe || false)));
-    console.log('RUNNER_PREAMBLE_INJECTION=' + JSON.stringify(String(m.signals.preambleInjection || false)));
-    console.log('RUNNER_HEURISTIC_FALLBACK=' + JSON.stringify(String(m.signals.heuristicFallback || false)));
-    console.log('RUNNER_INSTRUCTION_NATIVE=' + JSON.stringify(m.instructionFile.native));
-  ")"
+  # Load from manifest using node (path passed via process.argv to prevent injection)
+  RUNNER_NAME=$(node -e "const m=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'));process.stdout.write(m.name)" "$RUNNER_MANIFEST")
+  RUNNER_BINARY=$(node -e "const m=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'));process.stdout.write(m.binary)" "$RUNNER_MANIFEST")
+  RUNNER_TIER=$(node -e "const m=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'));process.stdout.write(m.tier)" "$RUNNER_MANIFEST")
+  RUNNER_PROMPT_DELIVERY=$(node -e "const m=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'));process.stdout.write(m.invocation.promptDelivery)" "$RUNNER_MANIFEST")
+  RUNNER_PROMPT_FLAG=$(node -e "const m=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'));process.stdout.write(m.invocation.promptFlag||'')" "$RUNNER_MANIFEST")
+  RUNNER_HEADLESS_FLAGS=$(node -e "const m=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'));process.stdout.write(m.invocation.headlessFlags.join(' '))" "$RUNNER_MANIFEST")
+  RUNNER_AUTO_APPROVE_FLAGS=$(node -e "const m=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'));process.stdout.write(m.invocation.autoApproveFlags.join(' '))" "$RUNNER_MANIFEST")
+  RUNNER_STDIN_PIPE=$(node -e "const m=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'));process.stdout.write(String(m.invocation.stdinPipe||false))" "$RUNNER_MANIFEST")
+  RUNNER_PREAMBLE_INJECTION=$(node -e "const m=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'));process.stdout.write(String(m.signals.preambleInjection||false))" "$RUNNER_MANIFEST")
+  RUNNER_HEURISTIC_FALLBACK=$(node -e "const m=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'));process.stdout.write(String(m.signals.heuristicFallback||false))" "$RUNNER_MANIFEST")
+  RUNNER_INSTRUCTION_NATIVE=$(node -e "const m=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'));process.stdout.write(m.instructionFile.native)" "$RUNNER_MANIFEST")
   echo "[RUNNER] Loaded $RUNNER_NAME ($RUNNER_BINARY) — tier: $RUNNER_TIER"
 elif [[ "$TOOL" != "claude" ]]; then
   if [[ -d "$RUNNERS_DIR" ]]; then

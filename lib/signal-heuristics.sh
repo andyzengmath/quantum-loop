@@ -24,7 +24,7 @@ parse_agent_output() {
     SIGNAL_RESULT="STORY_FAILED"
     # shellcheck disable=SC2034
     SIGNAL_CONFIDENCE="high"
-    echo "[RUNNER] Signal: FAILED (exit_code=$exit_code, confidence=high)" >&2
+    printf "[RUNNER] Signal: FAILED (exit_code=%s, confidence=high)\n" "$exit_code" >&2
     return 0
   fi
 
@@ -40,7 +40,7 @@ parse_agent_output() {
     SIGNAL_RESULT="$last_signal"
     # shellcheck disable=SC2034
     SIGNAL_CONFIDENCE="exact"
-    echo "[RUNNER] Signal: $last_signal (exact match, confidence=exact)" >&2
+    printf "[RUNNER] Signal: %s (exact match, confidence=exact)\n" "$last_signal" >&2
     return 0
   fi
 
@@ -59,9 +59,16 @@ parse_agent_output() {
     has_tests_pass=true
   fi
 
-  # Check for error patterns in output
-  if echo "$output" | grep -qiE '(error|FAIL:|failed|exception|panic)'; then
-    has_errors=true
+  # Check for error patterns in output (excludes "0 errors", "0 failed" false positives)
+  local error_lines
+  error_lines=$(echo "$output" | grep -iE '(error|FAIL:|failed|exception|panic)' || true)
+  if [[ -n "$error_lines" ]]; then
+    # Filter out false positives: "0 errors", "0 failed", "no error"
+    local real_errors
+    real_errors=$(echo "$error_lines" | grep -viE '(0 errors?|0 failed|no errors?)' || true)
+    if [[ -n "$real_errors" ]]; then
+      has_errors=true
+    fi
   fi
 
   # Decision matrix
@@ -71,28 +78,28 @@ parse_agent_output() {
     SIGNAL_RESULT="STORY_PASSED"
     # shellcheck disable=SC2034
     SIGNAL_CONFIDENCE="high"
-    echo "[RUNNER] Signal: PASSED (heuristic: commit+tests, confidence=high)" >&2
+    printf "[RUNNER] Signal: PASSED (heuristic: commit+tests, confidence=high)\n" >&2
   elif [[ "$has_commit" == "true" ]] && [[ "$has_errors" == "true" ]]; then
     # Commit but errors present = FAILED high
     # shellcheck disable=SC2034
     SIGNAL_RESULT="STORY_FAILED"
     # shellcheck disable=SC2034
     SIGNAL_CONFIDENCE="high"
-    echo "[RUNNER] Signal: FAILED (heuristic: commit+errors, confidence=high)" >&2
+    printf "[RUNNER] Signal: FAILED (heuristic: commit+errors, confidence=high)\n" >&2
   elif [[ "$has_commit" == "true" ]]; then
     # Commit only, no clear test signal = PASSED medium confidence
     # shellcheck disable=SC2034
     SIGNAL_RESULT="STORY_PASSED"
     # shellcheck disable=SC2034
     SIGNAL_CONFIDENCE="medium"
-    echo "[RUNNER] Signal: PASSED (heuristic: commit-only, confidence=medium)" >&2
+    printf "[RUNNER] Signal: PASSED (heuristic: commit-only, confidence=medium)\n" >&2
   else
     # No commit = FAILED high confidence
     # shellcheck disable=SC2034
     SIGNAL_RESULT="STORY_FAILED"
     # shellcheck disable=SC2034
     SIGNAL_CONFIDENCE="high"
-    echo "[RUNNER] Signal: FAILED (heuristic: no_commit, confidence=high)" >&2
+    printf "[RUNNER] Signal: FAILED (heuristic: no_commit, confidence=high)\n" >&2
   fi
 
   return 0

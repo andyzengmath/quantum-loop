@@ -18,6 +18,13 @@ fi
 # Returns 0 on success, 1 on error (with message on stderr).
 runner_load() {
   local tool_name="${1:?runner_load requires a tool name}"
+
+  # Validate tool name: alphanumeric, hyphens, underscores only (prevents path traversal)
+  if [[ ! "$tool_name" =~ ^[A-Za-z0-9_-]+$ ]]; then
+    printf "ERROR: Invalid runner name: '%s' (must be alphanumeric with hyphens/underscores)\n" "$tool_name" >&2
+    return 1
+  fi
+
   local runners_dir="$RUNNER_LIB_DIR/../runners"
   local manifest="$runners_dir/$tool_name.json"
 
@@ -25,16 +32,20 @@ runner_load() {
   if [[ ! -f "$manifest" ]]; then
     local available=""
     if [[ -d "$runners_dir" ]]; then
-      available=$(find "$runners_dir" -maxdepth 1 -name '*.json' -print0 2>/dev/null \
-        | xargs -0 -I{} basename {} .json | tr '\n' ', ' | sed 's/,$//')
+      for f in "$runners_dir"/*.json; do
+        [[ -f "$f" ]] || continue
+        local name
+        name=$(basename "$f" .json)
+        available="${available:+$available, }$name"
+      done
     fi
-    echo "ERROR: Unknown runner '$tool_name'. Available: ${available:-none}" >&2
+    printf "ERROR: Unknown runner '%s'. Available: %s\n" "$tool_name" "${available:-none}" >&2
     return 1
   fi
 
   # Verify valid JSON
   if ! jq empty "$manifest" 2>/dev/null; then
-    echo "ERROR: Invalid JSON in $manifest" >&2
+    printf "ERROR: Invalid JSON in %s\n" "$manifest" >&2
     return 1
   fi
 
@@ -55,7 +66,7 @@ runner_load() {
   fi
 
   if [[ -n "$missing" ]]; then
-    echo "ERROR: Runner '$tool_name' missing required field(s): $missing" >&2
+    printf "ERROR: Runner '%s' missing required field(s): %s\n" "$tool_name" "$missing" >&2
     return 1
   fi
 
@@ -67,7 +78,7 @@ runner_load() {
   if ! command -v "$binary" &>/dev/null; then
     local hint
     hint=$(jq -r '.installHint // "check your PATH"' "$manifest")
-    echo "ERROR: Binary '$binary' not found. Install with: $hint" >&2
+    printf "ERROR: Binary '%s' not found. Install with: %s\n" "$binary" "$hint" >&2
     return 1
   fi
 
@@ -100,7 +111,7 @@ runner_load() {
   # shellcheck disable=SC2034
   RUNNER_OVERRIDE_SIGNAL=""
 
-  echo "[RUNNER] Loaded $RUNNER_NAME ($RUNNER_BINARY) — tier: $RUNNER_TIER" >&2
+  printf "[RUNNER] Loaded %s (%s) — tier: %s\n" "$RUNNER_NAME" "$RUNNER_BINARY" "$RUNNER_TIER" >&2
   return 0
 }
 
@@ -128,7 +139,7 @@ runner_ensure_instructions() {
 
   # Fallback must exist to copy from
   if [[ ! -f "$fallback_path" ]]; then
-    echo "ERROR: Neither $RUNNER_INSTRUCTION_NATIVE nor $RUNNER_INSTRUCTION_FALLBACK found in $target_dir" >&2
+    printf "ERROR: Neither %s nor %s found in %s\n" "$RUNNER_INSTRUCTION_NATIVE" "$RUNNER_INSTRUCTION_FALLBACK" "$target_dir" >&2
     return 1
   fi
 
@@ -139,7 +150,7 @@ runner_ensure_instructions() {
     cat "$fallback_path"
   } > "$native_path"
 
-  echo "[RUNNER] Generated $RUNNER_INSTRUCTION_NATIVE from $RUNNER_INSTRUCTION_FALLBACK" >&2
+  printf "[RUNNER] Generated %s from %s\n" "$RUNNER_INSTRUCTION_NATIVE" "$RUNNER_INSTRUCTION_FALLBACK" >&2
   return 0
 }
 
@@ -156,7 +167,7 @@ runner_inject_preamble() {
 
   local preamble_path="$RUNNER_LIB_DIR/../runners/preamble.md"
   if [[ ! -f "$preamble_path" ]]; then
-    echo "[RUNNER] WARNING: preamble.md not found, sending prompt without preamble" >&2
+    printf "[RUNNER] WARNING: preamble.md not found, sending prompt without preamble\n" >&2
     printf '%s' "$prompt"
     return 0
   fi
@@ -198,7 +209,7 @@ runner_parse_output() {
     SIGNAL_RESULT="$last_signal"
     # shellcheck disable=SC2034
     SIGNAL_CONFIDENCE="exact"
-    echo "[RUNNER] Signal: $last_signal (exact, confidence=exact)" >&2
+    printf "[RUNNER] Signal: %s (exact, confidence=exact)\n" "$last_signal" >&2
     return 0
   fi
 
@@ -213,7 +224,7 @@ runner_parse_output() {
   SIGNAL_RESULT="STORY_FAILED"
   # shellcheck disable=SC2034
   SIGNAL_CONFIDENCE="high"
-  echo "[RUNNER] Signal: FAILED (no signal detected, heuristics disabled, confidence=high)" >&2
+  printf "[RUNNER] Signal: FAILED (no signal detected, heuristics disabled, confidence=high)\n" >&2
   return 0
 }
 
@@ -276,7 +287,7 @@ runner_build_cmd() {
       [[ -n "$RUNNER_EXTRA_FLAGS" ]] && cmd="$cmd $RUNNER_EXTRA_FLAGS"
       ;;
     *)
-      echo "ERROR: Unknown promptDelivery: $RUNNER_PROMPT_DELIVERY" >&2
+      printf "ERROR: Unknown promptDelivery: %s\n" "$RUNNER_PROMPT_DELIVERY" >&2
       return 1
       ;;
   esac
