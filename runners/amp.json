@@ -1,4 +1,5 @@
 {
+  "$schema": "../schemas/runner.schema.json",
   "name": "amp",
   "displayName": "Amp CLI",
   "binary": "amp",
@@ -9,7 +10,9 @@
     "promptDelivery": "stdin",
     "promptFlag": null,
     "headlessFlags": [],
-    "autoApproveFlags": ["--dangerously-allow-all"],
+    "autoApproveFlags": [
+      "--dangerously-allow-all"
+    ],
     "outputFlags": [],
     "extraFlags": [],
     "stdinPipe": true

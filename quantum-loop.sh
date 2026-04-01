@@ -824,20 +824,46 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
 
   printf "Spawning %s for story %s...\n" "$RUNNER_NAME" "$STORY_ID"
 
-  # Build the prompt for the runner
-  AGENT_PROMPT="Implement story $STORY_ID from quantum.json. This is iteration $ITERATION."
-
-  # Build and execute the runner command
-  RUNNER_CMD=$(runner_build_cmd "$AGENT_PROMPT") || {
-    printf "ERROR: runner_build_cmd failed for %s\n" "$RUNNER_NAME" >&2
-    continue
-  }
   RUNNER_EXIT=0
-  OUTPUT=$(eval "$RUNNER_CMD" 2>&1) || RUNNER_EXIT=$?
+  if [[ "$RUNNER_NAME" == "claude" ]]; then
+    # Claude Code: preserve original command structure — CLAUDE.md via -p, story instruction via --
+    PROMPT_FILE="$SCRIPT_DIR/CLAUDE.md"
+    OUTPUT=$(claude --dangerously-skip-permissions --print \
+      -p "$(cat "$PROMPT_FILE")" \
+      -- "Implement story $STORY_ID from quantum.json. This is iteration $ITERATION." 2>&1) || RUNNER_EXIT=$?
+  else
+    # Non-Claude runners: use runner adapter with preamble injection
+    AGENT_PROMPT="Implement story $STORY_ID from quantum.json. This is iteration $ITERATION."
+    RUNNER_CMD=$(runner_build_cmd "$AGENT_PROMPT") || {
+      printf "ERROR: runner_build_cmd failed for %s\n" "$RUNNER_NAME" >&2
+      continue
+    }
+    OUTPUT=$(eval "$RUNNER_CMD" 2>&1) || RUNNER_EXIT=$?
+  fi
 
   # -------------------------------------------------------------------------
   # Process output
   # -------------------------------------------------------------------------
+
+  # Invoke post_output() hook if defined (for non-Claude runners with hooks)
+  if [[ "$RUNNER_NAME" != "claude" ]]; then
+    local hooks_dir="${SCRIPT_DIR}/runners/hooks"
+    local hook_file="${hooks_dir}/${RUNNER_NAME}-hooks.sh"
+    if [[ -f "$hook_file" ]]; then
+      # shellcheck source=/dev/null
+      source "$hook_file"
+      if type post_output &>/dev/null; then
+        post_output "$OUTPUT"
+      fi
+      unset -f post_output pre_spawn 2>/dev/null
+    fi
+    # Check if hook forced a signal override
+    if [[ -n "${RUNNER_OVERRIDE_SIGNAL:-}" ]]; then
+      SIGNAL_RESULT="$RUNNER_OVERRIDE_SIGNAL"
+      SIGNAL_CONFIDENCE="hook"
+      RUNNER_OVERRIDE_SIGNAL=""
+    fi
+  fi
 
   # Parse runner output for signals (uses heuristics if enabled for non-Claude runners)
   runner_parse_output "$OUTPUT" "$RUNNER_EXIT"

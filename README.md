@@ -126,11 +126,11 @@ Quantum-loop can orchestrate any terminal-based coding agent CLI via JSON manife
 |--------|--------|------|---------|------------------|
 | Claude Code | `claude` | Guaranteed | `npm i -g @anthropic-ai/claude-code` | CLAUDE.md |
 | Codex CLI | `codex` | Tested | `npm i -g @openai/codex` | AGENTS.md |
-| Copilot CLI | `copilot` | Experimental | `gh extension install github/gh-copilot` | CLAUDE.md |
-| Cursor Agent | `agent` | Experimental | [cursor.sh](https://cursor.sh) | CLAUDE.md |
-| Gemini CLI | `gemini` | Experimental | `npm i -g @anthropic-ai/gemini-cli` | GEMINI.md |
-| Amp | `amp` | Experimental | `npm i -g @anthropic-ai/amp` | CLAUDE.md |
-| Aider | `aider` | Experimental | `pip install aider-chat` | CLAUDE.md |
+| Copilot CLI | `copilot` | Experimental | `npm i -g @github/copilot` | AGENTS.md |
+| Cursor Agent | `agent` | Experimental | [cursor.sh](https://cursor.sh) | AGENTS.md |
+| Gemini CLI | `gemini` | Experimental | `npm i -g @google/gemini-cli` | GEMINI.md |
+| Amp | `amp` | Experimental | `npm i -g @sourcegraph/amp` | AGENTS.md |
+| Aider | `aider` | Experimental | `pip install aider-chat` | CONVENTIONS.md |
 
 **Tiers:** Guaranteed = zero-regression CI gate. Tested = CI-verified. Experimental = community-contributed.
 

@@ -1,4 +1,5 @@
 {
+  "$schema": "../schemas/runner.schema.json",
   "name": "gemini",
   "displayName": "Google Gemini CLI",
   "binary": "gemini",
@@ -9,7 +10,9 @@
     "promptDelivery": "flag",
     "promptFlag": "-p",
     "headlessFlags": [],
-    "autoApproveFlags": ["--approval-mode=yolo"],
+    "autoApproveFlags": [
+      "--approval-mode=yolo"
+    ],
     "outputFlags": [],
     "extraFlags": [],
     "stdinPipe": false

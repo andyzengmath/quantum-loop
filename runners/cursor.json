@@ -1,4 +1,5 @@
 {
+  "$schema": "../schemas/runner.schema.json",
   "name": "cursor",
   "displayName": "Cursor Agent",
   "binary": "agent",
@@ -9,7 +10,9 @@
     "promptDelivery": "flag",
     "promptFlag": "-p",
     "headlessFlags": [],
-    "autoApproveFlags": ["--force"],
+    "autoApproveFlags": [
+      "--force"
+    ],
     "outputFlags": [],
     "extraFlags": [],
     "stdinPipe": false

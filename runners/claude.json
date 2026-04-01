@@ -1,4 +1,5 @@
 {
+  "$schema": "../schemas/runner.schema.json",
   "name": "claude",
   "displayName": "Claude Code",
   "binary": "claude",
@@ -8,8 +9,12 @@
   "invocation": {
     "promptDelivery": "flag",
     "promptFlag": "-p",
-    "headlessFlags": ["--print"],
-    "autoApproveFlags": ["--dangerously-skip-permissions"],
+    "headlessFlags": [
+      "--print"
+    ],
+    "autoApproveFlags": [
+      "--dangerously-skip-permissions"
+    ],
     "outputFlags": [],
     "extraFlags": [],
     "stdinPipe": false

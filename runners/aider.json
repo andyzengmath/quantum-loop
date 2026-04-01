@@ -1,4 +1,5 @@
 {
+  "$schema": "../schemas/runner.schema.json",
   "name": "aider",
   "displayName": "Aider",
   "binary": "aider",
@@ -8,7 +9,9 @@
   "invocation": {
     "promptDelivery": "flag",
     "promptFlag": "-m",
-    "headlessFlags": ["--yes-always"],
+    "headlessFlags": [
+      "--yes-always"
+    ],
     "autoApproveFlags": [],
     "outputFlags": [],
     "extraFlags": [],

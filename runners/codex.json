@@ -1,4 +1,5 @@
 {
+  "$schema": "../schemas/runner.schema.json",
   "name": "codex",
   "displayName": "OpenAI Codex CLI",
   "binary": "codex",
@@ -8,8 +9,13 @@
   "invocation": {
     "promptDelivery": "positional",
     "promptFlag": null,
-    "headlessFlags": ["-q"],
-    "autoApproveFlags": ["--approval-mode", "full-auto"],
+    "headlessFlags": [
+      "-q"
+    ],
+    "autoApproveFlags": [
+      "--approval-mode",
+      "full-auto"
+    ],
     "outputFlags": [],
     "extraFlags": [],
     "stdinPipe": false

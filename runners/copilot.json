@@ -1,4 +1,5 @@
 {
+  "$schema": "../schemas/runner.schema.json",
   "name": "copilot",
   "displayName": "GitHub Copilot CLI",
   "binary": "copilot",
@@ -9,7 +10,9 @@
     "promptDelivery": "flag",
     "promptFlag": "-p",
     "headlessFlags": [],
-    "autoApproveFlags": ["--allow-all"],
+    "autoApproveFlags": [
+      "--allow-all"
+    ],
     "outputFlags": [],
     "extraFlags": [],
     "stdinPipe": false

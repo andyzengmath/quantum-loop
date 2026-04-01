@@ -64,6 +64,11 @@ runner_load() {
   if [[ "$(jq -r '.instructionFile.native // empty' "$manifest")" == "" ]]; then
     missing="${missing:+$missing, }instructionFile.native"
   fi
+  for field in preambleInjection heuristicFallback; do
+    if [[ "$(jq ".signals | has(\"$field\")" "$manifest")" != "true" ]]; then
+      missing="${missing:+$missing, }signals.$field"
+    fi
+  done
 
   if [[ -n "$missing" ]]; then
     printf "ERROR: Runner '%s' missing required field(s): %s\n" "$tool_name" "$missing" >&2

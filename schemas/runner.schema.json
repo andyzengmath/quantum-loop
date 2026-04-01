@@ -16,6 +16,10 @@
   ],
   "additionalProperties": false,
   "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema reference for editor validation"
+    },
     "name": {
       "type": "string",
       "description": "Short identifier for the runner (e.g., 'claude', 'codex'). Used in --tool flag and file lookups."
