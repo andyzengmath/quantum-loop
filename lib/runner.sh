@@ -216,3 +216,75 @@ runner_parse_output() {
   echo "[RUNNER] Signal: FAILED (no signal detected, heuristics disabled, confidence=high)" >&2
   return 0
 }
+
+# runner_build_cmd(prompt)
+# Constructs the complete shell command for the loaded runner.
+# Supports flag, positional, and stdin prompt delivery methods.
+# Sources hook files and calls pre_spawn() if defined.
+# Echoes the command string to stdout.
+runner_build_cmd() {
+  local prompt="$1"
+
+  # Inject preamble for non-Claude runners
+  local final_prompt
+  final_prompt=$(runner_inject_preamble "$prompt")
+
+  # Initialize hook-extensible extra flags
+  RUNNER_EXTRA_FLAGS="${RUNNER_EXTRA_FLAGS:-}"
+
+  # Source runner-specific hooks if available
+  local hooks_dir="$RUNNER_LIB_DIR/../runners/hooks"
+  local hook_file="$hooks_dir/${RUNNER_NAME}-hooks.sh"
+  if [[ -f "$hook_file" ]]; then
+    # shellcheck disable=SC1090
+    source "$hook_file"
+    # Call pre_spawn if defined
+    if type pre_spawn &>/dev/null; then
+      pre_spawn 2>&1 >&2
+    fi
+  fi
+
+  # Build the command based on prompt delivery method
+  local cmd=""
+  case "$RUNNER_PROMPT_DELIVERY" in
+    flag)
+      cmd="$RUNNER_BINARY"
+      [[ -n "$RUNNER_HEADLESS_FLAGS" ]] && cmd="$cmd $RUNNER_HEADLESS_FLAGS"
+      [[ -n "$RUNNER_AUTO_APPROVE_FLAGS" ]] && cmd="$cmd $RUNNER_AUTO_APPROVE_FLAGS"
+      [[ -n "$RUNNER_EXTRA_FLAGS" ]] && cmd="$cmd $RUNNER_EXTRA_FLAGS"
+      cmd="$cmd $RUNNER_PROMPT_FLAG"
+      # Quote the prompt for safe shell evaluation
+      local escaped_prompt
+      escaped_prompt=$(printf '%s' "$final_prompt" | sed "s/'/'\\\\''/g")
+      cmd="$cmd '${escaped_prompt}'"
+      ;;
+    positional)
+      cmd="$RUNNER_BINARY"
+      [[ -n "$RUNNER_HEADLESS_FLAGS" ]] && cmd="$cmd $RUNNER_HEADLESS_FLAGS"
+      [[ -n "$RUNNER_AUTO_APPROVE_FLAGS" ]] && cmd="$cmd $RUNNER_AUTO_APPROVE_FLAGS"
+      [[ -n "$RUNNER_EXTRA_FLAGS" ]] && cmd="$cmd $RUNNER_EXTRA_FLAGS"
+      local escaped_prompt
+      escaped_prompt=$(printf '%s' "$final_prompt" | sed "s/'/'\\\\''/g")
+      cmd="$cmd '${escaped_prompt}'"
+      ;;
+    stdin)
+      local escaped_prompt
+      escaped_prompt=$(printf '%s' "$final_prompt" | sed "s/'/'\\\\''/g")
+      cmd="printf '%s' '${escaped_prompt}' | $RUNNER_BINARY"
+      [[ -n "$RUNNER_HEADLESS_FLAGS" ]] && cmd="$cmd $RUNNER_HEADLESS_FLAGS"
+      [[ -n "$RUNNER_AUTO_APPROVE_FLAGS" ]] && cmd="$cmd $RUNNER_AUTO_APPROVE_FLAGS"
+      [[ -n "$RUNNER_EXTRA_FLAGS" ]] && cmd="$cmd $RUNNER_EXTRA_FLAGS"
+      ;;
+    *)
+      echo "ERROR: Unknown promptDelivery: $RUNNER_PROMPT_DELIVERY" >&2
+      return 1
+      ;;
+  esac
+
+  # Clean up hook functions to avoid leaking between runners
+  unset -f pre_spawn 2>/dev/null || true
+  unset -f post_output 2>/dev/null || true
+
+  printf '%s' "$cmd"
+  return 0
+}
