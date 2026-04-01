@@ -46,6 +46,7 @@ PLAN_FILE="./quantum.json"
 LOG_DIR=".quantum-logs"
 WORKTREE_DIR=".ql-wt"
 TASK_TIMEOUT=900
+TOOL="claude"
 
 # ─── Parse Args ───
 while [[ $# -gt 0 ]]; do
@@ -60,6 +61,7 @@ while [[ $# -gt 0 ]]; do
     --verbose)        VERBOSE=true; shift ;;
     --plan)           PLAN_FILE="$2"; shift 2 ;;
     --timeout)        TASK_TIMEOUT="$2"; shift 2 ;;
+    --tool)           TOOL="$2"; shift 2 ;;
     -h|--help)
       head -24 "$0" | grep "^#" | sed 's/^# \?//'
       exit 0
@@ -69,13 +71,59 @@ while [[ $# -gt 0 ]]; do
 done
 
 # ─── Dependency Check ───
-if ! command -v claude &>/dev/null; then
-  echo "ERROR: 'claude' CLI not found. Install Claude Code first."
+if ! command -v node &>/dev/null; then
+  echo "ERROR: 'node' not found. Required for JSON processing."
   exit 1
 fi
 
-if ! command -v node &>/dev/null; then
-  echo "ERROR: 'node' not found. Required for JSON processing."
+# ─── Runner Manifest Loading ───
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+RUNNERS_DIR="$SCRIPT_DIR/runners"
+RUNNER_MANIFEST="$RUNNERS_DIR/$TOOL.json"
+
+# Runner config defaults (used when runners/ directory is absent or for hardcoded Claude fallback)
+RUNNER_NAME="claude"
+RUNNER_BINARY="claude"
+RUNNER_TIER="guaranteed"
+RUNNER_PROMPT_DELIVERY="flag"
+RUNNER_PROMPT_FLAG="-p"
+RUNNER_HEADLESS_FLAGS="--print"
+RUNNER_AUTO_APPROVE_FLAGS=""
+RUNNER_STDIN_PIPE="false"
+RUNNER_PREAMBLE_INJECTION="false"
+RUNNER_HEURISTIC_FALLBACK="false"
+RUNNER_INSTRUCTION_NATIVE="CLAUDE.md"
+
+if [[ -d "$RUNNERS_DIR" && -f "$RUNNER_MANIFEST" ]]; then
+  # Load from manifest using node
+  eval "$(node -e "
+    const m = require('$RUNNER_MANIFEST');
+    console.log('RUNNER_NAME=' + JSON.stringify(m.name));
+    console.log('RUNNER_BINARY=' + JSON.stringify(m.binary));
+    console.log('RUNNER_TIER=' + JSON.stringify(m.tier));
+    console.log('RUNNER_PROMPT_DELIVERY=' + JSON.stringify(m.invocation.promptDelivery));
+    console.log('RUNNER_PROMPT_FLAG=' + JSON.stringify(m.invocation.promptFlag || ''));
+    console.log('RUNNER_HEADLESS_FLAGS=' + JSON.stringify(m.invocation.headlessFlags.join(' ')));
+    console.log('RUNNER_AUTO_APPROVE_FLAGS=' + JSON.stringify(m.invocation.autoApproveFlags.join(' ')));
+    console.log('RUNNER_STDIN_PIPE=' + JSON.stringify(String(m.invocation.stdinPipe || false)));
+    console.log('RUNNER_PREAMBLE_INJECTION=' + JSON.stringify(String(m.signals.preambleInjection || false)));
+    console.log('RUNNER_HEURISTIC_FALLBACK=' + JSON.stringify(String(m.signals.heuristicFallback || false)));
+    console.log('RUNNER_INSTRUCTION_NATIVE=' + JSON.stringify(m.instructionFile.native));
+  ")"
+  echo "[RUNNER] Loaded $RUNNER_NAME ($RUNNER_BINARY) — tier: $RUNNER_TIER"
+elif [[ "$TOOL" != "claude" ]]; then
+  if [[ -d "$RUNNERS_DIR" ]]; then
+    available=$(find "$RUNNERS_DIR" -maxdepth 1 -name '*.json' -print0 2>/dev/null \
+      | xargs -0 -I{} basename {} .json | tr '\n' ', ' | sed 's/,$//')
+    echo "ERROR: Unknown runner '$TOOL'. Available: ${available:-none}"
+  else
+    echo "WARNING: runners/ directory not found. Falling back to hardcoded Claude behavior."
+  fi
+  [[ -d "$RUNNERS_DIR" ]] && exit 1
+fi
+
+if ! command -v "$RUNNER_BINARY" &>/dev/null; then
+  echo "ERROR: '$RUNNER_BINARY' CLI not found. Install it first."
   exit 1
 fi
 
@@ -262,23 +310,55 @@ execute_task() {
 
   prompt=$(build_prompt "$task_json")
 
-  local claude_cmd=(claude --print)
-  [[ "$SKIP_PERMISSIONS" == "true" ]] && claude_cmd=(claude --dangerously-skip-permissions --print)
-  [[ -n "$MODEL" ]] && claude_cmd+=(--model "$MODEL")
+  # Build runner command
+  local runner_cmd=()
+  if [[ "$RUNNER_PROMPT_DELIVERY" == "flag" ]]; then
+    runner_cmd=("$RUNNER_BINARY")
+    [[ -n "$RUNNER_HEADLESS_FLAGS" ]] && read -r -a hf <<< "$RUNNER_HEADLESS_FLAGS" && runner_cmd+=("${hf[@]}")
+    [[ "$SKIP_PERMISSIONS" == "true" && -n "$RUNNER_AUTO_APPROVE_FLAGS" ]] && read -r -a af <<< "$RUNNER_AUTO_APPROVE_FLAGS" && runner_cmd+=("${af[@]}")
+    [[ -n "$MODEL" && "$RUNNER_NAME" == "claude" ]] && runner_cmd+=(--model "$MODEL")
+  fi
 
   if [[ "$DRY_RUN" == "true" ]]; then
-    log "  [DRY RUN] Would execute: ${claude_cmd[*]} -p '...'"
+    log "  [DRY RUN] Would execute: ${runner_cmd[*]} $RUNNER_PROMPT_FLAG '...'"
     echo "$prompt" > "$log_file"
     update_task_status "$task_id" "pending"
     return 0
   fi
 
-  # Write prompt to temp file, pass via -p flag (not piped stdin)
-  local prompt_file
-  prompt_file=$(mktemp)
-  printf '%s' "$prompt" > "$prompt_file"
-  "${claude_cmd[@]}" -p "You are an autonomous coding agent. Read the task below and implement it by writing actual code files. Use your tools (Write, Edit, Bash) to create and modify files. Do NOT just describe what to do — actually do it. After implementation, run any verification commands." -- "$(cat "$prompt_file")" > "$log_file" 2>&1 || exit_code=$?
-  rm -f "$prompt_file"
+  # Inject preamble for non-Claude runners
+  local final_prompt="$prompt"
+  if [[ "$RUNNER_PREAMBLE_INJECTION" == "true" && -f "$RUNNERS_DIR/preamble.md" ]]; then
+    local preamble
+    preamble=$(cat "$RUNNERS_DIR/preamble.md")
+    final_prompt="${preamble}
+
+---
+
+${prompt}"
+  fi
+
+  local agent_preamble="You are an autonomous coding agent. Read the task below and implement it by writing actual code files. Use your tools (Write, Edit, Bash) to create and modify files. Do NOT just describe what to do — actually do it. After implementation, run any verification commands."
+
+  # Execute based on delivery method
+  local exit_code=0
+  case "$RUNNER_PROMPT_DELIVERY" in
+    flag)
+      "${runner_cmd[@]}" "$RUNNER_PROMPT_FLAG" "$agent_preamble" -- "$final_prompt" > "$log_file" 2>&1 || exit_code=$?
+      ;;
+    positional)
+      runner_cmd=("$RUNNER_BINARY")
+      [[ -n "$RUNNER_HEADLESS_FLAGS" ]] && read -r -a hf <<< "$RUNNER_HEADLESS_FLAGS" && runner_cmd+=("${hf[@]}")
+      [[ "$SKIP_PERMISSIONS" == "true" && -n "$RUNNER_AUTO_APPROVE_FLAGS" ]] && read -r -a af <<< "$RUNNER_AUTO_APPROVE_FLAGS" && runner_cmd+=("${af[@]}")
+      "${runner_cmd[@]}" "$final_prompt" > "$log_file" 2>&1 || exit_code=$?
+      ;;
+    stdin)
+      runner_cmd=("$RUNNER_BINARY")
+      [[ -n "$RUNNER_HEADLESS_FLAGS" ]] && read -r -a hf <<< "$RUNNER_HEADLESS_FLAGS" && runner_cmd+=("${hf[@]}")
+      [[ "$SKIP_PERMISSIONS" == "true" && -n "$RUNNER_AUTO_APPROVE_FLAGS" ]] && read -r -a af <<< "$RUNNER_AUTO_APPROVE_FLAGS" && runner_cmd+=("${af[@]}")
+      printf '%s' "$final_prompt" | "${runner_cmd[@]}" > "$log_file" 2>&1 || exit_code=$?
+      ;;
+  esac
 
   if [[ $exit_code -eq 0 ]]; then
     log "[PASSED] Task $task_id"
@@ -377,17 +457,44 @@ spawn_worktree_agent() {
   # Write prompt to file (avoids stdin piping issues in background)
   printf '%s' "$prompt" > "$prompt_file"
 
-  local claude_cmd="claude --print"
-  [[ "$SKIP_PERMISSIONS" == "true" ]] && claude_cmd="claude --dangerously-skip-permissions --print"
-  [[ -n "$MODEL" ]] && claude_cmd="$claude_cmd --model $MODEL"
+  # Build runner command from manifest config
+  local runner_cmd="$RUNNER_BINARY"
+  [[ -n "$RUNNER_HEADLESS_FLAGS" ]] && runner_cmd="$runner_cmd $RUNNER_HEADLESS_FLAGS"
+  if [[ "$SKIP_PERMISSIONS" == "true" && -n "$RUNNER_AUTO_APPROVE_FLAGS" ]]; then
+    runner_cmd="$runner_cmd $RUNNER_AUTO_APPROVE_FLAGS"
+  fi
+  [[ -n "$MODEL" && "$RUNNER_NAME" == "claude" ]] && runner_cmd="$runner_cmd --model $MODEL"
+
+  # Build preamble-injected prompt for non-Claude runners
+  local inject_preamble=""
+  if [[ "$RUNNER_PREAMBLE_INJECTION" == "true" && -f "$RUNNERS_DIR/preamble.md" ]]; then
+    inject_preamble="$(cat "$RUNNERS_DIR/preamble.md")"$'\n\n---\n\n'
+  fi
 
   # Write a self-contained runner script (survives parent exit on Windows)
-  cat > "$runner_script" <<RUNNER_EOF
+  local agent_preamble="You are an autonomous coding agent. Read the task below and implement it by writing actual code files. Use your tools (Write, Edit, Bash) to create and modify files. Do NOT just describe what to do — actually do it. After implementation, run any verification commands."
+  if [[ "$RUNNER_PROMPT_DELIVERY" == "stdin" ]]; then
+    cat > "$runner_script" <<RUNNER_EOF
 #!/usr/bin/env bash
 cd "$wt_path" || exit 1
-$claude_cmd -p "You are an autonomous coding agent. Read the task below and implement it by writing actual code files. Use your tools (Write, Edit, Bash) to create and modify files. Do NOT just describe what to do — actually do it. After implementation, run any verification commands." -- "\$(cat '$prompt_file')" > "$log_file" 2>&1
+printf '%s' "${inject_preamble}\$(cat '$prompt_file')" | $runner_cmd > "$log_file" 2>&1
 echo \$? > "$exit_file"
 RUNNER_EOF
+  elif [[ "$RUNNER_PROMPT_DELIVERY" == "positional" ]]; then
+    cat > "$runner_script" <<RUNNER_EOF
+#!/usr/bin/env bash
+cd "$wt_path" || exit 1
+$runner_cmd "${inject_preamble}\$(cat '$prompt_file')" > "$log_file" 2>&1
+echo \$? > "$exit_file"
+RUNNER_EOF
+  else
+    cat > "$runner_script" <<RUNNER_EOF
+#!/usr/bin/env bash
+cd "$wt_path" || exit 1
+$runner_cmd $RUNNER_PROMPT_FLAG "$agent_preamble" -- "${inject_preamble}\$(cat '$prompt_file')" > "$log_file" 2>&1
+echo \$? > "$exit_file"
+RUNNER_EOF
+  fi
   chmod +x "$runner_script"
 
   # Launch runner script in background
