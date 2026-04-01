@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Quantum-Loop Runner Manifest",
+  "description": "Defines the configuration for a coding agent CLI runner in the quantum-loop orchestrator.",
+  "type": "object",
+  "required": [
+    "name",
+    "displayName",
+    "binary",
+    "tier",
+    "installHint",
+    "version",
+    "invocation",
+    "instructionFile",
+    "signals"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Short identifier for the runner (e.g., 'claude', 'codex'). Used in --tool flag and file lookups."
+    },
+    "displayName": {
+      "type": "string",
+      "description": "Human-readable name shown in startup banner and logs."
+    },
+    "binary": {
+      "type": "string",
+      "description": "CLI binary name checked via 'command -v'. Must be on PATH."
+    },
+    "tier": {
+      "type": "string",
+      "enum": ["guaranteed", "tested", "experimental"],
+      "description": "Support tier. 'guaranteed' = zero-regression gate, 'tested' = CI-verified, 'experimental' = community-contributed."
+    },
+    "installHint": {
+      "type": "string",
+      "description": "Install command shown when the binary is not found (e.g., 'npm install -g @anthropic-ai/claude-code')."
+    },
+    "version": {
+      "type": "string",
+      "description": "Minimum version requirement (e.g., '>=1.0.0'). Informational; not enforced at runtime."
+    },
+    "invocation": {
+      "type": "object",
+      "description": "How the runner CLI is invoked with prompts and flags.",
+      "required": [
+        "promptDelivery",
+        "promptFlag",
+        "headlessFlags",
+        "autoApproveFlags",
+        "outputFlags",
+        "extraFlags",
+        "stdinPipe"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "promptDelivery": {
+          "type": "string",
+          "enum": ["flag", "positional", "stdin"],
+          "description": "How the prompt is passed to the CLI: 'flag' (-p 'prompt'), 'positional' (binary 'prompt'), 'stdin' (echo prompt | binary)."
+        },
+        "promptFlag": {
+          "type": ["string", "null"],
+          "description": "Flag used to pass the prompt (e.g., '-p'). Required when promptDelivery is 'flag', null otherwise."
+        },
+        "headlessFlags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Flags for non-interactive/headless mode (e.g., ['--print'])."
+        },
+        "autoApproveFlags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Flags to skip user approval prompts (e.g., ['--dangerously-skip-permissions'])."
+        },
+        "outputFlags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Additional flags for output control."
+        },
+        "extraFlags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Extra flags appended to every invocation. Can be extended by hook pre_spawn()."
+        },
+        "stdinPipe": {
+          "type": "boolean",
+          "description": "If true, the prompt is piped via stdin instead of as a CLI argument."
+        }
+      }
+    },
+    "instructionFile": {
+      "type": "object",
+      "description": "Configuration for the instruction/context file the runner reads.",
+      "required": ["native", "fallbackFrom", "autoGenerate"],
+      "additionalProperties": false,
+      "properties": {
+        "native": {
+          "type": "string",
+          "description": "Filename the runner natively reads for instructions (e.g., 'CLAUDE.md', 'AGENTS.md')."
+        },
+        "fallbackFrom": {
+          "type": ["string", "null"],
+          "description": "Source file to copy from when native file is missing (e.g., 'CLAUDE.md'). Null if no fallback."
+        },
+        "autoGenerate": {
+          "type": "boolean",
+          "description": "If true, auto-generate the native file from fallbackFrom when missing."
+        }
+      }
+    },
+    "signals": {
+      "type": "object",
+      "description": "Signal protocol support for the runner.",
+      "required": ["preambleInjection", "heuristicFallback"],
+      "additionalProperties": false,
+      "properties": {
+        "preambleInjection": {
+          "type": "boolean",
+          "description": "If true, prepend the quantum-loop signal protocol preamble to prompts."
+        },
+        "heuristicFallback": {
+          "type": "boolean",
+          "description": "If true, use heuristic output parsing when no explicit signal is detected."
+        }
+      }
+    },
+    "quirks": {
+      "type": "object",
+      "description": "Runner-specific quirks and workarounds. Free-form key-value pairs.",
+      "additionalProperties": true
+    }
+  }
+}
