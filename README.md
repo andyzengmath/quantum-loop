@@ -104,12 +104,46 @@ After any install method, restart Claude Code. Commands use the `quantum-loop:` 
 # Step 4b: Or run autonomously -- sequential (one story at a time)
 ./quantum-loop.sh --max-iterations 20
 
+# Step 4b (alt): Run with a different coding agent
+./quantum-loop.sh --tool codex --max-iterations 20
+./quantum-loop.sh --tool gemini --max-iterations 10
+
 # Step 4c: Or run autonomously -- parallel (independent stories run concurrently)
 ./quantum-loop.sh --parallel --max-parallel 4 --max-iterations 20
 
 # Step 4d: Windows autonomous (native PowerShell, no bash required)
 .\quantum-loop.ps1 -MaxIterations 20 -SkipPermissions
+.\quantum-loop.ps1 -Tool codex -MaxIterations 20
 ```
+
+---
+
+## Supported Runners
+
+Quantum-loop can orchestrate any terminal-based coding agent CLI via JSON manifest files. Switch runners with `--tool <name>`.
+
+| Runner | Binary | Tier | Install | Instruction File |
+|--------|--------|------|---------|------------------|
+| Claude Code | `claude` | Guaranteed | `npm i -g @anthropic-ai/claude-code` | CLAUDE.md |
+| Codex CLI | `codex` | Tested | `npm i -g @openai/codex` | AGENTS.md |
+| Copilot CLI | `copilot` | Experimental | `gh extension install github/gh-copilot` | CLAUDE.md |
+| Cursor Agent | `agent` | Experimental | [cursor.sh](https://cursor.sh) | CLAUDE.md |
+| Gemini CLI | `gemini` | Experimental | `npm i -g @anthropic-ai/gemini-cli` | GEMINI.md |
+| Amp | `amp` | Experimental | `npm i -g @anthropic-ai/amp` | CLAUDE.md |
+| Aider | `aider` | Experimental | `pip install aider-chat` | CLAUDE.md |
+
+**Tiers:** Guaranteed = zero-regression CI gate. Tested = CI-verified. Experimental = community-contributed.
+
+### Adding a Custom Runner
+
+Drop a JSON file in `runners/` following the schema in `schemas/runner.schema.json`:
+
+```bash
+# Validate your manifest
+bash schemas/validate.sh runners/my-runner.json
+```
+
+The manifest defines how the CLI is invoked (flag, positional, or stdin delivery), which instruction file it reads, and whether it needs preamble injection or heuristic signal fallback.
 
 ---
 
