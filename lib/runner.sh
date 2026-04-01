@@ -103,3 +103,42 @@ runner_load() {
   echo "[RUNNER] Loaded $RUNNER_NAME ($RUNNER_BINARY) — tier: $RUNNER_TIER" >&2
   return 0
 }
+
+# runner_ensure_instructions([target_dir])
+# Ensures the runner's native instruction file exists in target_dir (default: pwd).
+# If native file is missing, copies from fallbackFrom with .ql-generated marker.
+# Never overwrites user-maintained files. Idempotent.
+# Returns 0 on success or no-op, 1 on error.
+runner_ensure_instructions() {
+  local target_dir="${1:-.}"
+  local ql_marker="<!-- .ql-generated: Auto-generated from CLAUDE.md by quantum-loop. Do not edit manually. -->"
+
+  # If native == fallback or fallback is empty, nothing to do
+  if [[ "$RUNNER_INSTRUCTION_NATIVE" == "$RUNNER_INSTRUCTION_FALLBACK" ]] || [[ -z "$RUNNER_INSTRUCTION_FALLBACK" ]]; then
+    return 0
+  fi
+
+  local native_path="$target_dir/$RUNNER_INSTRUCTION_NATIVE"
+  local fallback_path="$target_dir/$RUNNER_INSTRUCTION_FALLBACK"
+
+  # If native already exists, don't overwrite
+  if [[ -f "$native_path" ]]; then
+    return 0
+  fi
+
+  # Fallback must exist to copy from
+  if [[ ! -f "$fallback_path" ]]; then
+    echo "ERROR: Neither $RUNNER_INSTRUCTION_NATIVE nor $RUNNER_INSTRUCTION_FALLBACK found in $target_dir" >&2
+    return 1
+  fi
+
+  # Generate native from fallback with marker
+  {
+    echo "$ql_marker"
+    echo ""
+    cat "$fallback_path"
+  } > "$native_path"
+
+  echo "[RUNNER] Generated $RUNNER_INSTRUCTION_NATIVE from $RUNNER_INSTRUCTION_FALLBACK" >&2
+  return 0
+}
