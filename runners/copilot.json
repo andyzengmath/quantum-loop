@@ -3,7 +3,7 @@
   "displayName": "GitHub Copilot CLI",
   "binary": "copilot",
   "tier": "experimental",
-  "installHint": "gh extension install github/gh-copilot",
+  "installHint": "npm install -g @github/copilot",
   "version": ">=1.0.0",
   "invocation": {
     "promptDelivery": "flag",
@@ -15,9 +15,9 @@
     "stdinPipe": false
   },
   "instructionFile": {
-    "native": "CLAUDE.md",
-    "fallbackFrom": null,
-    "autoGenerate": false
+    "native": "AGENTS.md",
+    "fallbackFrom": "CLAUDE.md",
+    "autoGenerate": true
   },
   "signals": {
     "preambleInjection": true,

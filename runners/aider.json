@@ -15,9 +15,9 @@
     "stdinPipe": false
   },
   "instructionFile": {
-    "native": "CLAUDE.md",
-    "fallbackFrom": null,
-    "autoGenerate": false
+    "native": "CONVENTIONS.md",
+    "fallbackFrom": "CLAUDE.md",
+    "autoGenerate": true
   },
   "signals": {
     "preambleInjection": true,

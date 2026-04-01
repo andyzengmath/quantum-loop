@@ -3,7 +3,7 @@
   "displayName": "Google Gemini CLI",
   "binary": "gemini",
   "tier": "experimental",
-  "installHint": "npm install -g @anthropic-ai/gemini-cli",
+  "installHint": "npm install -g @google/gemini-cli",
   "version": ">=0.1.0",
   "invocation": {
     "promptDelivery": "flag",

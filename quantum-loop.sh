@@ -777,6 +777,12 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
     .[0].id // empty
   ' quantum.json)
 
+  # Validate story ID format to prevent jq injection in downstream json_atomic_update calls
+  if [[ -n "$STORY_ID" && "$STORY_ID" != "null" && ! "$STORY_ID" =~ ^[A-Za-z0-9_-]+$ ]]; then
+    printf "ERROR: invalid story ID format: %s\n" "$STORY_ID" >&2
+    exit 1
+  fi
+
   if [[ -z "$STORY_ID" || "$STORY_ID" == "null" ]]; then
     # Check if all stories are passed
     ALL_PASSED=$(jq '[.stories[].status] | all(. == "passed")' quantum.json)
@@ -822,15 +828,19 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
   AGENT_PROMPT="Implement story $STORY_ID from quantum.json. This is iteration $ITERATION."
 
   # Build and execute the runner command
-  RUNNER_CMD=$(runner_build_cmd "$AGENT_PROMPT" 2>/dev/null)
-  OUTPUT=$(eval "$RUNNER_CMD" 2>&1) || true
+  RUNNER_CMD=$(runner_build_cmd "$AGENT_PROMPT") || {
+    printf "ERROR: runner_build_cmd failed for %s\n" "$RUNNER_NAME" >&2
+    continue
+  }
+  RUNNER_EXIT=0
+  OUTPUT=$(eval "$RUNNER_CMD" 2>&1) || RUNNER_EXIT=$?
 
   # -------------------------------------------------------------------------
   # Process output
   # -------------------------------------------------------------------------
 
   # Parse runner output for signals (uses heuristics if enabled for non-Claude runners)
-  runner_parse_output "$OUTPUT" 0
+  runner_parse_output "$OUTPUT" "$RUNNER_EXIT"
 
   case "$SIGNAL_RESULT" in
     COMPLETE)
