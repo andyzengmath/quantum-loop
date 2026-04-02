@@ -211,6 +211,64 @@ RESULT=$?
 assert_eq "path traversal rejected" "1" "$RESULT"
 assert_contains "error mentions Invalid runner name" "Invalid runner name" "$OUTPUT"
 
+# ── runner_load_unsafe_binary_name ──
+echo "Test: runner_load_unsafe_binary_name"
+TMPD=$(mktemp -d)
+mkdir -p "$TMPD/runners" "$TMPD/lib"
+cat > "$TMPD/runners/evilcli.json" << 'EOF'
+{
+  "name": "evilcli",
+  "binary": "claude; rm -rf /",
+  "tier": "experimental",
+  "invocation": {
+    "promptDelivery": "flag", "promptFlag": "-p",
+    "headlessFlags": ["--print"], "autoApproveFlags": [],
+    "outputFlags": [], "extraFlags": [], "stdinPipe": false
+  },
+  "instructionFile": { "native": "AGENTS.md", "fallbackFrom": null, "autoGenerate": false },
+  "signals": { "preambleInjection": false, "heuristicFallback": false },
+  "quirks": {}
+}
+EOF
+SAVED="$RUNNER_LIB_DIR"
+RUNNER_LIB_DIR="$TMPD/lib"
+OUTPUT=$(runner_load "evilcli" 2>&1)
+RESULT=$?
+assert_eq "unsafe binary rejected" "1" "$RESULT"
+assert_contains "error mentions Invalid binary name" "Invalid binary name" "$OUTPUT"
+RUNNER_LIB_DIR="$SAVED"
+rm -rf "$TMPD"
+
+# ── runner_load_unsafe_manifest_flags ──
+echo "Test: runner_load_unsafe_manifest_flags"
+TMPD=$(mktemp -d)
+mkdir -p "$TMPD/runners" "$TMPD/lib"
+echo '#!/usr/bin/env bash' > "$MOCK_DIR/safecli"
+chmod +x "$MOCK_DIR/safecli"
+cat > "$TMPD/runners/safecli.json" << 'EOF'
+{
+  "name": "safecli",
+  "binary": "safecli",
+  "tier": "experimental",
+  "invocation": {
+    "promptDelivery": "flag", "promptFlag": "-p",
+    "headlessFlags": ["--print; evil"], "autoApproveFlags": [],
+    "outputFlags": [], "extraFlags": [], "stdinPipe": false
+  },
+  "instructionFile": { "native": "AGENTS.md", "fallbackFrom": null, "autoGenerate": false },
+  "signals": { "preambleInjection": false, "heuristicFallback": false },
+  "quirks": {}
+}
+EOF
+SAVED="$RUNNER_LIB_DIR"
+RUNNER_LIB_DIR="$TMPD/lib"
+OUTPUT=$(runner_load "safecli" 2>&1)
+RESULT=$?
+assert_eq "unsafe headlessFlag rejected" "1" "$RESULT"
+assert_contains "error mentions Unsafe characters" "Unsafe characters" "$OUTPUT"
+RUNNER_LIB_DIR="$SAVED"
+rm -rf "$TMPD"
+
 # ── Cleanup ──
 export PATH="$OLD_PATH"
 rm -rf "$MOCK_DIR"

@@ -96,6 +96,13 @@ runner_load() {
   # Set RUNNER_* shell variables (used by caller — see runner_build_cmd, runner_ensure_instructions, etc.)
   # shellcheck disable=SC2034
   RUNNER_NAME=$(jq -r '.name' "$manifest")
+
+  # Validate RUNNER_NAME from manifest (used in hook path construction — must be safe)
+  if [[ ! "$RUNNER_NAME" =~ ^[A-Za-z0-9_-]+$ ]]; then
+    printf "ERROR: Invalid runner name in manifest: '%s' (must be alphanumeric with hyphens/underscores)\n" "$RUNNER_NAME" >&2
+    return 1
+  fi
+
   RUNNER_BINARY="$binary"
   # shellcheck disable=SC2034
   RUNNER_TIER=$(jq -r '.tier' "$manifest")

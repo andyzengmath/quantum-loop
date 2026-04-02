@@ -112,6 +112,17 @@ if [[ -d "$RUNNERS_DIR" && -f "$RUNNER_MANIFEST" ]]; then
   RUNNER_PREAMBLE_INJECTION=$(node -e "const m=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'));process.stdout.write(String(m.signals.preambleInjection||false))" "$RUNNER_MANIFEST")
   RUNNER_HEURISTIC_FALLBACK=$(node -e "const m=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'));process.stdout.write(String(m.signals.heuristicFallback||false))" "$RUNNER_MANIFEST")
   RUNNER_INSTRUCTION_NATIVE=$(node -e "const m=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'));process.stdout.write(m.instructionFile.native)" "$RUNNER_MANIFEST")
+  # Validate manifest-sourced values — reject shell metacharacters
+  if [[ ! "$RUNNER_BINARY" =~ ^[a-zA-Z0-9_./-]+$ ]]; then
+    echo "ERROR: Invalid binary name in manifest: '$RUNNER_BINARY'"
+    exit 1
+  fi
+  for _flag_val in "$RUNNER_HEADLESS_FLAGS" "$RUNNER_AUTO_APPROVE_FLAGS" "$RUNNER_PROMPT_FLAG"; do
+    if [[ "$_flag_val" =~ [\;\|\&\$\`\(\)\>\<\!\{\}] ]]; then
+      echo "ERROR: Unsafe characters in runner manifest flags: '$_flag_val'"
+      exit 1
+    fi
+  done
   echo "[RUNNER] Loaded $RUNNER_NAME ($RUNNER_BINARY) — tier: $RUNNER_TIER"
 elif [[ "$TOOL" != "claude" ]]; then
   if [[ -d "$RUNNERS_DIR" ]]; then
@@ -835,7 +846,9 @@ main() {
   fi
 
   if [[ -n "$test_cmd" ]]; then
-    if eval "$test_cmd" >/dev/null 2>&1; then
+    local -a test_cmd_array
+    read -ra test_cmd_array <<< "$test_cmd"
+    if "${test_cmd_array[@]}" >/dev/null 2>&1; then
       log "[FINAL SWEEP] Test suite passed."
     else
       log "[FINAL SWEEP] FAILED: test suite. Cannot declare complete."
