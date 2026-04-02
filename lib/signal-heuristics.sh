@@ -65,7 +65,7 @@ parse_agent_output() {
   if [[ -n "$error_lines" ]]; then
     # Filter out false positives: "0 errors", "0 failed", "no error"
     local real_errors
-    real_errors=$(echo "$error_lines" | grep -viE '(0 errors?|0 failed|no errors?)' || true)
+    real_errors=$(echo "$error_lines" | grep -viE '(0 errors?|0 failed|no errors?|^PASS:|^ok )' || true)
     if [[ -n "$real_errors" ]]; then
       has_errors=true
     fi

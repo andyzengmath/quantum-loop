@@ -880,11 +880,11 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
       ;;
     STORY_PASSED)
       printf "Story %s PASSED. Continuing to next story...\n" "$STORY_ID"
-      json_atomic_update ".stories |= map(if .id == \"$STORY_ID\" then .startedAt = null else . end)"
+      json_atomic_update ".stories |= map(if .id == \"$STORY_ID\" then .status = \"passed\" | .startedAt = null else . end)"
       ;;
     STORY_FAILED)
       printf "Story %s FAILED (attempt %d). Will retry if attempts remain.\n" "$STORY_ID" "$((STORY_ATTEMPT + 1))"
-      json_atomic_update ".stories |= map(if .id == \"$STORY_ID\" then .startedAt = null else . end)"
+      json_atomic_update ".stories |= map(if .id == \"$STORY_ID\" then .status = \"failed\" | .startedAt = null | .retries.attempts += 1 | .retries.failureLog += [{\"phase\": \"agent_failed\", \"timestamp\": (now | todate)}] else . end)"
       ;;
     BLOCKED)
       json_atomic_update ".stories |= map(if .id == \"$STORY_ID\" then .startedAt = null else . end)"
