@@ -1,0 +1,30 @@
+{
+  "$schema": "../schemas/runner.schema.json",
+  "name": "gemini",
+  "displayName": "Google Gemini CLI",
+  "binary": "gemini",
+  "tier": "experimental",
+  "installHint": "npm install -g @google/gemini-cli",
+  "version": ">=0.1.0",
+  "invocation": {
+    "promptDelivery": "flag",
+    "promptFlag": "-p",
+    "headlessFlags": [],
+    "autoApproveFlags": [
+      "--approval-mode=yolo"
+    ],
+    "outputFlags": [],
+    "extraFlags": [],
+    "stdinPipe": false
+  },
+  "instructionFile": {
+    "native": "GEMINI.md",
+    "fallbackFrom": "CLAUDE.md",
+    "autoGenerate": true
+  },
+  "signals": {
+    "preambleInjection": true,
+    "heuristicFallback": true
+  },
+  "quirks": {}
+}

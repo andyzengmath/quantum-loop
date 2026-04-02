@@ -24,16 +24,33 @@ source "$MONITOR_LIB_DIR/merge-strategy.sh" 2>/dev/null || MERGE_STRATEGY_AVAILA
 RESILIENCE_AVAILABLE=true
 source "$MONITOR_LIB_DIR/resilience.sh" 2>/dev/null || RESILIENCE_AVAILABLE=false
 
-# detect_signal(output_file)
+# detect_signal(output_file [worktree_path] [exit_code])
 # Scans an agent output file for quantum completion signals.
+# Uses runner_parse_output() when available for heuristic fallback support.
 # Returns "STORY_PASSED", "STORY_FAILED", or "" on stdout.
 detect_signal() {
   local output_file="$1"
+  local wt_path="${2:-.}"
+  local exit_code="${3:-0}"
 
   if [[ -z "$output_file" || ! -f "$output_file" ]]; then
     return 0
   fi
 
+  local output
+  output=$(cat "$output_file")
+
+  # Use runner_parse_output if available (supports heuristic fallback for non-Claude runners)
+  if type runner_parse_output &>/dev/null && [[ -n "${RUNNER_NAME:-}" ]]; then
+    runner_parse_output "$output" "$exit_code" "$wt_path" 2>/dev/null
+    if [[ -n "${SIGNAL_RESULT:-}" ]]; then
+      printf "%s" "$SIGNAL_RESULT"
+      return 0
+    fi
+    return 0
+  fi
+
+  # Fallback: direct grep (original behavior for backward compatibility)
   if grep -q '<quantum>STORY_PASSED</quantum>' "$output_file" 2>/dev/null; then
     printf "STORY_PASSED"
     return 0
@@ -70,7 +87,7 @@ check_agent_status() {
   if kill -0 "$pid" 2>/dev/null; then
     # Process alive -- check if it already emitted a signal
     local signal
-    signal=$(detect_signal "$output_file")
+    signal=$(detect_signal "$output_file" "$worktree_path")
     if [[ -n "$signal" ]]; then
       printf "%s" "$signal"
     else
@@ -79,9 +96,12 @@ check_agent_status() {
     return 0
   fi
 
-  # Process has exited -- check for signal in output
+  # Process has exited -- capture exit code and check for signal
+  local exit_code=0
+  wait "$pid" 2>/dev/null || exit_code=$?
+
   local signal
-  signal=$(detect_signal "$output_file")
+  signal=$(detect_signal "$output_file" "$worktree_path" "$exit_code")
   if [[ -n "$signal" ]]; then
     printf "%s" "$signal"
     return 0
