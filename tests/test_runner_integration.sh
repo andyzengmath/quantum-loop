@@ -140,6 +140,67 @@ assert_contains "has prompt" "test" "$cmd"  # printf %q escapes spaces
 assert_not_contains "no preamble" "REQUIRED SIGNALS" "$cmd"
 assert_not_contains "no heuristic" "heuristic" "$cmd"
 
+# ── Test: codex_end_to_end ──
+echo "Test: codex_end_to_end"
+source "$LIB_DIR/runner.sh"
+runner_load "codex" 2>/dev/null
+
+# Verify all codex manifest values loaded correctly
+assert_eq "codex name" "codex" "$RUNNER_NAME"
+assert_eq "codex binary" "codex" "$RUNNER_BINARY"
+assert_eq "codex tier" "tested" "$RUNNER_TIER"
+assert_eq "codex delivery" "positional" "$RUNNER_PROMPT_DELIVERY"
+assert_contains "codex headless -q" "-q" "$RUNNER_HEADLESS_FLAGS"
+assert_contains "codex approval-mode" "approval-mode" "$RUNNER_AUTO_APPROVE_FLAGS"
+assert_eq "codex preamble enabled" "true" "$RUNNER_PREAMBLE_INJECTION"
+assert_eq "codex heuristic enabled" "true" "$RUNNER_HEURISTIC_FALLBACK"
+assert_eq "codex native instruction" "AGENTS.md" "$RUNNER_INSTRUCTION_NATIVE"
+assert_eq "codex fallback" "CLAUDE.md" "$RUNNER_INSTRUCTION_FALLBACK"
+
+# Verify codex command structure (positional delivery + preamble)
+cmd=$(runner_build_cmd "implement story US-001" 2>/dev/null)
+assert_contains "codex cmd has binary" "codex" "$cmd"
+assert_contains "codex cmd has -q" "-q" "$cmd"
+assert_contains "codex cmd has approval-mode" "approval-mode" "$cmd"
+assert_contains "codex cmd has preamble" "REQUIRED SIGNALS" "$cmd"
+assert_contains "codex cmd has prompt" "implement" "$cmd"
+# Positional: no -p flag
+assert_not_contains "codex cmd no -p flag" " -p " "$cmd"
+
+# Verify codex hook fires (sandbox warning)
+OUTPUT=$(runner_build_cmd "test" 2>&1 >/dev/null)
+assert_contains "codex hook sandbox warning" "sandbox" "$OUTPUT"
+
+# Verify instruction file generation
+TMPD=$(mktemp -d)
+echo "# Project instructions" > "$TMPD/CLAUDE.md"
+runner_ensure_instructions "$TMPD" 2>/dev/null
+TOTAL=$((TOTAL + 1))
+if [[ -f "$TMPD/AGENTS.md" ]]; then
+  echo "  PASS: codex AGENTS.md generated from CLAUDE.md"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: codex AGENTS.md not generated"
+  FAIL=$((FAIL + 1))
+fi
+assert_contains "codex AGENTS.md has marker" ".ql-generated" "$(head -1 "$TMPD/AGENTS.md")"
+assert_contains "codex AGENTS.md has original content" "Project instructions" "$(cat "$TMPD/AGENTS.md")"
+rm -rf "$TMPD"
+
+# Verify codex signal heuristic path works
+RUNNER_HEURISTIC_FALLBACK="true"
+TMPD=$(mktemp -d)
+git -C "$TMPD" init -q 2>/dev/null
+git -C "$TMPD" config user.email "t@t.com" 2>/dev/null
+git -C "$TMPD" config user.name "T" 2>/dev/null
+echo "x" > "$TMPD/f.txt"
+git -C "$TMPD" add . 2>/dev/null
+git -C "$TMPD" commit -m "feat: US-001 - Test" -q 2>/dev/null
+runner_parse_output "Running tests... 0 failures" 0 "$TMPD" 2>/dev/null
+assert_eq "codex heuristic commit+tests → PASSED" "STORY_PASSED" "$SIGNAL_RESULT"
+assert_eq "codex heuristic confidence=high" "high" "$SIGNAL_CONFIDENCE"
+rm -rf "$TMPD"
+
 # ── Cleanup ──
 export PATH="$OLD_PATH"
 rm -rf "$MOCK_DIR"
