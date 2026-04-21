@@ -65,14 +65,17 @@ Branch is mergeable to master as a docs+detection PR with no runtime behavior ch
 
 No manual figure creation needed — this is an engineering research pipeline, not an academic paper.
 
-## Review status (Stage 4 in progress)
+## Review status (Stage 4 complete)
 
-Three parallel reviewers dispatched on 2026-04-21:
-- `oh-my-claudecode:code-reviewer` — severity-rated code review of the 3 commits
-- `oh-my-claudecode:critic` — multi-perspective plan critique
-- `soliton:synthesizer` — risk-adaptive PR-style review
+Three parallel reviewers returned on 2026-04-21. All findings addressed via commits `531cad2` and `0e4b18a`.
 
-**Results section to be appended once reviews land.**
+| Reviewer | Scope | Verdict | Key findings fixed |
+|----------|-------|---------|------|
+| `oh-my-claudecode:code-reviewer` | Code review of 3 commits | APPROVE WITH COMMENTS | Inaccurate counts (89 not 109; 45 not 66), GNU-only `date -d` → portable python3, P0.D merge-abort recovery, setext false-positive note |
+| `oh-my-claudecode:critic` | Multi-perspective plan critique | PROCEED WITH CHANGES | P0.D strategy infeasible (6 parallel rewrites with 87-file overlap) → revised to single-branch + CPC + cherry-pick; 3-way plugin-version drift documented; dogfood sequencing corrected |
+| `soliton:synthesizer` | Risk-adaptive PR review | READY_TO_MERGE_WITH_NOTES | Risk score 28/100; 5 improvements on DAG-intelligence agents (future P0.B/D work); scope-confusion meta-finding reinforces the P1.1 cross-story review need |
+
+Full review synthesis in `idea-stage/PIPELINE_REPORT.md`.
 
 ## Limitations and remaining follow-up items
 
