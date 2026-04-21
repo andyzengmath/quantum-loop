@@ -76,27 +76,43 @@ Ship criterion: `master` has one file per name; full test suite passes on ql/res
 
 **Destructive ops gate**: each deletion preceded by a `git tag archive/pre-p0-<date>-<branch>` so any branch can be recovered via `git checkout archive/...`.
 
-### Phase P0.D — Integration branch consolidation
+### Phase P0.D — Integration branch consolidation (REVISED 2026-04-21 post-critic review)
 
-Create `ql/integrate-2026-04-21` from post-P0.B master state; cherry-pick or merge in dependency order:
+**Original plan rejected.** Initial draft proposed merging six `ql/*` branches "in dependency order." Critic review (`aa42697c2c0a090f1`) showed this is infeasible: all six branches fork from the same master commit `a421263`; they are parallel rewrites with massive file overlap (~87 shared files between `ql/multi-runner` and `ql/hardening-v2`; ~76 between `ql/modular-hardening` and `ql/multi-runner`). Sequential merges would hit the abort threshold on step 1-2 and the sequential-merge strategy has no recovery path for "P0.D is infeasible as designed."
 
-1. `ql/post-mortem-fixes` (oldest substantive hardening; 50 commits).
-2. `ql/progressive-materialization` (126 commits; builds on post-mortem contract plumbing).
-3. `ql/modular-hardening` (185 commits; modular merge-hardening foundation).
-4. `ql/dag-intelligence` (148 commits; DAG validator + bottleneck/conflict/duplication/type auditors).
-5. `ql/hardening-v2` (226 commits; late-stage merge hardening).
-6. `ql/multi-runner` (256 commits; universal CLI orchestrator; largest, latest).
+**Revised strategy: single-branch promotion + CPC absorption + targeted cherry-pick.**
 
-Expected conflict categories (per `agents/conflict-auditor.md` severity model):
-- **HIGH**: barrel files (`skills/*/SKILL.md`, `agents/*.md`) — multiple branches touch same file.
-- **MEDIUM**: `lib/*.sh` shared across branches.
-- **LOW**: test fixtures, documentation.
+The key insight from critic review: **the CPC-variant files in the working tree ARE the integrated result** of the six branches' work — they already contain the combined hardening. Replaying 991 commits through conflict resolution is unnecessary work.
 
-Resolution strategy: prefer newer CPC-variant content where P0.B has already promoted; prefer hardening-v2 for `lib/merge-*.sh`; prefer multi-runner for `lib/runner.sh` + `runners/`.
+Three steps, each reviewable independently:
 
-**Merge-abort recovery**: if any single merge step produces >3 unrelated conflicts, abort via `git merge --abort`, tag the partial state via `git tag archive/p0d-partial-<step>-<YYYYMMDD>`, escalate to user with: (a) the aborted step, (b) the conflict summary, (c) a recommendation to either retry in a different order, drop that branch entirely, or perform manual conflict resolution in a worktree before resuming. Do not proceed to the next step until user decides.
+#### Step D.1 — Merge a single "furthest-along" branch
 
-Ship criterion: integration branch tip has all 29 unit + 10 integration tests green; `plugin.json` / `marketplace.json` / `CHANGELOG.md` / `README.md` reconciled; dogfood metric: a fresh `quantum.json` tracked the P0 work start-to-finish.
+Merge `ql/multi-runner` to master as a single PR. Rationale:
+- Largest diffstat (107 files, ~30.5K insertions per critic audit).
+- Most recent activity; its `plugin.json` already progressed through 0.3.5 → 0.3.6 → 0.3.7 → 0.4.1.
+- Contains `lib/runner.sh`, `lib/signal-heuristics.sh`, the spawn integration, and the runner schema — components needed for all downstream work.
+- If conflicts with master arise (likely small; README already aligned by P0.A), resolve once and commit.
+
+#### Step D.2 — Promote CPC-variant working-tree files (already in Phase P0.B)
+
+The CPC working-tree files (dated Mar 18 – Mar 30) contain the combined hardening from `ql/post-mortem-fixes` + `ql/progressive-materialization` + `ql/modular-hardening` + `ql/hardening-v2`. Per P0.B, promote these over the (now post-D.1-merge) plain names.
+
+#### Step D.3 — Cherry-pick net-new files from the remaining branches
+
+After D.1 + D.2 land, use `git diff` to identify files in each remaining `ql/*` branch that are additive (exist on the branch but not on master). Candidate set (from audit §4):
+- `agents/dag-validator.md`, `agents/bottleneck-analyzer.md`, `agents/conflict-auditor.md`, `agents/duplication-detector.md`, `agents/type-auditor.md` (from `ql/dag-intelligence`) — ~5 new files.
+- Any further net-new reference docs from each branch's `docs/plans/` or `references/` directory.
+
+Cherry-pick each as a discrete commit. Discard anything that duplicates what P0.B already promoted.
+
+**Trade-off** (from critic): we lose intermediate-step git history from the discarded branches. Given those steps produced parallel forks rather than a linear narrative, that history was already unusable for bisect / blame purposes. The tag-before-delete policy in P0.C ensures any branch is recoverable via `git checkout archive/...` if genuinely needed later.
+
+**Merge-abort recovery**: if D.1's single merge still produces >3 unrelated conflicts, abort via `git merge --abort`, tag the partial state via `git tag archive/p0d-partial-<step>-<YYYYMMDD>`, escalate to user with: (a) the conflict summary, (b) recommendation to either retry via direct file-copy of CPC content, perform manual conflict resolution in a worktree, or abandon `ql/multi-runner` and restart from the CPC working-tree as the authoritative source.
+
+Ship criterion: integration branch tip has all 29 unit + 10 integration tests green; `.claude-plugin/plugin.json` + `.claude-plugin/marketplace.json` + root `plugin.json` (if retained) + `CHANGELOG.md` + `README.md` versions reconciled — **critic flagged 3-way plugin-version drift on master now**: tracked `.claude-plugin/plugin.json=0.2.0`, untracked root `plugin.json=0.4.1`, `.claude-plugin/marketplace.json=1.0.0`. P0.D must declare one canonical version and eliminate the other two files or reconcile them.
+
+**Dogfood sequencing correction (from critic)**: The design previously said "run `/ql-spec` + `/ql-plan` on this design" as dogfood. Critic correctly noted that `/ql-spec` + `/ql-plan` resolve `SKILL.md` from tracked plain files (which lack the hardening), not the untracked CPC variants. So the dogfood step as originally specified would exercise the degraded pipeline, not the hardened one. Corrective: do P0.B CPC promotion FIRST, then dogfood. If user declines P0.B, treat the dogfood as a baseline measurement of the plain pipeline, not a validation of the hardened one.
 
 ## Acceptance criteria (verifiable)
 
