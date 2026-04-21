@@ -24,6 +24,8 @@ This skill exists because `idea-stage/AUDIT_QL.md` catalogued eight categories o
 
 Pattern: `^<<<<<<<` or `^=======$` or `^>>>>>>>`. These are the signature of an abandoned git merge that was committed without resolution.
 
+Note: the `^=======$` pattern can theoretically false-positive on Markdown setext-heading underlines (e.g., a heading followed by exactly seven `=` chars at column 1). In practice this is rare, and the `<<<<<<<` + `>>>>>>>` siblings are required for a real conflict block, so false positives are self-limiting.
+
 Command:
 ```bash
 grep -rn --include='*.md' --include='*.sh' --include='*.ts' --include='*.js' \
@@ -93,14 +95,21 @@ grep -q "^## \[$plugin_v\]" CHANGELOG.md 2>/dev/null || echo "CHANGELOG missing 
 
 `quantum.json.updatedAt` older than 30 days with the project in active development suggests the team isn't dogfooding.
 
-Command:
+Command (cross-platform: GNU `date`, macOS `date`, Git Bash):
 ```bash
 last=$(jq -r '.updatedAt // empty' quantum.json 2>/dev/null)
 if [ -n "$last" ]; then
-  age_days=$(( ($(date +%s) - $(date -d "$last" +%s)) / 86400 ))
-  [ "$age_days" -gt 30 ] && echo "quantum.json not updated in $age_days days"
+  # Portable ISO-8601 → epoch via python3 (GNU date -d is not on macOS/BSD)
+  age_days=$(python3 -c "
+import datetime,sys
+t = datetime.datetime.fromisoformat('$last'.replace('Z', '+00:00'))
+now = datetime.datetime.now(datetime.timezone.utc)
+print(int((now - t).total_seconds() // 86400))
+" 2>/dev/null)
+  [ -n "$age_days" ] && [ "$age_days" -gt 30 ] && echo "quantum.json not updated in $age_days days"
 fi
 ```
+Fallback when `python3` is unavailable: compare `$last` lexicographically against a pre-computed `$threshold = "$(TZ=UTC date -u +%Y-%m-%d)"` minus 30 days (date-string compare works because ISO-8601 is lexicographic-sortable); implementer should prefer python3.
 
 ### 8. Duplicate test files (same logical test in two files)
 

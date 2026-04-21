@@ -28,8 +28,8 @@ Quantum-loop is **Layer 2 (BUILD)** of a three-layer AI-native subsidiary stack:
 
 ### Housekeeping / self-reflection failure
 
-- **109 git branches** (`git branch -a | wc -l`). Majority are stale: `ql/*`, `fix/*`, `worktree-agent-*`.
-- **66 orphan worktree directories** under `.claude/worktrees/`. Crash recovery doesn't reliably clean these up across machines.
+- **~89 git branches** (`git branch -a | wc -l` re-verified 2026-04-21; initial estimate of 109 was inflated). Majority are stale: `ql/*`, `fix/*`, `worktree-agent-*`.
+- **45 orphan worktree directories** under `.claude/worktrees/` (re-verified 2026-04-21; initial estimate of 66 was inflated). Crash recovery doesn't reliably clean these up across machines.
 - **3 unresolved merge conflict markers in README.md** (user-facing doc). Evidence the two-stage review gate didn't catch the conflict during the last merge.
 - **CPC-variant files** (`*-CPC-andyz-ZH84K.*`) duplicated across agents, skills, tests — OneDrive auto-renamed copies. Not in git, but present in working tree and in agent worktree copies.
 - **CHANGELOG.md stops at 0.2.0** but `plugin.json` is at 0.4.1. Undocumented 0.3.x and 0.4.x releases. Self-discipline violation.

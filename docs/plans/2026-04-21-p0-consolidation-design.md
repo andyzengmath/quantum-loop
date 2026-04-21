@@ -15,7 +15,7 @@ Quantum-loop master is a regressed baseline relative to the project's actual sta
 3. **Surface-level self-discipline failures** compound the above:
    - README.md had 3 unresolved merge-conflict markers (fixed on this branch).
    - CHANGELOG.md stops at v0.2.0 while plugin.json is v0.4.1 — two minor releases undocumented.
-   - 109 git branches, 66 orphan `.claude/worktrees/agent-*` directories.
+   - 89 git branches, 45 orphan `.claude/worktrees/agent-*` directories (re-verified 2026-04-21 by `git branch -a | wc -l` and `ls -d .claude/worktrees/agent-* | wc -l`).
    - `lib/crash-recovery.sh` explicitly superseded by `lib/resilience.sh:3` but not removed.
    - `quantum.json` is frozen on the Feb 2026 US-001 story — the project has never dogfooded its own pipeline on any of the 7 hardening cycles since.
 
@@ -70,7 +70,7 @@ Ship criterion: `master` has one file per name; full test suite passes on ql/res
 ### Phase P0.C — Dead-code + branch + worktree cleanup
 
 1. Delete `lib/crash-recovery.sh` — `resilience.sh:3` declares it superseded.
-2. Remove `.claude/worktrees/agent-*` directories (66 of them) — these are abandoned worktree artifacts, not live trees.
+2. Remove `.claude/worktrees/agent-*` directories (45 of them) — these are abandoned worktree artifacts, not live trees.
 3. Prune git branches: `worktree-agent-*`, merged `fix/*`, superseded `ql/*` once P0.D completes.
 4. Audit remaining `ql/*` branches: document in `archive/` each branch's theme + key commit SHA + decision (merged / superseded / archived-as-reference / deleted).
 
@@ -93,6 +93,8 @@ Expected conflict categories (per `agents/conflict-auditor.md` severity model):
 - **LOW**: test fixtures, documentation.
 
 Resolution strategy: prefer newer CPC-variant content where P0.B has already promoted; prefer hardening-v2 for `lib/merge-*.sh`; prefer multi-runner for `lib/runner.sh` + `runners/`.
+
+**Merge-abort recovery**: if any single merge step produces >3 unrelated conflicts, abort via `git merge --abort`, tag the partial state via `git tag archive/p0d-partial-<step>-<YYYYMMDD>`, escalate to user with: (a) the aborted step, (b) the conflict summary, (c) a recommendation to either retry in a different order, drop that branch entirely, or perform manual conflict resolution in a worktree before resuming. Do not proceed to the next step until user decides.
 
 Ship criterion: integration branch tip has all 29 unit + 10 integration tests green; `plugin.json` / `marketplace.json` / `CHANGELOG.md` / `README.md` reconciled; dogfood metric: a fresh `quantum.json` tracked the P0 work start-to-finish.
 
@@ -132,8 +134,8 @@ Per `idea-stage/IDEA_REPORT.md §6`:
 
 | Metric | Pre-P0 (now) | Post-P0 target |
 |--------|-------------:|---------------:|
-| Branch count (`git branch -a \| wc -l`) | 109 | ≤ 15 |
-| Orphan `.claude/worktrees/agent-*` | 66 | 0 |
+| Branch count (`git branch -a \| wc -l`) | 89 | ≤ 15 |
+| Orphan `.claude/worktrees/agent-*` | 45 | 0 |
 | README merge-conflict markers | 3 (fixed in P0.A) | 0 |
 | CPC-variant files | ~20 | 0 |
 | `lib/crash-recovery.sh` present | yes | no |

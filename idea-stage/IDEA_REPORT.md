@@ -35,7 +35,7 @@ Independent audit of the codebase (`idea-stage/AUDIT_QL.md`) + git log analysis 
 | README.md | Has **3 unresolved merge conflict markers** on master right now. `fix/resolve-merge-conflicts` is 1 commit ahead of master and resolves them — **not merged**. |
 | CHANGELOG.md | Stops at v0.2.0. Plugin.json is v0.4.1. Two minor releases undocumented. |
 | `quantum.json` | Frozen on the Feb-2026 US-001 DAG-query story. The project **has not dogfooded its own pipeline on any of the 7 hardening cycles since** (AUDIT §6, G20). |
-| 109 git branches, 66 orphan `.claude/worktrees/agent-*` directories | Crash-recovery exists but is inconsistently applied; branch hygiene is manual. |
+| ~89 git branches, ~45 orphan `.claude/worktrees/agent-*` directories (re-verified 2026-04-21) | Crash-recovery exists but is inconsistently applied; branch hygiene is manual. Initial estimates of 109/66 were inflated; actual counts confirmed via `git branch -a \| wc -l` and `ls -d .claude/worktrees/agent-* \| wc -l`. |
 
 Consequence for ranking: **"Design new mechanisms" is a lower priority than "consolidate and promote existing work, then extend."** Without a clean base, any new idea will accrete on an inconsistent substrate.
 
@@ -155,8 +155,8 @@ After the Stage-2 shortlist ships, the following metrics become the evidence bas
 
 | Metric | Target | Measured on |
 |--------|--------|-------------|
-| `master` branch count reduced from 109 → ≤10 | yes/no | git branch -a |
-| Orphan worktrees in `.claude/worktrees/` | 0 | ls |
+| `master` branch count reduced from 89 → ≤10 | yes/no | git branch -a |
+| Orphan worktrees in `.claude/worktrees/` reduced from 45 → 0 | yes/no | ls -d .claude/worktrees/agent-* |
 | Test suite green on master (all 29 unit + 10 integration tests) | yes/no | bash tests/*.sh |
 | README conflict markers | 0 | grep |
 | CPC-variant file count | 0 | find |
