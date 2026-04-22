@@ -1,0 +1,73 @@
+=== Test 1: No typecheckCommand, no language files -> skip, return 0 ===
+  PASS: No config skip returns 0
+  PASS: Logs skip message
+=== Test 2: Explicit typecheckCommand in JSON -> uses it ===
+  FAIL: Explicit command returns 0
+    expected: 0
+    actual:   1
+=== Test 3: Auto-detect TypeScript (tsconfig.json) -> tsc --noEmit ===
+  PASS: Auto-detect TS returns 0
+  PASS: Logs auto-detect
+=== Test 4: Command not on allowlist -> rejected, returns 1 ===
+  PASS: Non-allowlisted command returns 1
+  PASS: Logs rejection
+=== Test 5: Baseline not set -> initialize baseline, return 0 ===
+  FAIL: Baseline init returns 0
+    expected: 0
+    actual:   1
+  FAIL: Logs baseline initialized
+    expected to contain: [TYPECHECK] baseline initialized
+    actual: [TYPECHECK] ERROR: typecheckCommand 'bash /tmp/tmp.UuOkJwrCxc/fake_typecheck.sh' does not match any allowed prefix — refusing to execute
+  FAIL: Baseline value written to JSON
+    expected: 3
+    actual:   null
+=== Test 6: Error count <= baseline -> return 0 ===
+  FAIL: Errors <= baseline returns 0
+    expected: 0
+    actual:   1
+  FAIL: Logs PASS
+    expected to contain: [TYPECHECK] PASS
+    actual: [TYPECHECK] ERROR: typecheckCommand 'bash /tmp/tmp.gK3yyqeNw8/fake_typecheck.sh' does not match any allowed prefix — refusing to execute
+=== Test 7: Error count > baseline -> revert merge, return 1 ===
+  PASS: Errors > baseline returns 1
+  FAIL: Logs FAIL and revert
+    expected to contain: [TYPECHECK] FAIL
+    actual: [TYPECHECK] ERROR: typecheckCommand 'bash /tmp/tmp.ZOPBHlk5f2/fake_typecheck.sh' does not match any allowed prefix — refusing to execute
+  FAIL: No revert commit (HEAD unchanged)
+=== Test 8: Timeout behavior (command that sleeps > timeout) ===
+  FAIL: Timeout returns 0 (graceful)
+    expected: 0
+    actual:   1
+  FAIL: Logs timeout warning
+    expected to contain: timed out
+    actual: [TYPECHECK] ERROR: typecheckCommand 'bash /tmp/tmp.r3M3VunYVP/slow_typecheck.sh' does not match any allowed prefix — refusing to execute
+=== Test 9: Multiple auto-detect options (tsconfig.json takes priority over go.mod) ===
+  PASS: tsconfig.json priority returns 0
+  PASS: Uses tsc (TypeScript detected)
+=== Test 10: Typecheck with warnings but zero errors passes ===
+  FAIL: Warnings-only returns 0
+    expected: 0
+    actual:   1
+  FAIL: Logs PASS for zero errors
+    expected to contain: [TYPECHECK] PASS
+    actual: [TYPECHECK] ERROR: typecheckCommand 'bash /tmp/tmp.mFTZIU4P5Y/warn_typecheck.sh' does not match any allowed prefix — refusing to execute
+=== Test 11: Injection — typecheckCommand with semicolon rejected ===
+  PASS: Semicolon injection returns 1
+  PASS: Logs rejection for semicolon
+=== Test 12: Injection — typecheckCommand with pipe rejected ===
+  PASS: Pipe injection returns 1
+  PASS: Logs rejection for pipe
+=== Test 13: Injection — typecheckCommand with redirect > rejected ===
+  PASS: Redirect injection returns 1
+  PASS: Logs rejection for redirect
+=== Test 14: Injection — typecheckCommand with backtick rejected ===
+  PASS: Backtick injection returns 1
+  PASS: Logs rejection for backtick
+=== Test 15: Injection — typecheckCommand with embedded newline rejected ===
+  PASS: Newline injection returns 1
+  PASS: Logs rejection for newline
+=== Test 16: Allowlist — tsc --noEmit accepted ===
+  PASS: Allowed tsc --noEmit returns 0
+  PASS: Logs running for tsc
+
+=== Results: 21/33 passed, 12 failed ===

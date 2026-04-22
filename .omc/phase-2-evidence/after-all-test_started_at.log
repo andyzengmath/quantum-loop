@@ -1,0 +1,13 @@
+=== startedAt Tests ===
+
+Test 1: startedAt written in ISO 8601 format
+  PASS: startedAt is ISO 8601
+
+Test 2: startedAt cleared on passed
+mktemp: failed to create directory via template ‘/tmp/tmp.pCRQVdvKX6/tmp.XXXXXXXXXX’: No such file or directory
+  PASS: startedAt is null after passed
+
+Test 3: startedAt cleared on failed
+  PASS: startedAt is null after failed
+
+=== Results: 3/3 passed ===

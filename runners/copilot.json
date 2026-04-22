@@ -1,0 +1,30 @@
+{
+  "$schema": "../schemas/runner.schema.json",
+  "name": "copilot",
+  "displayName": "GitHub Copilot CLI",
+  "binary": "copilot",
+  "tier": "experimental",
+  "installHint": "npm install -g @github/copilot",
+  "version": ">=1.0.0",
+  "invocation": {
+    "promptDelivery": "flag",
+    "promptFlag": "-p",
+    "headlessFlags": [],
+    "autoApproveFlags": [
+      "--allow-all"
+    ],
+    "outputFlags": [],
+    "extraFlags": [],
+    "stdinPipe": false
+  },
+  "instructionFile": {
+    "native": "AGENTS.md",
+    "fallbackFrom": "CLAUDE.md",
+    "autoGenerate": true
+  },
+  "signals": {
+    "preambleInjection": true,
+    "heuristicFallback": true
+  },
+  "quirks": {}
+}

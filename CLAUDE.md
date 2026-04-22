@@ -43,6 +43,8 @@ Find the next executable story from the dependency DAG:
 
 **Among eligible stories:** pick the one with the lowest `priority` number.
 
+**Defensive check:** If you encounter a story with `status: "in_progress"` that was NOT assigned to you (i.e., you are not the agent responsible for it), do NOT modify it. Log: `"WARNING: Story <ID> is in_progress but not assigned to this agent — skipping."` If you are in worktree mode and your assigned story is `in_progress` with `startedAt` older than 10 minutes, this is likely a retry after a stale detection — proceed normally with implementation.
+
 If NO story is eligible:
 - Check if all stories have `status: "passed"` → output `<quantum>COMPLETE</quantum>` and exit
 - Otherwise → output `<quantum>BLOCKED</quantum>` and exit (remaining stories have unmet dependencies or exhausted retries)
@@ -75,7 +77,8 @@ Implement the change, then run verification commands from `task.commands`.
 
 ### After each task:
 
-Update `quantum.json`: set task status to `"passed"` or `"failed"`.
+**If you are NOT in a worktree:** Update `quantum.json`: set task status to `"passed"` or `"failed"`.
+**If you ARE in a worktree (.ql-wt/):** Do NOT update quantum.json. Log progress to stdout only.
 
 ## Step 5: Quality Checks
 

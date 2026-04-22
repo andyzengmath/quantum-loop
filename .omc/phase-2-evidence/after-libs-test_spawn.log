@@ -1,0 +1,39 @@
+=== Test 1: build_agent_prompt includes story ID ===
+  PASS: Prompt contains story ID
+  PASS: Prompt contains implement instruction
+=== Test 2: build_agent_prompt includes worktree warning ===
+  PASS: Prompt warns about quantum.json
+=== Test 3: build_autonomous_command generates correct command ===
+  PASS: Command includes worktree path
+  PASS: Command includes story ID
+  PASS: Command uses claude
+=== Test 4: Input validation - empty story_id ===
+  PASS: Empty story_id returns error
+=== Test 5: Input validation - invalid story_id format ===
+  PASS: Invalid story_id returns error
+=== Test 6: build_autonomous_command validates inputs ===
+  PASS: Empty story_id in command returns error
+  PASS: Empty worktree_path in command returns error
+=== Test 7: spawn_autonomous rejects empty story_id ===
+  PASS: spawn_autonomous empty story_id returns error
+  PASS: spawn_autonomous empty story_id error message
+=== Test 8: spawn_autonomous rejects empty worktree_path ===
+  PASS: spawn_autonomous empty worktree_path returns error
+  PASS: spawn_autonomous empty worktree_path error message
+=== Test 9: spawn_autonomous rejects nonexistent worktree_path ===
+  PASS: spawn_autonomous nonexistent worktree_path returns error
+  PASS: spawn_autonomous nonexistent path error message
+=== Test 10: spawn_autonomous returns PID with mock claude ===
+  PASS: spawn_autonomous with mock returns 0
+  PASS: spawn_autonomous returns a PID
+  PASS: Output file created at expected path
+  PASS: Output file contains mock output
+=== Test 11: AGENT_OUTPUT_FILENAME constant is defined ===
+  PASS: AGENT_OUTPUT_FILENAME value
+=== Test 12: Multiple agents run concurrently ===
+  PASS: Agent 1 got a PID
+  PASS: Agent 2 got a PID
+  PASS: Agent 3 got a PID
+  PASS: All 3 agents running concurrently
+
+=== Results: 25/25 passed, 0 failed ===

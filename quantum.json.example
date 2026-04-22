@@ -1,5 +1,6 @@
 {
   "project": "MyApp",
+  "_comment_storyType": "Each story may have a 'storyType' field. Allowed values: 'types-only' (stories that only define types/interfaces/schemas), 'logic' (stories with business logic), 'config' (scaffold/config-only stories), 'test' (test-only stories). When absent, defaults to 'logic'.",
   "branchName": "ql/task-priority",
   "description": "Task Priority System - Add priority levels to tasks with filtering and sorting",
   "prdPath": "tasks/prd-task-priority.md",
@@ -9,6 +10,7 @@
   "stories": [
     {
       "id": "US-001",
+      "storyType": "config",
       "title": "Add priority field to database",
       "description": "As a developer, I need to store task priority so it persists across sessions.",
       "acceptanceCriteria": [
@@ -25,8 +27,12 @@
           "id": "T-001",
           "title": "Write migration test",
           "description": "Write a test that verifies the priority column exists with correct type and default value.",
-          "filePaths": ["tests/migrations/test_add_priority.py"],
-          "commands": ["pytest tests/migrations/test_add_priority.py -v"],
+          "filePaths": [
+            "tests/migrations/test_add_priority.py"
+          ],
+          "commands": [
+            "pytest tests/migrations/test_add_priority.py -v"
+          ],
           "testFirst": true,
           "status": "pending"
         },
@@ -34,8 +40,13 @@
           "id": "T-002",
           "title": "Create migration file",
           "description": "Generate Alembic migration adding 'priority' column (VARCHAR, default 'medium') to tasks table.",
-          "filePaths": ["alembic/versions/add_priority_column.py"],
-          "commands": ["alembic upgrade head", "pytest tests/migrations/ -v"],
+          "filePaths": [
+            "alembic/versions/add_priority_column.py"
+          ],
+          "commands": [
+            "alembic upgrade head",
+            "pytest tests/migrations/ -v"
+          ],
           "testFirst": false,
           "status": "pending"
         },
@@ -43,8 +54,14 @@
           "id": "T-003",
           "title": "Update model and type definitions",
           "description": "Add priority field to Task model and TaskPriority type ('high' | 'medium' | 'low').",
-          "filePaths": ["models/task.py", "types/task.py"],
-          "commands": ["pyright", "pytest tests/models/ -v"],
+          "filePaths": [
+            "models/task.py",
+            "types/task.py"
+          ],
+          "commands": [
+            "pyright",
+            "pytest tests/models/ -v"
+          ],
           "testFirst": false,
           "status": "pending"
         }
@@ -66,10 +83,16 @@
         "maxAttempts": 3,
         "failureLog": []
       },
-      "notes": ""
+      "notes": "",
+      "startedAt": null,
+      "contractBreaking": false,
+      "_comment_contractBreaking": "Optional. When true, indicates this story modifies a shared contract (type, API, schema) that other stories depend on. Triggers re-validation of all consuming stories after merge.",
+      "fixes": [],
+      "_comment_fixes": "Optional. Array of story IDs that this story fixes or supersedes. Used to track rework chains -- e.g. ['US-010'] means this story fixes a defect introduced by US-010."
     },
     {
       "id": "US-002",
+      "storyType": "logic",
       "title": "Display priority indicator on task cards",
       "description": "As a user, I want to see task priority at a glance so I can focus on what matters.",
       "acceptanceCriteria": [
@@ -81,14 +104,20 @@
       ],
       "priority": 2,
       "status": "pending",
-      "dependsOn": ["US-001"],
+      "dependsOn": [
+        "US-001"
+      ],
       "tasks": [
         {
           "id": "T-004",
           "title": "Write PriorityBadge component test",
           "description": "Test that PriorityBadge renders correct color and label for each priority level.",
-          "filePaths": ["tests/components/test_priority_badge.tsx"],
-          "commands": ["jest tests/components/test_priority_badge.tsx"],
+          "filePaths": [
+            "tests/components/test_priority_badge.tsx"
+          ],
+          "commands": [
+            "jest tests/components/test_priority_badge.tsx"
+          ],
           "testFirst": true,
           "status": "pending"
         },
@@ -96,17 +125,38 @@
           "id": "T-005",
           "title": "Implement PriorityBadge component",
           "description": "Create PriorityBadge component with red/yellow/gray variants. Use existing Badge component as base.",
-          "filePaths": ["components/PriorityBadge.tsx", "components/PriorityBadge.css"],
-          "commands": ["jest tests/components/test_priority_badge.tsx", "tsc --noEmit"],
+          "filePaths": [
+            "components/PriorityBadge.tsx",
+            "components/PriorityBadge.css"
+          ],
+          "commands": [
+            "jest tests/components/test_priority_badge.tsx",
+            "tsc --noEmit"
+          ],
           "testFirst": false,
-          "status": "pending"
+          "status": "pending",
+          "wiring_verification": {
+            "file": "components/TaskCard.tsx",
+            "must_contain": [
+              "import { PriorityBadge }",
+              "PriorityBadge"
+            ]
+          },
+          "consumedBy": [
+            "US-003"
+          ]
         },
         {
           "id": "T-006",
           "title": "Integrate badge into TaskCard",
           "description": "Add PriorityBadge to TaskCard component, passing task.priority as prop.",
-          "filePaths": ["components/TaskCard.tsx"],
-          "commands": ["jest tests/components/ --passWithNoTests", "tsc --noEmit"],
+          "filePaths": [
+            "components/TaskCard.tsx"
+          ],
+          "commands": [
+            "jest tests/components/ --passWithNoTests",
+            "tsc --noEmit"
+          ],
           "testFirst": false,
           "status": "pending"
         }
@@ -128,10 +178,12 @@
         "maxAttempts": 3,
         "failureLog": []
       },
-      "notes": ""
+      "notes": "",
+      "startedAt": null
     },
     {
       "id": "US-003",
+      "storyType": "logic",
       "title": "Filter tasks by priority",
       "description": "As a user, I want to filter the task list by priority so I can see only high-priority items.",
       "acceptanceCriteria": [
@@ -143,14 +195,21 @@
       ],
       "priority": 3,
       "status": "pending",
-      "dependsOn": ["US-001", "US-002"],
+      "dependsOn": [
+        "US-001",
+        "US-002"
+      ],
       "tasks": [
         {
           "id": "T-007",
           "title": "Write filter API test",
           "description": "Test that GET /tasks?priority=high returns only high-priority tasks.",
-          "filePaths": ["tests/api/test_task_filter.py"],
-          "commands": ["pytest tests/api/test_task_filter.py -v"],
+          "filePaths": [
+            "tests/api/test_task_filter.py"
+          ],
+          "commands": [
+            "pytest tests/api/test_task_filter.py -v"
+          ],
           "testFirst": true,
           "status": "pending"
         },
@@ -158,8 +217,13 @@
           "id": "T-008",
           "title": "Add priority filter to tasks endpoint",
           "description": "Add optional 'priority' query param to GET /tasks. Filter by priority column when present.",
-          "filePaths": ["api/routes/tasks.py"],
-          "commands": ["pytest tests/api/test_task_filter.py -v", "pyright"],
+          "filePaths": [
+            "api/routes/tasks.py"
+          ],
+          "commands": [
+            "pytest tests/api/test_task_filter.py -v",
+            "pyright"
+          ],
           "testFirst": false,
           "status": "pending"
         },
@@ -167,8 +231,12 @@
           "id": "T-009",
           "title": "Write PriorityFilter component test",
           "description": "Test that PriorityFilter renders dropdown and calls onChange with selected value.",
-          "filePaths": ["tests/components/test_priority_filter.tsx"],
-          "commands": ["jest tests/components/test_priority_filter.tsx"],
+          "filePaths": [
+            "tests/components/test_priority_filter.tsx"
+          ],
+          "commands": [
+            "jest tests/components/test_priority_filter.tsx"
+          ],
           "testFirst": true,
           "status": "pending"
         },
@@ -176,8 +244,14 @@
           "id": "T-010",
           "title": "Implement PriorityFilter and integrate",
           "description": "Create PriorityFilter dropdown. Wire to URL params. Show empty state when no results.",
-          "filePaths": ["components/PriorityFilter.tsx", "pages/TaskList.tsx"],
-          "commands": ["jest tests/components/ --passWithNoTests", "tsc --noEmit"],
+          "filePaths": [
+            "components/PriorityFilter.tsx",
+            "pages/TaskList.tsx"
+          ],
+          "commands": [
+            "jest tests/components/ --passWithNoTests",
+            "tsc --noEmit"
+          ],
           "testFirst": false,
           "status": "pending"
         }
@@ -199,9 +273,218 @@
         "maxAttempts": 3,
         "failureLog": []
       },
-      "notes": ""
+      "notes": "",
+      "startedAt": null
     }
   ],
   "progress": [],
-  "codebasePatterns": []
+  "contracts": {
+    "secret_keys": {
+      "openai": {
+        "value": "openai-api-key",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "db_password": {
+        "value": "DATABASE_PASSWORD"
+      }
+    },
+    "shared_types": {
+      "priority_enum": {
+        "value": "Priority",
+        "pattern": "^[A-Z][a-zA-Z]*$",
+        "definitionFile": "types/task.py",
+        "owner": "US-001",
+        "consumers": ["US-002", "US-003"],
+        "shape": {
+          "methods": [
+            {
+              "name": "fromString",
+              "params": [
+                { "name": "raw", "type": "string" }
+              ],
+              "returns": "Priority"
+            }
+          ],
+          "properties": [
+            { "name": "label", "type": "string", "readonly": true },
+            { "name": "level", "type": "number" }
+          ]
+        },
+        "definition": "interface Priority {\n  readonly label: string;\n  level: number;\n  fromString(raw: string): Priority;\n}"
+      },
+      "task_status": {
+        "value": "TaskStatus"
+      }
+    }
+  },
+  "coverageThreshold": 80,
+  "typecheckCommand": "tsc --noEmit",
+  "_comment_typecheckCommand": "Auto-detect: tsconfig.json -> tsc --noEmit, pyproject.toml with [tool.pyright] -> pyright, mypy config -> mypy ., go.mod -> go vet ./... If absent, auto-detect is used. Set to null to skip.",
+  "staleThresholdMinutes": 20,
+  "codebasePatterns": [],
+  "fileConflicts": [
+    {
+      "files": ["src/generator.py"],
+      "stories": [
+        "US-007",
+        "US-008"
+      ],
+      "severity": "medium"
+    }
+  ],
+  "_comment_severity": "Allowed values for fileConflicts severity: 'high' (barrel/index files, shared type files, config files), 'medium' (same-wave source file overlap), 'low' (different-wave source file overlap)",
+  "dagValidation": {
+    "timestamp": "2026-03-24T12:00:00Z",
+    "bottlenecks": [
+      {
+        "chain": ["US-001", "US-002", "US-003"],
+        "type": "linear_chain",
+        "fix": "warning",
+        "newStories": [],
+        "modifiedDependsOn": [],
+        "warning": {
+          "type": "warning",
+          "message": "Linear chain US-001 -> US-002 -> US-003 has length 3 -- consider parallelizing"
+        }
+      }
+    ],
+    "duplicationRisks": [
+      {
+        "storyPairs": ["US-004", "US-005"],
+        "sharedConcern": "Both stories implement input validation logic",
+        "proposedStub": {
+          "id": "US-004-A",
+          "title": "Shared input validation utility",
+          "dependsOn": [],
+          "storyType": "logic"
+        }
+      }
+    ],
+    "fileConflictsComputed": 1,
+    "stubsCreated": ["US-004-A"],
+    "timeouts": []
+  },
+  "_comment_dagValidation": "This block is written by the dag-validator agent and is informational only. It describes detected bottlenecks, duplication risks, computed file conflicts, and stubs created during DAG analysis.",
+  "_comment_runtime_fields": "The _execution_example block below is DOCUMENTATION ONLY (prefixed with underscore). It shows what the orchestrator writes to execution.* at runtime. Do NOT copy this block into a real quantum.json -- the orchestrator creates these fields dynamically. Fields shown here: mode, maxParallel, currentWave, activeWorktrees, materializedContracts (file paths), discoveredContracts, baselineTypecheckErrors.",
+  "_execution_example": {
+    "mode": "parallel",
+    "maxParallel": 4,
+    "currentWave": 2,
+    "activeWorktrees": [
+      ".ql-wt/US-002",
+      ".ql-wt/US-003"
+    ],
+    "materializedContracts": ["src/shared/types/alias-registry.ts", "src/shared/types/feature-cluster.ts"],
+    "discoveredContracts": {
+      "Feature": {
+        "discoveredInWave": 3,
+        "sourceFiles": ["src/api/types.ts", "src/frontend/types.ts"],
+        "consolidated": true,
+        "consolidatedFile": "src/shared/types/feature.ts"
+      }
+    },
+    "baselineTypecheckErrors": 0
+  },
+  "knownFailures": {
+    "_comment_knownFailures": "Tracks baseline and current test suite state to detect regressions and flaky tests. Baseline is captured at the start of a feature branch; current is updated after each wave.",
+    "baseline": {
+      "_comment_baseline": "Snapshot of the test suite state when the feature branch was created. Used as the reference point for regression detection.",
+      "capturedAt": "2026-03-24T12:00:00Z",
+      "wave": 0,
+      "passCount": 142,
+      "failCount": 2,
+      "skipCount": 3,
+      "failingTests": [
+        {
+          "name": "tests/integration/test_auth.py::test_token_refresh_race",
+          "failingSince": 0,
+          "introducedBy": "US-010",
+          "expectedFix": "US-015",
+          "error": "TimeoutError: token refresh exceeded 5s deadline"
+        }
+      ]
+    },
+    "current": {
+      "_comment_current": "Live snapshot of the test suite state, updated after each wave completes. Compared against baseline to detect new failures.",
+      "updatedAt": "2026-03-24T14:30:00Z",
+      "capturedAt": "2026-03-24T12:00:00Z",
+      "wave": 2,
+      "passCount": 145,
+      "failCount": 2,
+      "skipCount": 3,
+      "failingTests": [
+        {
+          "name": "tests/integration/test_auth.py::test_token_refresh_race",
+          "failingSince": 0,
+          "introducedBy": "US-010",
+          "expectedFix": "US-015",
+          "error": "TimeoutError: token refresh exceeded 5s deadline"
+        }
+      ]
+    },
+    "flakyThreshold": 1,
+    "_comment_flakyThreshold": "Number of times a test must fail intermittently before being classified as flaky. Default is 1.",
+    "fullSuiteTimeout": 60,
+    "_comment_fullSuiteTimeout": "Maximum seconds allowed for the full test suite to run before being killed. Default is 60."
+  },
+  "execution": {
+    "_comment_execution": "Runtime configuration for the orchestrator. Contains worktree tracking and merge strategy settings.",
+    "worktreeTracking": {
+      "_comment_worktreeTracking": "Tracks active git worktrees used for parallel agent execution. The orchestrator uses this to manage lifecycle and cleanup.",
+      "activeWorktrees": [
+        {
+          "path": ".ql-wt/US-002",
+          "branch": "worktree-us-002",
+          "storyId": "US-002",
+          "createdAt": "2026-03-24T13:00:00Z",
+          "wave": 2
+        }
+      ],
+      "cleanedThisSession": 0,
+      "_comment_cleanedThisSession": "Count of worktrees cleaned up during the current orchestrator session. Reset to 0 on each session start.",
+      "maxWorktrees": 4,
+      "_comment_maxWorktrees": "Maximum number of concurrent worktrees allowed. Limits parallel agent execution to prevent resource exhaustion."
+    },
+    "mergeStrategy": {
+      "_comment_mergeStrategy": "Defines how the orchestrator resolves merge conflicts when integrating parallel worktree branches back into the main branch. Each rule targets a specific file pattern with a resolution strategy.",
+      "rules": [
+        {
+          "name": "dependency_manifest",
+          "_comment": "Package lock files (package-lock.json, yarn.lock, etc.) use 'ours' version then re-run install to regenerate a consistent lockfile.",
+          "filePattern": "package.json|package-lock.json|yarn.lock|pnpm-lock.yaml|Cargo.toml|Cargo.lock|pyproject.toml|poetry.lock|go.mod|go.sum|requirements*.txt",
+          "strategy": "ours",
+          "postAction": "install"
+        },
+        {
+          "name": "barrel_export",
+          "_comment": "Barrel/index files (index.ts, __init__.py) are regenerated from the directory listing after merge, since multiple agents may add exports.",
+          "filePattern": "**/index.ts|**/index.js|**/__init__.py|**/mod.rs",
+          "strategy": "regenerate"
+        },
+        {
+          "name": "new_story_file",
+          "_comment": "Files created by the incoming branch that do not exist on ours. Uses 'theirs' to accept the new file wholesale. Matched by condition, not pattern.",
+          "filePattern": null,
+          "strategy": "theirs",
+          "condition": "file_not_on_ours"
+        },
+        {
+          "name": "shared_infrastructure",
+          "_comment": "Shared config or infra files that were already merged in an earlier wave. Uses 'ours' to preserve the earlier merge result. Matched by condition, not pattern.",
+          "filePattern": null,
+          "strategy": "ours",
+          "condition": "file_merged_in_earlier_wave"
+        },
+        {
+          "name": "contract_stub",
+          "_comment": "Files listed in materializedContracts. Uses 'theirs' to accept the contract-owner's version as canonical. Matched by condition, not pattern.",
+          "filePattern": null,
+          "strategy": "theirs",
+          "condition": "file_in_materializedContracts"
+        }
+      ],
+      "defaultAction": "escalate",
+      "_comment_defaultAction": "When no rule matches a conflicting file, 'escalate' halts the merge and notifies the operator for manual resolution."
+    }
+  }
 }

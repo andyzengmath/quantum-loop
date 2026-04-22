@@ -1,6 +1,6 @@
 ---
 name: ql-verify
-description: Iron Law verification gate. Requires fresh evidence before any completion claim. Use before claiming work is done, before committing, or before marking a story as passed. Triggers on: verify, check, prove it works, ql-verify.
+description: "Part of the quantum-loop autonomous development pipeline (brainstorm \u2192 spec \u2192 plan \u2192 execute \u2192 review \u2192 verify). Iron Law verification gate. Requires fresh evidence before any completion claim. Use before claiming work is done, before committing, or before marking a story as passed. Triggers on: verify, check, prove it works, ql-verify."
 ---
 
 # Quantum-Loop: Verify
@@ -125,3 +125,17 @@ When invoked directly by the user:
 2. Identify the appropriate commands
 3. Run the 5-step gate function
 4. Report results with full evidence
+
+## Integration Verification (for multi-story features)
+
+Before claiming a feature is complete, verify:
+
+1. **All imports resolve:** Run the project's entry point import
+   - Python: `python -c "import <main_module>"`
+   - Node: `node -e "require('./<entry_point>')"`
+   - Go: `go build ./...`
+2. **All new functions have call sites outside tests:** Use LSP "Find References" or grep
+3. **Full test suite passes:** Not just per-story tests — ALL tests
+4. **No type mismatches across story boundaries:** Use LSP "Hover" or manual inspection
+
+This is part of the Iron Law: "it passes unit tests" is NOT evidence that the feature works. Integration evidence is required. "Each story passed its review" is NOT evidence that the stories work together.

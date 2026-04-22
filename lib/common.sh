@@ -2,6 +2,20 @@
 # lib/common.sh -- Shared utility functions for quantum-loop
 # Source this file from other lib/ scripts for common validation.
 
+# _to_native_path(path)
+# Converts a Git Bash / MSYS2 path to a native path for Python interop.
+# Uses cygpath -m (forward-slash Windows paths like C:/Users/...) when on Windows.
+# On non-Windows systems, returns the path unchanged.
+# Prefer passing the result via sys.argv rather than string interpolation.
+_to_native_path() {
+  local p="$1"
+  if command -v cygpath &>/dev/null; then
+    cygpath -m "$p"
+  else
+    printf '%s' "$p"
+  fi
+}
+
 # _validate_story_id(story_id)
 # Validates that story_id is non-empty and matches safe alphanumeric pattern.
 # Returns 0 if valid, 1 otherwise (with error on stderr).

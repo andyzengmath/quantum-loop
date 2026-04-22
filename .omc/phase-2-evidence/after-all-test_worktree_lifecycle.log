@@ -1,0 +1,136 @@
+=== Test 1: register_worktree records correct path in activeWorktrees ===
+[WORKTREE] Registered US-R01 at /tmp/tmp.slmF2zK43I/wt/US-R01
+  PASS: register_worktree exits 0
+  PASS: register_worktree stores path with correct suffix
+  PASS: register_worktree stores non-empty path
+=== Test 2: register_worktree stores correct storyId, branch, wave ===
+  PASS: register_worktree storyId
+  PASS: register_worktree branch
+  PASS: register_worktree wave
+=== Test 3: register_worktree createdAt is valid ISO 8601 ===
+  PASS: register_worktree createdAt is valid ISO
+=== Test 4: register_worktree with wave=0 boundary ===
+[WORKTREE] Registered US-R02 at /tmp/tmp.slmF2zK43I/wt/US-R02
+  PASS: register_worktree wave=0 exits 0
+  PASS: register_worktree stores wave=0
+=== Test 5: register_worktree with large wave number ===
+[WORKTREE] Registered US-R03 at /tmp/tmp.slmF2zK43I/wt/US-R03
+  PASS: register_worktree wave=99 exits 0
+  PASS: register_worktree stores wave=99
+=== Test 6: register_worktree preserves existing entries ===
+  PASS: register_worktree accumulated 3 entries
+=== Test 7: register_worktree sets default maxWorktrees and cleanedThisSession ===
+  PASS: register_worktree sets default maxWorktrees=4
+  PASS: register_worktree sets default cleanedThisSession=0
+=== Test 8: register_worktree with nonexistent json file ===
+  PASS: register_worktree with bad json_path returns 1
+=== Test 9: register_worktree preserves existing stories data ===
+  PASS: register_worktree preserves stories array
+=== Test 10: register_worktree with duplicate storyId appends (no dedup) ===
+[WORKTREE] Registered US-R01 at /tmp/tmp.slmF2zK43I/another/path
+  PASS: register_worktree allows duplicate storyId
+=== Test 11: register_worktree preserves existing worktreeTracking structure ===
+[WORKTREE] Registered US-X1 at /tmp/tmp.slmF2zK43I/new/path
+  PASS: register_worktree preserves existing maxWorktrees=8
+  PASS: register_worktree preserves existing cleanedThisSession=5
+  PASS: register_worktree appends to existing entries
+=== Test 12: cleanup_stale with 2 stale worktrees (both passed) ===
+  PASS: US-ST1 exists before cleanup
+  PASS: US-ST2 exists before cleanup
+  PASS: cleanup_stale with 2 stale exits 0
+  PASS: cleanup_stale removes both entries from activeWorktrees
+  PASS: cleanup_stale cleanedThisSession >= 1 (got 1)
+  PASS: cleanup_stale logs Cleaned
+=== Test 13: cleanup_stale single passed story worktree ===
+  PASS: US-SP1 exists before cleanup
+  PASS: cleanup_stale single passed exits 0
+  PASS: US-SP1 removed
+  PASS: cleanup_stale single cleanedThisSession=1
+  PASS: cleanup_stale single logs Cleaned 1
+=== Test 14: cleanup_stale with 0 stale (all in_progress) ===
+  PASS: US-IP1 exists
+  PASS: US-IP2 exists
+  PASS: cleanup_stale 0 stale exits 0
+  PASS: US-IP1 still exists after cleanup
+  PASS: US-IP2 still exists after cleanup
+  PASS: cleanup_stale preserves 2 in_progress entries
+  PASS: cleanup_stale logs no stale found
+=== Test 15: cleanup_stale removes failed story worktree ===
+Deleted branch ql-wt/US-F1 (was 789fd7a).
+[WORKTREE] Cleaned 1 stale worktrees
+  PASS: US-F1 (failed) removed
+  PASS: cleanup_stale failed cleanedThisSession=1
+=== Test 16: cleanup_stale preserves pending story worktrees ===
+[WORKTREE] No stale worktrees found
+  PASS: US-PD1 (pending) preserved
+  PASS: cleanup_stale pending: entry still in tracking
+=== Test 17: cleanup_stale validates parameters ===
+  PASS: cleanup_stale rejects empty json_path
+  PASS: cleanup_stale rejects empty repo_root
+  PASS: cleanup_stale rejects nonexistent json file
+=== Test 18: cleanup_merged removes all 3 specified worktrees ===
+  PASS: US-CM1 exists
+  PASS: US-CM2 exists
+  PASS: US-CM3 exists
+  PASS: cleanup_merged exits 0
+  PASS: US-CM1 removed
+  PASS: US-CM2 removed
+  PASS: US-CM3 removed
+  PASS: cleanup_merged all 3 removed from activeWorktrees
+  PASS: cleanup_merged logs count
+=== Test 19: cleanup_merged preserves unspecified worktrees ===
+Deleted branch ql-wt/US-CM4 (was 789fd7a).
+[WORKTREE] Removing 1 merged worktrees from Wave 1
+  PASS: US-CM4 removed
+  PASS: US-CM5 preserved
+  PASS: cleanup_merged preserves US-CM5 entry
+=== Test 20: cleanup_merged validates parameters ===
+  PASS: cleanup_merged rejects empty json_path
+  PASS: cleanup_merged rejects empty repo_root
+  PASS: cleanup_merged rejects nonexistent json file
+=== Test 21: cleanup_merged with empty IDs is no-op ===
+  PASS: cleanup_merged with empty IDs exits 0
+  PASS: cleanup_merged empty logs no merged
+=== Test 22: cleanup_merged with nonexistent story ID is graceful ===
+[WORKTREE] Removing 1 merged worktrees from Wave 0
+  PASS: cleanup_merged with nonexistent ID exits 0
+=== Test 23: pre_spawn_check returns 0 when 2 active, max=4 ===
+  PASS: pre_spawn_check 2/4 returns 0
+=== Test 24: pre_spawn_check returns 1 when 4 active, max=4 (no stale) ===
+[WORKTREE] No stale worktrees found
+  PASS: pre_spawn_check 4/4 (no stale) returns 1
+=== Test 25: pre_spawn_check at limit triggers cleanup, returns 0 if slot freed ===
+Deleted branch ql-wt/US-PCS1 (was 789fd7a).
+[WORKTREE] Cleaned 1 stale worktrees
+  PASS: pre_spawn_check frees slot by cleaning stale, returns 0
+  PASS: US-PCS1 cleaned by pre_spawn_check
+=== Test 26: pre_spawn_check with 0 active (empty tracking) returns 0 ===
+  PASS: pre_spawn_check 0/4 returns 0
+=== Test 27: pre_spawn_check with max_worktrees=1 boundary ===
+[WORKTREE] No stale worktrees found
+  PASS: pre_spawn_check 1/1 (no stale) returns 1
+=== Test 28: pre_spawn_check with missing worktreeTracking ===
+  PASS: pre_spawn_check with no worktreeTracking returns 0 (0 active)
+=== Test 29: pre_spawn_check validates parameters ===
+  PASS: pre_spawn_check rejects empty json_path
+  PASS: pre_spawn_check rejects empty max_worktrees
+=== Test 30: cleanup_stale fallback uses git worktree list ===
+  PASS: US-FB1 exists for fallback test
+  PASS: cleanup_stale fallback exits 0
+  PASS: US-FB1 removed by fallback
+  PASS: cleanup_stale fallback logs cleaned
+=== Test 31: cleanup_stale fallback preserves in_progress worktree ===
+  PASS: US-FB2 preserved by fallback
+  PASS: cleanup_stale fallback logs no stale
+=== Test 32: cleanup_stale fallback with no worktrees at all ===
+  PASS: cleanup_stale fallback with no worktrees exits 0
+  PASS: cleanup_stale fallback no worktrees logs no stale
+=== Test 33: cleanup_stale handles worktree already removed from disk ===
+[WORKTREE] Cleaned 1 stale worktrees
+  PASS: cleanup_stale with ghost entry exits 0
+  PASS: cleanup_stale removes ghost entry from tracking
+=== Test 34: cleanup_merged with already-removed worktree is graceful ===
+[WORKTREE] Removing 1 merged worktrees from Wave 1
+  PASS: cleanup_merged with already-removed worktree exits 0
+
+=== Results: 83/83 passed, 0 failed ===

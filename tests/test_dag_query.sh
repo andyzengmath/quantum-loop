@@ -196,6 +196,153 @@ assert_contains "US-003 eligible" "US-003" "$RESULT"
 rm -f "$TMPJSON"
 
 # =========================================================================
+# =========================================================================
+echo "=== Test 9: filter_file_conflicts — filePaths overlap ==="
+TMPJSON=$(mktemp)
+cat > "$TMPJSON" << 'EOF'
+{
+  "stories": [
+    {"id": "US-001", "priority": 1, "status": "pending", "dependsOn": [], "tasks": [{"filePaths": ["src/a.ts", "src/b.ts"]}], "retries": {"attempts": 0, "maxAttempts": 3}},
+    {"id": "US-002", "priority": 2, "status": "pending", "dependsOn": [], "tasks": [{"filePaths": ["src/b.ts", "src/c.ts"]}], "retries": {"attempts": 0, "maxAttempts": 3}},
+    {"id": "US-003", "priority": 3, "status": "pending", "dependsOn": [], "tasks": [{"filePaths": ["src/d.ts"]}], "retries": {"attempts": 0, "maxAttempts": 3}}
+  ],
+  "fileConflicts": []
+}
+EOF
+RESULT=$(filter_file_conflicts "$TMPJSON" '["US-001","US-002","US-003"]')
+assert_contains "US-001 included (highest priority)" "US-001" "$RESULT"
+assert_not_contains "US-002 excluded (shares src/b.ts with US-001)" "US-002" "$RESULT"
+assert_contains "US-003 included (no conflict)" "US-003" "$RESULT"
+rm -f "$TMPJSON"
+
+# =========================================================================
+echo "=== Test 10: filter_file_conflicts — fileConflicts entry ==="
+TMPJSON=$(mktemp)
+cat > "$TMPJSON" << 'EOF'
+{
+  "stories": [
+    {"id": "US-001", "priority": 1, "status": "pending", "dependsOn": [], "tasks": [{"filePaths": ["src/x.ts"]}], "retries": {"attempts": 0, "maxAttempts": 3}},
+    {"id": "US-002", "priority": 2, "status": "pending", "dependsOn": [], "tasks": [{"filePaths": ["src/y.ts"]}], "retries": {"attempts": 0, "maxAttempts": 3}},
+    {"id": "US-003", "priority": 3, "status": "pending", "dependsOn": [], "tasks": [{"filePaths": ["src/z.ts"]}], "retries": {"attempts": 0, "maxAttempts": 3}}
+  ],
+  "fileConflicts": [{"file": "src/shared.ts", "stories": ["US-001", "US-003"]}]
+}
+EOF
+RESULT=$(filter_file_conflicts "$TMPJSON" '["US-001","US-002","US-003"]')
+assert_contains "US-001 included" "US-001" "$RESULT"
+assert_contains "US-002 included (no conflict)" "US-002" "$RESULT"
+assert_not_contains "US-003 excluded (fileConflict with US-001)" "US-003" "$RESULT"
+rm -f "$TMPJSON"
+
+# =========================================================================
+echo "=== Test 11: filter_file_conflicts — empty filePaths ==="
+TMPJSON=$(mktemp)
+cat > "$TMPJSON" << 'EOF'
+{
+  "stories": [
+    {"id": "US-001", "priority": 1, "status": "pending", "dependsOn": [], "tasks": [{"filePaths": []}], "retries": {"attempts": 0, "maxAttempts": 3}},
+    {"id": "US-002", "priority": 2, "status": "pending", "dependsOn": [], "tasks": [], "retries": {"attempts": 0, "maxAttempts": 3}}
+  ],
+  "fileConflicts": []
+}
+EOF
+RESULT=$(filter_file_conflicts "$TMPJSON" '["US-001","US-002"]')
+assert_contains "US-001 included (empty filePaths)" "US-001" "$RESULT"
+assert_contains "US-002 included (no tasks)" "US-002" "$RESULT"
+rm -f "$TMPJSON"
+
+# =========================================================================
+echo "=== Test 12: filter_file_conflicts — no conflicts ==="
+TMPJSON=$(mktemp)
+cat > "$TMPJSON" << 'EOF'
+{
+  "stories": [
+    {"id": "US-001", "priority": 1, "status": "pending", "dependsOn": [], "tasks": [{"filePaths": ["src/a.ts"]}], "retries": {"attempts": 0, "maxAttempts": 3}},
+    {"id": "US-002", "priority": 2, "status": "pending", "dependsOn": [], "tasks": [{"filePaths": ["src/b.ts"]}], "retries": {"attempts": 0, "maxAttempts": 3}},
+    {"id": "US-003", "priority": 3, "status": "pending", "dependsOn": [], "tasks": [{"filePaths": ["src/c.ts"]}], "retries": {"attempts": 0, "maxAttempts": 3}}
+  ],
+  "fileConflicts": []
+}
+EOF
+RESULT=$(filter_file_conflicts "$TMPJSON" '["US-001","US-002","US-003"]')
+assert_contains "US-001 included" "US-001" "$RESULT"
+assert_contains "US-002 included" "US-002" "$RESULT"
+assert_contains "US-003 included" "US-003" "$RESULT"
+rm -f "$TMPJSON"
+
+# =========================================================================
+echo "=== Test 13: filter_file_conflicts — three-way conflict ==="
+TMPJSON=$(mktemp)
+cat > "$TMPJSON" << 'EOF'
+{
+  "stories": [
+    {"id": "US-001", "priority": 1, "status": "pending", "dependsOn": [], "tasks": [{"filePaths": ["src/shared.ts"]}], "retries": {"attempts": 0, "maxAttempts": 3}},
+    {"id": "US-002", "priority": 2, "status": "pending", "dependsOn": [], "tasks": [{"filePaths": ["src/shared.ts"]}], "retries": {"attempts": 0, "maxAttempts": 3}},
+    {"id": "US-003", "priority": 3, "status": "pending", "dependsOn": [], "tasks": [{"filePaths": ["src/shared.ts"]}], "retries": {"attempts": 0, "maxAttempts": 3}}
+  ],
+  "fileConflicts": []
+}
+EOF
+RESULT=$(filter_file_conflicts "$TMPJSON" '["US-001","US-002","US-003"]')
+assert_contains "US-001 included (highest priority)" "US-001" "$RESULT"
+assert_not_contains "US-002 excluded (conflict)" "US-002" "$RESULT"
+assert_not_contains "US-003 excluded (conflict)" "US-003" "$RESULT"
+rm -f "$TMPJSON"
+
+# =========================================================================
+echo "=== Test 14: filter_file_conflicts — null fileConflicts ==="
+TMPJSON=$(mktemp)
+cat > "$TMPJSON" << 'EOF'
+{
+  "stories": [
+    {"id": "US-001", "priority": 1, "status": "pending", "dependsOn": [], "tasks": [{"filePaths": ["src/a.ts"]}], "retries": {"attempts": 0, "maxAttempts": 3}},
+    {"id": "US-002", "priority": 2, "status": "pending", "dependsOn": [], "tasks": [{"filePaths": ["src/b.ts"]}], "retries": {"attempts": 0, "maxAttempts": 3}}
+  ],
+  "fileConflicts": null
+}
+EOF
+RESULT=$(filter_file_conflicts "$TMPJSON" '["US-001","US-002"]')
+assert_contains "US-001 with null fileConflicts" "US-001" "$RESULT"
+assert_contains "US-002 with null fileConflicts" "US-002" "$RESULT"
+rm -f "$TMPJSON"
+
+# =========================================================================
+echo "=== Test 15: filter_file_conflicts — transitive conflict chain ==="
+TMPJSON=$(mktemp)
+cat > "$TMPJSON" << 'EOF'
+{
+  "stories": [
+    {"id": "US-001", "priority": 1, "status": "pending", "dependsOn": [], "tasks": [{"filePaths": ["src/a.ts"]}], "retries": {"attempts": 0, "maxAttempts": 3}},
+    {"id": "US-002", "priority": 2, "status": "pending", "dependsOn": [], "tasks": [{"filePaths": ["src/a.ts", "src/b.ts"]}], "retries": {"attempts": 0, "maxAttempts": 3}},
+    {"id": "US-003", "priority": 3, "status": "pending", "dependsOn": [], "tasks": [{"filePaths": ["src/b.ts"]}], "retries": {"attempts": 0, "maxAttempts": 3}}
+  ],
+  "fileConflicts": []
+}
+EOF
+RESULT=$(filter_file_conflicts "$TMPJSON" '["US-001","US-002","US-003"]')
+assert_contains "US-001 included (claims src/a.ts)" "US-001" "$RESULT"
+assert_not_contains "US-002 excluded (src/a.ts conflict with US-001)" "US-002" "$RESULT"
+assert_contains "US-003 included (src/b.ts unclaimed — US-002 was excluded)" "US-003" "$RESULT"
+rm -f "$TMPJSON"
+
+# =========================================================================
+echo "=== Test 16: filter_file_conflicts — similar-but-different paths ==="
+TMPJSON=$(mktemp)
+cat > "$TMPJSON" << 'EOF'
+{
+  "stories": [
+    {"id": "US-001", "priority": 1, "status": "pending", "dependsOn": [], "tasks": [{"filePaths": ["src/a.ts"]}], "retries": {"attempts": 0, "maxAttempts": 3}},
+    {"id": "US-002", "priority": 2, "status": "pending", "dependsOn": [], "tasks": [{"filePaths": ["src/a.tsx"]}], "retries": {"attempts": 0, "maxAttempts": 3}}
+  ],
+  "fileConflicts": []
+}
+EOF
+RESULT=$(filter_file_conflicts "$TMPJSON" '["US-001","US-002"]')
+assert_contains "US-001 included" "US-001" "$RESULT"
+assert_contains "US-002 included (a.tsx != a.ts, exact match)" "US-002" "$RESULT"
+rm -f "$TMPJSON"
+
+# =========================================================================
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 if [[ $FAIL -eq 0 ]]; then

@@ -1,0 +1,80 @@
+[MERGE-SEMANTIC] diff3=true, ts-morph=false, libcst=false
+=== T-001: Tooling detection and get_semantic_merge_status ===
+--- Test 1: DIFF3_AVAILABLE is defined ---
+  PASS: DIFF3_AVAILABLE is defined
+--- Test 2: TSMORPH_AVAILABLE is defined ---
+  PASS: TSMORPH_AVAILABLE is defined (false)
+--- Test 3: LIBCST_AVAILABLE is defined ---
+  PASS: LIBCST_AVAILABLE is defined (false)
+--- Test 4: get_semantic_merge_status returns comma-separated string ---
+  PASS: status contains diff3
+--- Test 5: get_semantic_merge_status format is backend names ---
+  PASS: status does not contain =
+=== T-002: can_semantic_merge ===
+--- Test 6: .ts files are supported ---
+  PASS: .ts file returns 0
+--- Test 7: .tsx files are supported ---
+  PASS: .tsx file returns 0
+--- Test 8: .py files are supported ---
+  PASS: .py file returns 0
+--- Test 9: .js files are supported ---
+  PASS: .js file returns 0
+--- Test 10: .sh files are supported ---
+  PASS: .sh file returns 0
+--- Test 11: Binary .png returns 1 ---
+  PASS: .png returns 1
+--- Test 12: Binary .jpg returns 1 ---
+  PASS: .jpg returns 1
+--- Test 13: Binary .wasm returns 1 ---
+  PASS: .wasm returns 1
+--- Test 14: Binary .exe returns 1 ---
+  PASS: .exe returns 1
+--- Test 15: Empty string returns 1 ---
+  PASS: empty string returns 1
+--- Test 16: File with no extension ---
+  PASS: no-extension file returns 0 (diff3)
+--- Test 17: Binary .gif returns 1 ---
+  PASS: .gif returns 1
+--- Test 18: Binary .ico returns 1 ---
+  PASS: .ico returns 1
+--- Test 19: .json files are supported ---
+  PASS: .json file returns 0
+=== T-003: semantic_merge with diff3 fallback ===
+--- Test 20: Clean merge returns 0 ---
+  PASS: clean merge returns 0
+--- Test 21: Output has both changes ---
+  PASS: output has ours change
+  PASS: output has theirs change
+--- Test 22: Input files not modified ---
+  PASS: base file unchanged
+  PASS: ours file unchanged
+  PASS: theirs file unchanged
+--- Test 23: Conflicting merge returns 1 ---
+  PASS: conflicting merge returns 1
+--- Test 24: Missing base file returns 1 ---
+  PASS: missing base returns 1
+--- Test 25: Missing ours file returns 1 ---
+  PASS: missing ours returns 1
+--- Test 26: Missing theirs file returns 1 ---
+  PASS: missing theirs returns 1
+--- Test 27: Empty args returns 1 ---
+  PASS: empty args returns 1
+--- Test 28: Identical files merge cleanly ---
+  PASS: identical files return 0
+  PASS: identical merge content
+=== T-004: TypeScript AST merge via ts-morph ===
+SKIP: ts-morph not available, testing .ts falls back to diff3
+--- Test 29: .ts files fall back to diff3 ---
+  PASS: .ts diff3 fallback returns 0
+  PASS: ts diff3 has ours
+  PASS: ts diff3 has theirs
+=== T-005: Python CST merge via libcst ===
+SKIP: libcst not available, testing .py falls back to diff3
+--- Test 31: .py files fall back to diff3 ---
+  PASS: .py diff3 fallback returns 0
+  PASS: py diff3 has ours
+  PASS: py diff3 has theirs
+
+==========================================
+=== Final Results: 38/38 passed, 0 failed ===
+==========================================

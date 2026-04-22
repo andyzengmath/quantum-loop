@@ -1,6 +1,6 @@
 ---
 name: ql-plan
-description: Convert a PRD into machine-readable quantum.json with dependency DAG, granular 2-5 minute tasks, and execution metadata. Use after creating a spec with /quantum-loop:spec. Triggers on: create plan, convert to json, plan tasks, generate quantum json, ql-plan.
+description: "Part of the quantum-loop autonomous development pipeline (brainstorm \u2192 spec \u2192 plan \u2192 execute \u2192 review \u2192 verify). Convert a PRD into machine-readable quantum.json with dependency DAG, granular 2-5 minute tasks, and execution metadata. Use after creating a spec with /quantum-loop:spec. Triggers on: create plan, convert to json, plan tasks, generate quantum json, ql-plan."
 ---
 
 # Quantum-Loop: Plan
@@ -45,6 +45,320 @@ After building the dependency graph, verify there are no cycles. If you detect a
 2. Explain which stories form the cycle
 3. Ask how to break the cycle (usually by splitting a story)
 
+### Contracts Generation (after dependency DAG)
+
+After building the dependency graph, scan for values that appear in 2+ stories' acceptance criteria or task descriptions. These are **contract candidates** — shared constants that parallel agents must agree on.
+
+1. **Identify candidates:** Look for repeated references to the same entity across stories — secret key names, environment variable names, type/class names, API route paths, event names, CSS class names
+2. **Group by category:** Organize candidates into logical categories:
+   - `secret_keys` — shared secret/config key names
+   - `env_vars` — environment variable names
+   - `shared_types` — type names, class names, enum values
+   - `api_routes` — API endpoint paths
+   - `event_names` — event/signal names
+   - `css_classes` — shared CSS class names or design tokens
+3. **Rule: When in doubt, add it** — an unused contract entry costs nothing; a missing contract causes cross-story mismatches that require manual fixes
+4. **Optional `pattern` field:** For values with a naming convention, add a `pattern` regex so the implementer can validate at runtime (e.g., `"pattern": "^[a-z][a-z0-9-]*$"`)
+
+Example contracts block:
+```json
+"contracts": {
+  "secret_keys": {
+    "openai": { "value": "openai-api-key", "pattern": "^[a-z][a-z0-9-]*$" },
+    "db_password": { "value": "DATABASE_PASSWORD" }
+  },
+  "shared_types": {
+    "priority_enum": { "value": "Priority" }
+  }
+}
+```
+
+Add the `contracts` object to quantum.json at the top level, after `codebasePatterns`.
+
+For language-specific shape and definition examples, read `references/contract-shapes.md` when generating structural contracts for shared types.
+
+### Structural Contract Generation (Enhanced)
+
+After building the basic contracts block above, enhance `shared_types` entries with structural information so that downstream layers (materialization, type audit) can generate real code files.
+
+#### Step 1: Detect Shared Types
+
+Scan all stories' descriptions, acceptance criteria, and task descriptions for type names (classes, interfaces, structs, enums) that appear in **2 or more stories**. These are structural contract candidates.
+
+For each shared type candidate:
+1. **`shape`** — A structured representation of the type's interface:
+   - `properties`: Array of `{name, type, readonly?}` entries
+   - `methods`: Array of `{name, params: [{name, type}], returns}` entries
+2. **`definition`** — A verbatim code string in the project's language (see Step 2 for language detection)
+3. **`owner`** — The story ID that primarily implements/defines the type (usually the story that creates it as an output)
+4. **`consumers`** — Array of story IDs that reference or depend on the type (all stories except the owner)
+5. **`definitionFile`** — The file path where the type definition should live (see "Inferring `definitionFile` Paths" below)
+
+**Anti-rationalization:** If 2+ stories reference a type by name, you MUST generate `shape` and `definition` fields. "It's only used lightly" or "the shape is obvious" are not valid reasons to skip structural contracts. The downstream materializer cannot generate a file without a `definition` or `shape`.
+
+#### Step 2: Detect Project Language
+
+Determine the project's primary language by checking for config files in the project root:
+
+| Config File | Language | `definition` Style |
+|---|---|---|
+| `tsconfig.json` | TypeScript | `export interface X { ... }` or `export type X = { ... }` |
+| `pyproject.toml` or `setup.py` | Python | `class X(Protocol): ...` or `@dataclass class X: ...` |
+| `go.mod` | Go | `type X interface { ... }` or `type X struct { ... }` |
+
+Detection priority: check in the order listed above. If multiple config files exist, use the `definitionFile` extension as a tiebreaker.
+
+#### Step 3: Generate Language-Specific Definitions
+
+Based on the detected language, generate the `definition` string:
+
+**TypeScript:**
+```
+export interface TaskResult {
+  id: string;
+  status: "pending" | "passed" | "failed";
+  output: string;
+  errorMessage?: string;
+}
+```
+
+**Python:**
+```
+from dataclasses import dataclass
+from typing import Optional
+
+@dataclass
+class TaskResult:
+    id: str
+    status: str  # "pending" | "passed" | "failed"
+    output: str
+    error_message: Optional[str] = None
+```
+
+**Go:**
+```
+type TaskResult struct {
+    ID           string `json:"id"`
+    Status       string `json:"status"`
+    Output       string `json:"output"`
+    ErrorMessage string `json:"errorMessage,omitempty"`
+}
+```
+
+#### Step 4: Reference for Examples
+
+See `references/contract-shapes.md` for complete examples of `shape` JSON paired with `definition` strings for all three languages. Load this reference when shared types are detected — it contains guidance on when to generate `definition` (multi-consumer types) vs shape-only (advisory, single-consumer types).
+
+#### Step 5: Inferring `definitionFile` Paths
+
+When a contract entry does not have an explicit `definitionFile`, infer the path from the project's existing directory structure. Check directories in this priority order:
+
+1. `src/shared/types/` — TypeScript convention (most specific)
+2. `src/types/` — common alternative for TypeScript/general
+3. `src/interfaces/` — common alternative for interface-heavy projects
+4. `types/` — project-root convention (some projects keep types at root level)
+5. `shared/` — Python and Go convention
+
+**If a matching directory exists**, use it as the base path for the `definitionFile`. Append the type name in kebab-case with the appropriate language extension (`.ts`, `.py`, `.go`).
+
+**If none of these directories exist**, default based on the detected language:
+- **TypeScript:** `src/shared/types/<kebab-name>.ts`
+- **Python:** `src/shared/<snake_name>.py`
+- **Go:** `internal/shared/<snake_name>.go`
+
+**If `definitionFile` IS explicitly set** in a contract entry (e.g., from user input or a previous run), it takes precedence over any inference. Do not override explicit paths.
+
+#### Complete Enhanced Contract Example
+
+Below is a complete example of a `contracts.shared_types` entry with all enhanced fields. This demonstrates a `TaskResult` type shared between US-003 (which implements it) and US-007/US-009 (which consume it), in a TypeScript project that has an existing `src/types/` directory:
+
+```json
+"contracts": {
+  "shared_types": {
+    "task_result": {
+      "value": "TaskResult",
+      "pattern": "^[A-Z][a-zA-Z]*$",
+      "definitionFile": "src/types/task-result.ts",
+      "owner": "US-003",
+      "consumers": ["US-007", "US-009"],
+      "shape": {
+        "properties": [
+          { "name": "id", "type": "string" },
+          { "name": "status", "type": "'pending' | 'passed' | 'failed'" },
+          { "name": "output", "type": "string" },
+          { "name": "errorMessage", "type": "string", "readonly": false }
+        ],
+        "methods": []
+      },
+      "definition": "export interface TaskResult {\n  id: string;\n  status: 'pending' | 'passed' | 'failed';\n  output: string;\n  errorMessage?: string;\n}"
+    }
+  }
+}
+```
+
+Key points:
+- `definitionFile` was inferred from the existing `src/types/` directory (priority item 2), not hardcoded
+- `owner` is the story that creates the type as its primary output
+- `consumers` lists every other story that references the type
+- `shape` provides a structured representation that downstream tools can use to generate code if `definition` is missing
+- `definition` provides the verbatim code string in the detected language (TypeScript in this case)
+
+#### Stories with No Shared Types
+
+If no type names appear in 2+ stories, do NOT generate `shape` or `definition` fields. The basic contracts block (with `value` and optional `pattern`) is sufficient. This maintains backward compatibility — entries with only `value` and `pattern` remain valid.
+
+### Interface Change Detection
+
+When a story modifies the return type, parameter types, or function/method signatures of code consumed by other stories, it creates a **contract-breaking change**. These changes require explicit coordination to prevent regressions in parallel execution.
+
+#### When to Set `contractBreaking: true`
+
+Set `contractBreaking: true` on any story that:
+
+1. **Changes a return type** of a function, method, or class consumed by another story
+2. **Changes parameter types** (adding required parameters, removing parameters, or changing parameter types) of a shared function or method
+3. **Changes a class/interface signature** (renaming methods, changing method visibility, altering inheritance) that other stories depend on
+
+When `contractBreaking` is set, the story description **MUST** include an explanation of what interface changed and why. This explanation helps the execution engine and human reviewers understand the blast radius.
+
+#### When to Set `fixes`
+
+Set `fixes: ["US-XXX"]` on any story that is specifically designed to resolve regressions or breakage introduced by another story. The `fixes` field is an array of story IDs whose regressions this story addresses.
+
+#### Scheduling Constraint
+
+Stories with `contractBreaking: true` **MUST** have explicit `dependsOn` edges that prevent them from being co-scheduled (running in the same wave) with any story that consumes the changed interface. This ensures consumers always see the final version of the interface, not an in-flight breaking change.
+
+**Rule:** For every consumer of the changed interface, either:
+- The consumer `dependsOn` the contract-breaking story (consumer runs after), OR
+- The contract-breaking story `dependsOn` the consumer (breaking change runs after consumer finishes with old interface)
+
+#### Examples
+
+**Example 1: Breaking change to a shared interface**
+
+US-003 changes the return type of `IParser.parse()` from `string` to `ParseResult`. US-005 and US-008 both call `IParser.parse()`. This is a contract-breaking change because consumers expect the old return type.
+
+```json
+{
+  "id": "US-003",
+  "title": "Refactor IParser.parse() to return ParseResult",
+  "description": "Changes IParser.parse() return type from string to ParseResult. This is contractBreaking because US-005 and US-008 consume IParser.parse() and expect the old return type.",
+  "contractBreaking": true,
+  "dependsOn": [],
+  "storyType": "logic"
+}
+```
+
+US-005 and US-008 must add `"US-003"` to their `dependsOn` arrays so they run after the breaking change lands.
+
+**Example 2: Fixing regressions from a breaking change**
+
+US-004 is created specifically to fix async regressions introduced by US-003's interface change. It patches call sites that were missed or broke unexpectedly.
+
+```json
+{
+  "id": "US-004",
+  "title": "Fix async regressions from IParser refactor",
+  "description": "Fixes async call sites that broke when US-003 changed IParser.parse() return type.",
+  "fixes": ["US-003"],
+  "dependsOn": ["US-003"],
+  "storyType": "logic"
+}
+```
+
+**Example 3: Non-breaking change (no flag needed)**
+
+US-007 adds an optional `verbose` parameter with a default value to `IParser.parse()`. Existing callers continue to work without modification because the parameter is optional.
+
+```json
+{
+  "id": "US-007",
+  "title": "Add optional verbose parameter to IParser.parse()",
+  "description": "Adds optional verbose parameter with default false. Existing callers are unaffected.",
+  "dependsOn": ["US-003"],
+  "storyType": "logic"
+}
+```
+
+Note: `contractBreaking` is **NOT** set because adding an optional parameter with a default value does not change the interface for existing consumers.
+
+### Story Type Tagging
+
+After building the dependency DAG and contracts, assign a `storyType` field to every story. This field is used by the dag-validator to determine which restructuring is safe.
+
+#### Allowed Values
+
+| `storyType` | Description |
+|---|---|
+| `types-only` | Stories where ALL tasks create type definitions, interfaces, schemas, or `.d.ts` files with no runtime logic. |
+| `config` | Scaffold/config-only stories: migrations, `package.json` changes, Dockerfile, CI yaml, pure markdown. |
+| `test` | Stories that only add tests with no new source code. |
+| `logic` | Everything else (the default). Any story with business logic, API handlers, data processing, or external API calls. |
+
+#### Examples
+
+**`types-only`** — `US-001: Define TaskResult interface`
+Tasks only create `.ts` interface files (e.g., `src/types/task-result.ts`). No runtime logic, no function bodies, no side effects — purely structural type definitions.
+
+**`config`** — `US-002: Set up database migration`
+Tasks only create migration files, update `package.json` dependencies, or modify CI configuration. No `if` statements, no loops, no data transformations.
+
+**`test`** — `US-004: Add unit tests for task filtering`
+Tasks only add test files (e.g., `tests/task-filter.test.ts`). No new source modules are created — only test coverage for existing code.
+
+**`logic`** — `US-003: Implement task filtering API`
+Tasks contain `if`/`loop`/data logic, API route handlers, database queries, or calls to external services. This is the default and the most common type.
+
+#### Anti-Rationalization Guard
+
+> **If a story has any task that implements business logic, API handlers, data processing, or calls external APIs, it is `logic`, not `types-only`. When in doubt, use `logic`.**
+
+Common traps:
+- A story that creates an interface AND a helper function is `logic`, not `types-only` — the helper function is runtime code.
+- A story that creates a schema file with validation logic (e.g., Zod schemas with `.refine()`) is `logic` — refinements execute at runtime.
+- A story that creates config AND a small utility to read that config is `logic` — the utility is runtime code.
+
+#### Default Behavior
+
+If you are unsure, set `storyType` to `logic`. It is always safe to over-classify as `logic` — under-classifying as `types-only` can cause incorrect restructuring by the dag-validator, which may reorder stories that should not be reordered.
+
+### wiring_verification Generation
+
+Tasks that create new modules, handlers, or components **SHOULD** have a `wiring_verification` object unless wiring is handled by a dependent story via `consumedBy`.
+
+**Rule:** If a task creates a new file (function, class, component, handler) that must be imported by an existing file, add:
+```json
+"wiring_verification": {
+  "file": "path/to/caller.ts",
+  "must_contain": ["import { NewThing }", "NewThing"]
+}
+```
+
+- `file`: The existing file that should import/call the new code
+- `must_contain`: Array of exact strings that must appear in that file after implementation
+
+**Exception:** If the task's output will be consumed by a dependent story (the dependent story is responsible for the import), use `consumedBy` instead of `wiring_verification`. Both on the same task is redundant.
+
+### consumedBy Generation
+
+If a task's output is listed in a dependent story's acceptance criteria, the task **MUST** have a `consumedBy` field listing the consuming story IDs.
+
+**Rule:** When Story A creates a component/module and Story B's acceptance criteria reference it:
+1. Add `"consumedBy": ["US-B"]` to the task in Story A
+2. Add to Story B's **first task** description: `"Import <component> from <path> (created by <Story A ID>). Do NOT create an inline replacement."`
+
+This prevents the consumer story's agent from re-implementing something that already exists. The `consumedBy` field is the signal: "Don't build this yourself — it will exist when your dependencies are satisfied."
+
+### coverageThreshold Generation
+
+Set the top-level `coverageThreshold` field in quantum.json:
+1. **Ask the user** for their desired coverage threshold, OR
+2. **Infer from project config:** check `.nycrc`, `jest.config.*`, `pyproject.toml [tool.coverage]`, `.coveragerc`, `go test` flags for an existing threshold
+3. **Default:** 80 (percent). Set to `null` to report coverage without blocking.
+
+The quality-reviewer will enforce this threshold during review. If the project has no coverage tooling, the reviewer will skip enforcement on the first story and enforce after first successful measurement.
+
 ## Step 3: Decompose Stories into Tasks
 
 For each story, break it into granular tasks. Each task should take 2-5 minutes for an AI agent.
@@ -62,6 +376,32 @@ Each task MUST specify:
 - `testFirst`: Boolean -- should a test be written first? (default: true for logic, false for config/scaffolding)
 - `status`: Always "pending" when created
 
+### Integration Wiring Rule (CRITICAL)
+
+Every story that creates a new module, function, or component MUST include a final task that wires it into the existing codebase. Without this, parallel agents build components in isolation that are never called.
+
+**Bad:** Story creates `extract_docx_images()` but never modifies `DocxLoader.load()` to call it.
+**Good:** Story's last task is "Wire `extract_docx_images()` into `DocxLoader.load()` — add import, call the function after text extraction, pass results to chunk builder."
+
+The wiring task MUST specify:
+- Which existing file(s) to modify (the caller, not the new module)
+- What import to add
+- Where in the control flow to insert the call
+- A verification command that proves the wiring works (e.g., an integration test or a pipeline run)
+
+If a story creates something that will be wired by a DEPENDENT story, document this explicitly in the dependent story's first task: "Import and call `X` from the newly completed `US-NNN`."
+
+### Consumer Verification Pattern
+
+When Story A creates a function and Story B (dependent) should call it:
+- Story A's acceptance criteria: "function exists, passes unit tests"
+- Story B's acceptance criteria MUST include: "pipeline calls `<function>` for every `<input>`"
+
+**Bad:** US-007 AC says "validate_plan_item rejects invalid items" (only tests the function in isolation)
+**Good:** US-013 AC says "pipeline calls validate_plan_item() for every generated plan item" (verifies wiring)
+
+The key shift: validation of wiring belongs on the **consumer** story, not the creator.
+
 ### Task Sizing Guide
 
 **Right-sized (2-5 minutes):**
@@ -70,7 +410,7 @@ Each task MUST specify:
 - Add one column to a database migration
 - Create one React component (no logic, just rendering)
 - Add one API route handler
-- Wire one component into a page
+- **Wire a new module into an existing caller** (import + call + verify)
 
 **Too large (split these):**
 - "Build the component with all its logic and tests"
@@ -82,18 +422,35 @@ Each task MUST specify:
 - "Add an import statement"
 - "Fix a typo in a comment"
 
-### TDD Flag Rules
-Set `testFirst: true` when:
-- The task implements business logic
-- The task adds an API endpoint
-- The task creates a data transformation
-- The task adds user-facing behavior
+### testFirst Mandate
 
-Set `testFirst: false` when:
-- The task creates config files (migrations, package.json changes)
-- The task is pure scaffolding (empty component skeleton)
-- The task modifies only type definitions
-- The task is the test itself (when test and implementation are separate tasks)
+**`testFirst: true` is the default for ALL tasks.** TDD is a mandate, not a suggestion.
+
+**Exempt categories** (the ONLY cases where `testFirst: false` is allowed):
+- Config/scaffold files (migrations, package.json, tsconfig changes)
+- Pure type definitions (interfaces, type aliases, enums with no logic)
+- Documentation-only tasks (README, comments, markdown files)
+- The test task itself (when test and implementation are separate tasks)
+
+**For any exempt task**, the planner **MUST** add a `notes` field with justification:
+```json
+"testFirst": false,
+"notes": "testFirst: false — pure type definition, no runtime logic"
+```
+
+**Anti-rationalization line:** If a task has an `if`, a loop, a data transformation, or calls an external API, it is NOT config. Set `testFirst: true`.
+
+### Edge Case Test Requirements
+
+When `testFirst: true`, the task description MUST instruct the agent to include tests for:
+- **Boundary values:** None/null, empty string, NaN, zero, negative numbers
+- **Type variations:** scalar vs collection vs framework-specific types (e.g., DataFrame vs dict)
+- **Collision scenarios:** same identifier from different sources (e.g., same filename in different dirs)
+- **Scale:** 1 item (minimum), 10 items (typical), 100+ items (context pollution shows at scale)
+
+See `references/edge-cases.md` for language-specific patterns.
+
+Field data shows 100% of post-implementation bugs were edge cases that passed happy-path tests.
 
 ## Step 4: Generate quantum.json
 
@@ -159,6 +516,13 @@ Before saving, verify:
 - [ ] All statuses are "pending"
 - [ ] Branch name follows `ql/` prefix convention
 - [ ] Priority numbers are sequential with no gaps
+- [ ] Every story that creates a function has a consumer story with a wiring AC
+- [ ] **File-touch conflict check:** No two parallel stories (neither depends on the other) share `filePaths` entries. If conflicts found:
+  - Add a "Reconcile `<file>` changes from `<other-story>`" task as the **last task** of the **higher-priority** (later-executing) story
+  - This task is written directly into `quantum.json` during plan generation — it is NOT added at runtime
+  - The reconciliation task runs AFTER both stories have merged (it depends on the other story implicitly via execution order)
+  - Add the conflict to `quantum.json` metadata: `"fileConflicts": [{"file": "generator.py", "stories": ["US-007", "US-008"]}]` so users see risks before execution
+  - This does NOT force sequential execution — it allows parallel but plans for the merge
 
 Save to: `quantum.json` in the project root.
 
@@ -194,6 +558,67 @@ If `quantum-loop.sh` already exists, just inform:
 > "Plan saved to `quantum.json` with [N] stories and [M] total tasks.
 > Run `/quantum-loop:ql-execute` or `./quantum-loop.sh --max-iterations 20`."
 
+## Step 7: DAG Validation
+
+After generating quantum.json, spawn the dag-validator agent to analyze the DAG for bottlenecks, duplication, and file conflicts. The validator runs automatically — no user action required.
+
+### Spawning the dag-validator
+
+Use the Agent tool to spawn the dag-validator agent with `subagent_type` set to the dag-validator agent definition. Pass two arguments: the quantum.json path and the PRD path. Wait for the agent to complete.
+
+### Idempotency handling
+
+If the dag-validator returns "Already validated on \<timestamp\>", skip the remaining validation steps. Print:
+
+> "Plan already validated on \<timestamp\>. Skipping DAG validation."
+
+### Receiving results
+
+The dag-validator returns:
+
+1. A list of stub story IDs (may be empty)
+2. A DAG Health Report text string
+
+### Stub flesh-out
+
+If the dag-validator returned stub story IDs:
+
+1. Re-read quantum.json (the validator has modified it)
+2. For each stub ID, the story will have `STUB:` prefix in its `notes` field and empty `tasks`, `acceptanceCriteria`, and `filePaths`
+3. Re-invoke the planner with a scoped prompt:
+
+> "Flesh out these stub stories: [list IDs]. Read the PRD at [prdPath] and the existing quantum.json for context. For each stub, add tasks (with filePaths, commands, testFirst), acceptanceCriteria, and filePaths. Do NOT modify any other stories. Follow all task sizing, testFirst, and wiring rules from this skill."
+
+4. Write the fleshed-out stories back to quantum.json
+
+### Stub validation
+
+After flesh-out, validate each stub:
+
+- `tasks.length > 0`
+- `acceptanceCriteria.length > 0`
+
+If a stub passes validation: remove the `STUB:` prefix from its `notes` field.
+
+### Revert on failure
+
+If a stub fails validation (empty `tasks` or `acceptanceCriteria`):
+
+1. Remove the stub story from the quantum.json `stories` array
+2. For every other story whose `dependsOn` contains the stub ID, remove the stub ID from their `dependsOn` array
+3. Log in the Health Report:
+
+> "Stub \<ID\> could not be fleshed out — reverted to original DAG structure."
+
+### Output
+
+Print the complete DAG Health Report to the user. This is the last thing the user sees before reviewing quantum.json. Format with clear section headers:
+
+- **Bottlenecks** — sequential chains and fan-out blockers detected
+- **Duplication Risks** — overlapping implementation concerns between stories
+- **File Conflicts** — files touched by multiple stories with severity classification
+- **Stubs Created** — new shared-utility stories extracted by the validator
+
 ## Anti-Rationalization Guards
 
 | Excuse | Reality |
@@ -204,3 +629,5 @@ If `quantum-loop.sh` already exists, just inform:
 | "All tasks should be testFirst" | Config and scaffolding tasks don't need tests first. Be intentional. |
 | "Verification commands aren't needed for this task" | Every task needs a way to verify it worked. No exceptions. |
 | "I'll skip cycle detection" | Circular dependencies cause infinite loops in the execution engine. Always check. |
+| "The wiring will happen naturally" | It won't. Parallel agents can't see each other's work. Every story needs an explicit wiring task that modifies the CALLER, not just the new module. |
+| "Creating the module is enough, someone will import it" | Nobody will. If no task says "add import X to file Y and call it at line Z", it stays dead code forever. |

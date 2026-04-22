@@ -22,6 +22,68 @@ You manage the full execution lifecycle for quantum-loop. You read quantum.json,
    ```
 7. Count stories by status and report summary to user
 
+### Init-Guard and Resilience Integration
+
+After branch verification and before counting stories, source the init-guard and resilience modules:
+
+```bash
+# Source init-guard module (graceful fallback)
+INIT_GUARD_AVAILABLE=true
+source "$REPO_ROOT/lib/init-guard.sh" 2>/dev/null || INIT_GUARD_AVAILABLE=false
+
+# Source resilience module (graceful fallback)
+RESILIENCE_AVAILABLE=true
+source "$REPO_ROOT/lib/resilience.sh" 2>/dev/null || RESILIENCE_AVAILABLE=false
+
+# Run pre-flight checks (idempotent within 1 hour)
+if [[ "$INIT_GUARD_AVAILABLE" != "false" ]]; then
+  run_preflight "$REPO_ROOT" "$JSON_PATH"
+fi
+
+# Check forceSequential
+if jq -e '.execution.initGuard.forceSequential == true' "$JSON_PATH" 2>/dev/null; then
+  echo "[ORCHESTRATOR] forceSequential=true — parallel execution disabled"
+  # Force sequential mode even if 2+ stories are eligible
+fi
+```
+
+`run_preflight` performs environment validation (disk space, git version, tool availability) and records results in `execution.initGuard`. It is idempotent: if `execution.initGuard.ranAt` is within the last hour, it skips re-running. If `init-guard.sh` is not present (e.g., older installations), execution continues normally without pre-flight checks.
+
+The `forceSequential` flag, when set by `run_preflight` or manually by the user, forces the orchestrator to use sequential execution (Step 3A) even when 2+ stories are eligible. This is useful when the environment cannot support parallel worktrees (e.g., insufficient disk space or filesystem limitations).
+
+## Step 1B: Detect Stale Stories
+
+After initialization and before querying the DAG, check for stories stuck in `in_progress`:
+
+1. Read `staleThresholdMinutes` from quantum.json (default: 20). This can be overridden by the CLI flag `--stale-timeout`.
+2. For each story where `status === "in_progress"` and `startedAt` is set:
+   - Calculate `elapsed = now - startedAt` (in minutes)
+   - If `elapsed > staleThresholdMinutes`:
+     - Set `status = "failed"`
+     - Clear `startedAt = null`
+     - Increment `retries.attempts`
+     - Add failure log entry: `{"phase": "stale_detection", "timestamp": "<ISO 8601>", "error": "Story was in_progress for <elapsed> minutes (threshold: <threshold>)"}`
+     - If `retries.attempts >= retries.maxAttempts`: set `status = "blocked"`
+     - Log: `[STALE] US-XXX - reset to failed after <elapsed> minutes`
+3. Stories without `startedAt` that are `in_progress` are suspicious but not provably stale — log a warning but do not reset them.
+
+### Resumable Work Detection
+
+When a stale story is being reset, check for resumable WIP work before discarding all progress:
+
+```bash
+# For stale stories being reset, check for resumable WIP work
+if [[ "$RESILIENCE_AVAILABLE" != "false" ]]; then
+  resume_info=$(detect_resumable_work "$JSON_PATH" "$REPO_ROOT" "$story_id")
+  if [[ "$resume_info" == resumable:* ]]; then
+    completed_tasks="${resume_info##*:}"
+    # Pass completed_tasks to build_agent_prompt for re-spawn
+  fi
+fi
+```
+
+`detect_resumable_work` (from `lib/resilience.sh`) inspects the stale story's worktree branch for WIP commits. If it finds commits that contain completed task work, it returns `resumable:<completed_task_ids>`. The orchestrator can then pass this information to the re-spawned agent, allowing it to skip already-completed tasks rather than starting from scratch. If no WIP commits are found or the worktree has been cleaned up, it returns `none` and the story starts fresh.
+
 ## Step 2: Query DAG
 
 Find all eligible stories. A story is eligible when ALL of:
@@ -30,6 +92,41 @@ Find all eligible stories. A story is eligible when ALL of:
 - `status` is NOT `"in_progress"`
 
 Sort eligible stories by `priority` (ascending).
+
+### 2.1: File-Conflict-Aware Filtering
+
+Before deciding sequential vs parallel, check the `fileConflicts` array in quantum.json. For each entry where two or more eligible stories share a file:
+- Only include the **highest-priority** story from the conflict group in this wave
+- Defer the others to the next wave (they remain eligible but are held back)
+
+This prevents merge conflicts from parallel stories editing the same file. Also check each eligible story's `tasks[].filePaths` — if two eligible stories share any file path, treat them as conflicting even if not listed in `fileConflicts`.
+
+Log: `[DAG] Held back US-XXX (file conflict with US-YYY on <file>)`
+
+### 2.2: Contract-Breaking Story Scheduling
+
+After file-conflict filtering, check for `contractBreaking` stories. A story with `contractBreaking: true` changes shared interfaces — its consumers must not run in the same wave to avoid building against stale contracts.
+
+For each eligible story with `contractBreaking: true`:
+- Find all stories whose `dependsOn` includes this contract-breaking story (its consumers)
+- If any consumers are also eligible in this wave: **hold the consumers to the next wave** (remove them from this wave's eligible list)
+- The contract-breaking story itself runs in this wave — only its consumers are deferred
+
+```python
+# Pseudocode for contractBreaking scheduling
+contract_breakers = [s for s in eligible if s.get('contractBreaking', False)]
+held_back = set()
+for breaker in contract_breakers:
+    for story in eligible:
+        if breaker['id'] in story.get('dependsOn', []) and story['id'] not in held_back:
+            held_back.add(story['id'])
+            log(f"[DAG] Held back {story['id']} (consumer of contract-breaking {breaker['id']})")
+eligible = [s for s in eligible if s['id'] not in held_back]
+```
+
+Log: `[DAG] Held back US-XXX (consumer of contract-breaking US-YYY)`
+
+This prevents interface-changing stories from running in parallel with their consumers. Held-back stories become eligible in the next wave after the contract-breaking story has merged.
 
 **If no eligible stories:**
 - If ALL stories have `status: "passed"` -> output `<quantum>COMPLETE</quantum>`, print summary table, stop
@@ -45,7 +142,8 @@ For the highest-priority eligible story:
 ### 3A.1: Setup
 1. Record `BASE_SHA` = current git HEAD
 2. Mark story `status: "in_progress"` in quantum.json
-3. Present story details to user:
+3. Set `story.startedAt` = `new Date().toISOString()` in quantum.json (ISO 8601 UTC)
+4. Present story details to user:
    ```
    Story:   US-002 - Display priority indicator
    Deps:    US-001 (passed)
@@ -66,7 +164,7 @@ Follow the implementer agent protocol for each task in order:
 - Run verification commands from `task.commands`
 
 After each task: update `task.status` to `"passed"` or `"failed"` in quantum.json.
-On task failure: stop, proceed to error handling (Step 3A.5).
+On task failure: stop, proceed to error handling (Step 3A.7).
 
 ### 3A.3: Quality Checks
 After all tasks pass, run:
@@ -76,7 +174,13 @@ After all tasks pass, run:
 
 If any check fails: ONE focused fix attempt, re-run. If still fails -> mark story failed.
 
-### 3A.4: Two-Stage Review Gate
+### 3A.4: Integration Wiring Check
+Before running reviews, verify the story's new code is actually connected:
+- For each new function/class/module: confirm it is imported and called from outside its own file
+- If any new code is unwired: wire it in now (add import + call to the appropriate caller)
+- Run the full test suite (not just the story's tests) to confirm no regressions
+
+### 3A.5: Two-Stage Review Gate
 
 **Stage 1: Spec Compliance**
 - Read the PRD acceptance criteria for this story
@@ -91,14 +195,16 @@ If any check fails: ONE focused fix attempt, re-run. If still fails -> mark stor
 - Pass if: 0 Critical AND < 3 Important
 - If fails: ONE fix attempt, re-review
 
-### 3A.5: On Success
+### 3A.6: On Success
 ```bash
-git add -A
+# Scope git add to specific files to prevent index.lock contention on main branch
+git add quantum.json <changed_files>
 git commit -m "feat: <Story ID> - <Story Title>"
 ```
 
 Update quantum.json:
 - Set story `status: "passed"`
+- Clear `story.startedAt` = `null`
 - Set `review.specCompliance.status: "passed"` with timestamp
 - Set `review.codeQuality.status: "passed"` with timestamp
 - Add progress entry with `filesChanged` and `learnings`
@@ -106,62 +212,683 @@ Update quantum.json:
 
 Return to Step 2.
 
-### 3A.6: On Failure
+### 3A.7: On Failure
 - Increment `retries.attempts`
 - Add entry to `retries.failureLog` with timestamp, error, phase
 - Set story `status: "failed"`
+- Clear `story.startedAt` = `null`
 - Return to Step 2 (other stories may still be eligible)
 
 ## Step 3B: Parallel Execution
 
 When 2+ stories are eligible, spawn implementer subagents in parallel using Claude Code's native worktree isolation.
 
-### 3B.1: Spawn Agents
+### 3B.1: Mark Stories and Update quantum.json
+
+**Before first wave — source hardening modules and run pre-wave hooks:**
+
+Before spawning any agents, source the hardening modules with graceful fallback:
+
+```bash
+# Source hardening modules (graceful fallback if absent)
+source "$REPO_ROOT/lib/worktree.sh" 2>/dev/null || WORKTREE_MODULE_AVAILABLE=false
+source "$REPO_ROOT/lib/known-failures.sh" 2>/dev/null || KNOWN_FAILURES_MODULE_AVAILABLE=false
+```
+
+**Pre-wave cleanup — remove stale worktrees from previous waves:**
+
+```bash
+if [[ "$WORKTREE_MODULE_AVAILABLE" != "false" ]]; then
+  cleanup_stale_worktrees "$JSON_PATH" "$REPO_ROOT"
+fi
+```
+
+**Pre-spawn capacity check — verify worktree slots available:**
+
+Before each individual agent spawn, call:
+```bash
+if [[ "$WORKTREE_MODULE_AVAILABLE" != "false" ]]; then
+  pre_spawn_check "$JSON_PATH" "$MAX_WORKTREES"
+  # Returns non-zero if at capacity — wait for a slot to free up before spawning
+fi
+```
+
+**Before first wave only — capture known-failures baseline:**
+
+```bash
+if [[ "$KNOWN_FAILURES_MODULE_AVAILABLE" != "false" ]]; then
+  capture_baseline "$REPO_ROOT" "$JSON_PATH"
+fi
+```
+
+**For waves 2+ — capture wave snapshot:**
+
+```bash
+if [[ "$KNOWN_FAILURES_MODULE_AVAILABLE" != "false" ]]; then
+  capture_wave_snapshot "$REPO_ROOT" "$JSON_PATH" "$WAVE_NUM"
+fi
+```
+
+**Before first wave — initialize baseline typecheck errors:**
+
+Before spawning any agents, run the project's typecheck command once against the repo root to establish a baseline error count. Store the result in `execution.baselineTypecheckErrors`:
+
+```bash
+# Example for TypeScript projects:
+tsc --noEmit 2>&1 | grep -c 'error TS' || echo 0
+# Example for Python projects:
+pyright --outputjson 2>/dev/null | python -c "import sys,json; print(json.load(sys.stdin).get('summary',{}).get('errorCount',0))" || echo 0
+```
+
+```python
+# Store in quantum.json:
+data['execution']['baselineTypecheckErrors'] = <count>
+```
+
+If no typecheck command is configured for the project, set `baselineTypecheckErrors` to `null` and log: `[TYPECHECK] No typecheck command available — post-merge typecheck will be skipped`
+
+Before spawning any agents, mark ALL eligible stories as `in_progress` in a single atomic update:
+
+```bash
+# Use Python or jq to update all eligible stories in one write
+python -c "
+import json, sys
+from datetime import datetime, timezone
+data = json.load(open('quantum.json'))
+now = datetime.now(timezone.utc).isoformat()
+for s in data['stories']:
+    if s['id'] in (<ELIGIBLE_IDS>):
+        s['status'] = 'in_progress'
+        s['startedAt'] = now
+data['updatedAt'] = now
+json.dump(data, open('quantum.json', 'w'), indent=2)
+"
+```
+
+This prevents race conditions from parallel agents editing quantum.json simultaneously.
+
+### 3B.1B: Materialize Contracts
+
+After marking stories as `in_progress` but **before** spawning any agents, materialize shared type contracts so that all worktree branches include the authoritative type definition files.
+
+1. **Read contract sources from quantum.json:**
+   - `contracts.shared_types` — planner-defined types with `definition`, `shape`, `definitionFile`, `consumers`, and `owner` fields
+   - `execution.discoveredContracts` — types discovered by the L5 wave-end audit in previous waves (only present for waves 2+)
+
+2. **For each type where `consumers.length >= 2`:** call `generate_definition_file()` (from `lib/materialize.sh`) to write the definition to disk:
+   - If `definition` field is present: write content verbatim to `definitionFile` path
+   - If `definition` is absent but `shape` is present: generate from shape using the detected project language template
+   - If neither `definition` nor `shape` is present: skip with warning log
+   - If `definitionFile` already exists with matching content: skip (idempotent)
+   - If `definitionFile` already exists with different content: do NOT overwrite; log `[MATERIALIZE] SKIP <TypeName> — file already exists with different content`
+   - Create parent directories with `mkdir -p` if they don't exist
+
+3. **Single-consumer types are NOT materialized.** Log: `[MATERIALIZE] SKIP <TypeName> — single consumer (consumers.length < 2)`
+
+4. **Commit materialized files** (if any were written):
+   ```bash
+   git add <materialized_files>
+   git commit -m "chore: materialize contracts for Wave <N>"
+   ```
+   This commit becomes the **base for all worktree branches** in this wave. Agents branching from HEAD after this commit will see the materialized type files in their working directory.
+
+5. **Update `execution.materializedContracts`** in quantum.json with the list of materialized type names.
+
+6. **Log each action:**
+   - Materialized: `[MATERIALIZE] <TypeName> → <definitionFile>`
+   - Skipped (single consumer): `[MATERIALIZE] SKIP <TypeName> — single consumer`
+   - Skipped (file exists): `[MATERIALIZE] SKIP <TypeName> — file already exists with different content`
+   - Skipped (no definition/shape): `[MATERIALIZE] SKIP <TypeName> — no definition or shape`
+
+7. **No-op case:** If no multi-consumer contracts exist in either `contracts.shared_types` or `execution.discoveredContracts`, log:
+   ```
+   [MATERIALIZE] No multi-consumer contracts to materialize for Wave <N>
+   ```
+   and skip the commit step entirely.
+
+8. **Subsequent waves:** On wave 2+, also read `execution.discoveredContracts` entries (types discovered by the L5 audit in previous waves) and materialize them following the same rules. This ensures that types missed by the planner but caught at runtime are available to agents in later waves.
+
+**Example orchestrator pseudocode:**
+```python
+# Read sources
+shared_types = quantum_json.get("contracts", {}).get("shared_types", {})
+discovered = quantum_json.get("execution", {}).get("discoveredContracts", {})
+
+# Combine all contract sources
+all_types = {**shared_types, **discovered}
+
+materialized = []
+for name, entry in all_types.items():
+    consumers = entry.get("consumers", [])
+    if len(consumers) < 2:
+        log(f"[MATERIALIZE] SKIP {name} — single consumer")
+        continue
+    result = generate_definition_file(entry, language, repo_root)
+    if result:
+        materialized.append(name)
+        log(f"[MATERIALIZE] {name} → {entry['definitionFile']}")
+
+if materialized:
+    # git add + commit → this is the base for worktree branches
+    run(f"git add {' '.join(files)} && git commit -m 'chore: materialize contracts for Wave {wave_num}'")
+    update_execution_materialized_contracts(quantum_json, materialized)
+else:
+    log(f"[MATERIALIZE] No multi-consumer contracts to materialize for Wave {wave_num}")
+```
+
+### 3B.2: Spawn Agents
 
 For each eligible story (up to 4 concurrent):
 
-1. Mark story `status: "in_progress"` in quantum.json
-2. Spawn a background Task subagent:
-   ```
-   Task tool with:
-     subagent_type: "quantum-loop:implementer"
-     isolation: "worktree"
-     run_in_background: true
-     prompt: "Implement story <STORY_ID> from quantum.json.
-              You are in an isolated worktree. Read quantum.json for context.
-              Follow the implementer agent protocol in agents/implementer.md.
-              You MUST commit your changes: git add -A && git commit -m 'feat: <STORY_ID> - <Title>'
-              Signal completion: <quantum>STORY_PASSED</quantum> or <quantum>STORY_FAILED</quantum>"
-   ```
-3. Log: `[SPAWNED] US-XXX - Story Title (wave N)`
-4. Record the task_id and start time
+**After worktree creation — register the worktree:**
 
-### 3B.2: Monitor Loop
+```bash
+if [[ "$WORKTREE_MODULE_AVAILABLE" != "false" ]]; then
+  register_worktree "$JSON_PATH" "$STORY_ID" "$WT_PATH" "$WT_BRANCH" "$WAVE_NUM"
+fi
+```
 
-Poll each running agent:
-1. Use TaskOutput with `block: false, timeout: 5000`
+**Before building the agent prompt — gather known-failures context:**
+
+```bash
+KNOWN_FAILURES_CONTEXT=""
+if [[ "$KNOWN_FAILURES_MODULE_AVAILABLE" != "false" ]]; then
+  KNOWN_FAILURES_CONTEXT=$(format_agent_context "$JSON_PATH")
+fi
+```
+
+**Spawn using the Agent tool** (NOT the Task tool):
+
+```
+Agent tool with:
+  subagent_type: "quantum-loop:implementer"
+  isolation: "worktree"          ← MANDATORY for parallel execution
+  run_in_background: true
+  mode: "auto"
+  prompt: "Implement story <STORY_ID> from quantum.json.
+           You are in an isolated worktree. Read quantum.json for context.
+           Follow the implementer agent protocol in agents/implementer.md.
+
+           IMPORTANT — Python projects: Do NOT run 'pip install -e .' in the worktree.
+           Parallel worktrees share one Python environment, so editable installs race.
+           Instead, set PYTHONPATH to your worktree's source directory before running tests:
+             export PYTHONPATH=\"\$(pwd)/src:\$PYTHONPATH\"   # src-layout
+             # export PYTHONPATH=\"\$(pwd):\$PYTHONPATH\"     # flat-layout
+           Or for inline commands:
+             PYTHONPATH=src python -m pytest tests/ -x -v
+
+           ## Known Test Failures (pre-existing — do NOT fix these)
+           <INSERT $KNOWN_FAILURES_CONTEXT HERE>
+           If a test in this list fails, it is a pre-existing failure, not a regression you caused.
+           Only investigate test failures that are NOT in this list.
+
+           You MUST commit your changes: git add -A && git commit -m 'feat: <STORY_ID> - <Title>'
+           Signal completion: <quantum>STORY_PASSED</quantum> or <quantum>STORY_FAILED</quantum>"
+```
+
+**`isolation: "worktree"` is NOT optional.** Without it, parallel agents write to the same working directory, causing:
+- File conflicts when multiple stories touch the same file
+- Bash command contention (commands routed to background, agents stuck in polling loops)
+- quantum.json race conditions from concurrent Edit tool calls
+
+Log: `[SPAWNED] US-XXX - Story Title (wave N)`
+Record the agent_id and start time.
+
+### 3B.3: Monitor Loop
+
+Wait for agent completion notifications. Do NOT poll in a loop — Claude Code automatically notifies when background agents complete. If you need to check status proactively:
+1. Use `TaskOutput` with `block: false, timeout: 5000`
 2. Check output for `<quantum>STORY_PASSED</quantum>` or `<quantum>STORY_FAILED</quantum>`
 
 **On STORY_PASSED:**
 - Log: `[PASSED] US-XXX - Story Title`
-- Update quantum.json: story `status: "passed"`, add progress entry
-- The worktree merge is handled automatically by Claude Code's isolation mode
+- **Merge the worktree branch** using `squash_and_merge` (from `lib/resilience.sh`) as the primary merge path when available, falling back to `classify_and_merge` or standard git merge:
+
+  ```bash
+  # Use squash_and_merge (from resilience.sh) as primary merge strategy
+  # squash_and_merge handles: multi-commit squash, quantum.json stash exclusion,
+  # and delegates to classify_and_merge for conflict resolution
+  if [[ "$RESILIENCE_AVAILABLE" != "false" ]]; then
+    squash_and_merge "$WT_BRANCH" "$REPO_ROOT" "$JSON_PATH"
+    MERGE_RESULT=$?
+  else
+    # Fallback: delegate merge to classify_and_merge via lib/merge-strategy.sh
+    source "$REPO_ROOT/lib/merge-strategy.sh" 2>/dev/null || MERGE_STRATEGY_MODULE_AVAILABLE=false
+
+    if [[ "$MERGE_STRATEGY_MODULE_AVAILABLE" != "false" ]]; then
+      # classify_and_merge handles conflict detection, classification, and resolution
+      classify_and_merge "$WT_BRANCH" "$REPO_ROOT" "$JSON_PATH"
+      MERGE_RESULT=$?
+    else
+      # Fallback: standard git merge
+      git merge "$WT_BRANCH" --no-edit
+      MERGE_RESULT=$?
+    fi
+  fi
+  ```
+
+  `squash_and_merge` collapses the worktree branch's commits into a single merge commit, automatically excludes quantum.json from the stash/merge cycle, and delegates actual conflict resolution to `classify_and_merge`. If `resilience.sh` is not available, the orchestrator falls back to `classify_and_merge` directly or standard git merge.
+
+  If `classify_and_merge` encounters conflicts it cannot resolve (returns non-zero with `escalate` action), fall back to the manual merge pattern below.
+
+  **Handling quantum.json during merges:** quantum.json should be in `.gitignore` so it doesn't participate in merges. If it IS tracked (some projects track it), or if other local-only files block the merge, use this pattern:
+  ```bash
+  git stash push -m "orchestrator state" -- quantum.json
+  git merge <worktree-branch> --no-edit        # or use -X ours for non-critical conflicts
+  git stash pop                                 # may conflict — see below
+  ```
+  If `stash pop` conflicts on quantum.json, **drop the stash** (`git stash drop`) and re-write quantum.json state from scratch via Python. The orchestrator's in-memory knowledge of story statuses is the source of truth, not any stashed file. Never resolve quantum.json merge conflicts by hand — always regenerate programmatically.
+
+  **quantum.json stash exclusion:** When using `squash_and_merge` or `classify_and_merge` (from `lib/merge-strategy.sh`), quantum.json stash exclusion is handled automatically. `classify_and_merge()` backs up quantum.json before the merge, excludes it from git stash operations, and restores it after the merge completes. No manual stash handling is needed for quantum.json when these modules are available.
+
+  **Best practice:** Add `quantum.json` to `.gitignore` at the start of a feature branch to avoid this entirely. The implementer agents are already instructed not to commit quantum.json in parallel mode (see implementer.md, "Parallel mode" section).
+
+### Typecheck Gate
+
+After a successful merge and before running the test suite or inline review, run a post-merge typecheck to catch type regressions introduced by the merged code:
+
+1. **Run `post_merge_typecheck(repo_root, json_path)`:**
+   ```bash
+   # Run the project's typecheck command from the repo root
+   # Example (TypeScript): tsc --noEmit 2>&1
+   # Example (Python): pyright 2>&1
+   ```
+
+2. **Compare against baseline:** Count the errors in the typecheck output and compare to `execution.baselineTypecheckErrors`.
+
+3. **On typecheck failure (errors > baseline):**
+   - Revert the merge: `git revert -m 1 HEAD`
+   - Mark the story as `"failed"` with `"phase": "merge_typecheck"`
+   - Add the typecheck error output to `retries.failureLog`:
+     ```json
+     {
+       "attempt": <number>,
+       "timestamp": "<ISO 8601>",
+       "error": "<typecheck error output>",
+       "phase": "merge_typecheck"
+     }
+     ```
+   - Increment `retries.attempts`
+   - Clear `startedAt` = `null`
+   - Clean up the worktree
+   - Log: `[TYPECHECK] Post-merge typecheck FAILED for US-XXX — merge reverted`
+   - Skip the test suite and inline review for this story
+   - Proceed to the next agent completion or DAG re-query
+
+4. **On typecheck success (errors <= baseline):**
+   - Log: `[TYPECHECK] Post-merge typecheck: PASSED`
+   - Continue to the test suite and inline review
+
+5. **If no typecheck command is available** (`execution.baselineTypecheckErrors` is `null`):
+   - Log: `[TYPECHECK] No typecheck command configured — skipping post-merge typecheck`
+   - Proceed directly to the test suite
+
+### Known-Failures Delta Check
+
+After a successful typecheck (or if typecheck is skipped), run the known-failures delta check to detect new test regressions introduced by the merged code:
+
+1. **Run `delta_check(repo_root, json_path, story_id)`:**
+   ```bash
+   if [[ "$KNOWN_FAILURES_MODULE_AVAILABLE" != "false" ]]; then
+     delta_check "$REPO_ROOT" "$JSON_PATH" "$STORY_ID"
+     DELTA_RESULT=$?
+   else
+     DELTA_RESULT=0  # Skip if module not available
+   fi
+   ```
+
+2. **On delta_check failure (non-zero — new regressions above flaky threshold):**
+   - Revert the merge: `git revert -m 1 HEAD`
+   - Mark the story as `"failed"` with `"phase": "merge_regression"`
+   - Add the new failure names to `retries.failureLog`:
+     ```json
+     {
+       "attempt": "<number>",
+       "timestamp": "<ISO 8601>",
+       "error": "New test regressions detected: <failure names from delta_check output>",
+       "phase": "merge_regression"
+     }
+     ```
+   - Increment `retries.attempts`
+   - Clear `startedAt` = `null`
+   - Clean up the worktree
+   - Log: `[KNOWN-FAILURES] Delta check FAILED for US-XXX — merge reverted`
+   - Skip the test suite and inline review for this story
+   - Proceed to the next agent completion or DAG re-query
+
+3. **On delta_check success (returns 0):**
+   - Log: `[KNOWN-FAILURES] Delta check PASSED`
+   - Continue to the test suite and inline review
+
+The full post-merge sequence is: **merge -> typecheck -> delta_check -> test suite -> inline review**.
+
+**Note:** The test suite runs twice — once inside `delta_check` (to compare against known failures) and once explicitly after (to catch semantic merge regressions from combining code from different stories). These serve different purposes: `delta_check` identifies whether failures are new or known; the explicit run catches cross-story integration bugs that only manifest when code is combined on the main branch.
+
+- Update quantum.json: story `status: "passed"`, clear `startedAt` = `null`, add progress entry
 
 **On STORY_FAILED:**
 - Log: `[FAILED] US-XXX - Story Title`
 - Increment `retries.attempts`, add to `failureLog`
-- Set story `status: "failed"`
+- Set story `status: "failed"`, clear `startedAt` = `null`
 
-**After any completion:**
+**After each STORY_PASSED merge:**
+- Run the full test suite to catch semantic merge regressions (this is the explicit run, distinct from the delta_check run above)
+- If tests fail after merge: `git revert -m 1 HEAD` to undo the merge commit, mark story failed
+- Run a quick wiring check on the just-merged story's new exports (LSP "Find References" preferred, grep fallback)
+
+### 3B.4: Inline Review Gate (Parallel Mode)
+
+In parallel mode, implementer agents self-review (quality checks + acceptance criteria verification). The orchestrator runs an **inline review gate** after each successful merge, equivalent to Step 3A.5 but executed by the orchestrator rather than a separate agent:
+
+**Stage 1: Spec Compliance (inline)**
+- Read the PRD acceptance criteria for the just-merged story
+- For each criterion: grep the diff (`git diff <MERGE_BASE>..HEAD`) or test output for evidence
+- If any criterion is clearly unsatisfied: ONE fix attempt inline, re-commit. If unfixable, revert the merge and mark story failed.
+
+**Stage 2: Code Quality (inline)**
+- Review the merged diff for obvious issues: missing error handling, hardcoded secrets, broken types
+- Categorize: Critical / Important / Minor
+- Pass if: 0 Critical AND < 3 Important
+- If fails: ONE fix attempt inline, re-commit
+
+**When to defer the inline review:** If the wave has 4+ stories pending merge and the accumulated diff exceeds 2000 lines, defer reviews to the wave-end Integration Check (Step 3C) to conserve context. Log: `[REVIEW DEFERRED] US-XXX - will review at wave end (diff too large)`
+
+This ensures parallel execution has the same quality bar as sequential, while adapting to context window constraints.
+
+**When a complete dependency chain passes** (ALL stories in the chain have `status: "passed"` — skip if any story in the chain is still pending, in_progress, or failed):
+- Run a cross-story integration review:
+  1. For each function exported by upstream stories, verify it is **called** (not just imported) in downstream stories. Use LSP "Find References" when available, fall back to grep.
+  2. Check type consistency across story boundaries — if upstream returns a list and downstream expects a string, flag it. Use LSP "Hover" when available.
+  3. If issues found: fix them inline, re-run tests, commit with `fix: wire <module> into <caller>`
+
+**After any completion (pass or fail):**
 - Re-query DAG (Step 2 logic)
 - If new stories are eligible and slots are available: spawn them immediately
 - Log: `[SPAWNED] US-YYY - New Story (wave N+1, newly unblocked)`
 
-**Continue until all agents finish**, then return to Step 2.
+**When all agents in the wave finish:**
+- Run the full Integration Check (Step 3C) before starting a new wave
 
-## Step 4: Completion
+**Note on implicit dependencies:** Worktrees branch from HEAD at spawn time. If Story B has an implicit (undeclared) dependency on Story A, and both run in the same wave, B will not see A's code. The DAG only catches explicit `dependsOn` relationships. Ensure `/ql-plan` captures all dependencies, including integration wiring. If implicit dependencies cause repeated merge conflicts, consider running stories sequentially.
 
-When DAG query returns no eligible stories:
+## Step 3C: Integration Check (after each wave)
+
+After stories from a wave are merged, verify they are actually wired together. This catches the "built in isolation, never called" failure pattern.
+
+### 3C.0: Type Audit (Layer 5)
+
+Before checking for dead code, scan the wave's changed files for duplicate type definitions. This catches type divergence that slipped past L1-L4 and feeds discoveries back into contracts for subsequent waves.
+
+**Step 1: Collect changed files from the current wave**
+
+```bash
+# Get all files changed by stories merged in this wave
+WAVE_FILES=$(git diff --name-only <WAVE_BASE_SHA>..HEAD)
+```
+
+**Step 2: Scan for duplicate type definitions**
+
+Run `grep_duplicate_definitions()` (from `lib/type-audit.sh`) on the changed files:
+
+```bash
+# Returns JSON array: [{"name": "Foo", "files": ["a.ts", "b.ts"]}, ...]
+DUPLICATES=$(grep_duplicate_definitions "$REPO_ROOT" "$WAVE_FILES")
+```
+
+**Step 3: Handle results**
+
+- **If no duplicates found:**
+  Log: `[AUDIT] Grep found 0 duplicate type definitions. Skipping agent audit.`
+  Proceed directly to 3C.1.
+
+- **If duplicates found:**
+  1. Log the duplicate names and file locations:
+     ```
+     [AUDIT] Found duplicate type definitions:
+       - Foo: a.ts, b.ts
+       - Bar: c.py, d.py
+     ```
+  2. Spawn a **type-auditor** agent with:
+     - The duplicate type names and their file paths
+     - The contract shape from `quantum.json` `contracts.shared_types` (if an entry exists for that type name)
+     - Instruction to: consolidate the duplicate into a single authoritative definition, update all imports in consuming files, run typecheck to verify, and commit with `"fix: consolidate <TypeName> from wave N"`
+  3. The type-auditor agent inherits the parent orchestrator's model (no separate model config).
+
+**Step 4: Validate auditor results**
+
+After the auditor completes its consolidation commit:
+- Run the full test suite to verify no regressions.
+- **If tests pass:** The consolidation commit is accepted and included in the wave's integration check.
+- **If tests fail:** Revert the auditor's commit and log:
+  ```
+  [AUDIT] Consolidation of <TypeName> broke tests. Reverted.
+  ```
+  The duplicate persists — it will be retried in a future wave or addressed manually.
+
+**Step 5: Update contracts for next wave**
+
+Call `update_contracts_for_next_wave()` (from `lib/type-audit.sh`) for each discovered type:
+- Writes each discovered type to `execution.discoveredContracts` with:
+  - `discoveredInWave`: current wave number
+  - `sourceFiles`: list of files where the duplicate was found
+  - `consolidated`: boolean (true if auditor succeeded, false if reverted or false positive)
+  - `consolidatedFile`: path to the consolidated file (if consolidated)
+- On the next wave, `materialize_contracts()` reads `execution.discoveredContracts` in addition to `contracts.shared_types`, ensuring newly discovered types are materialized for subsequent agents.
+
+**Step 6: Log contract effectiveness metrics**
+
+```
+[AUDIT] Wave N: X duplicates found, Y consolidated, Z false positives
+```
+
+Where:
+- **X** = total duplicate type names detected by grep
+- **Y** = types successfully consolidated by the auditor (tests passed after consolidation)
+- **Z** = types the auditor identified as false positives (same name, different concept — not consolidated)
+
+### 3C.1: Dead Code Detection
+For each story that just passed, check that its new exports are imported somewhere:
+
+```
+For each new function/class/module created by the story:
+  1. Find the definition (grep for 'def funcname', 'class ClassName', 'export')
+  2. Search for imports/calls outside the defining file (grep for 'import funcname', 'from module import', 'require')
+  3. If no caller exists outside the file and its tests → FLAG as unwired
+```
+
+### 3C.2: Pipeline Connectivity
+Run the full test suite (not just per-story tests) to catch integration failures:
+```bash
+# Run ALL tests, not just the story's tests
+npm test        # or pytest, cargo test, etc.
+```
+
+If the full test suite fails on tests that were passing before this wave, the new code broke something.
+
+### 3C.3: On Integration Failure
+If dead code or pipeline breaks are detected:
+
+1. Log which functions/modules are unwired
+2. Create a **fix task** that wires them in:
+   - Identify the caller that should import the new code
+   - Identify where in the control flow the call should be inserted
+   - Implement the wiring (import + call + verify)
+3. Run the fix inline (do not spawn a new agent — the orchestrator does this itself)
+4. Re-run the full test suite to confirm the fix
+5. Commit: `git add <wired_files> && git commit -m "fix: wire <module> into <caller>"`
+
+This step is NOT optional. Components built but never called are wasted work.
+
+### 3C.4: Post-Wave Worktree Cleanup
+
+After the integration check completes (pass or fail), clean up worktrees for stories that finished in this wave:
+
+```bash
+if [[ "$WORKTREE_MODULE_AVAILABLE" != "false" ]]; then
+  # COMPLETED_STORY_IDS is a space-separated list of story IDs that completed (passed or failed) in this wave
+  cleanup_merged_worktrees "$JSON_PATH" "$REPO_ROOT" "$COMPLETED_STORY_IDS"
+fi
+```
+
+This prevents filesystem limit exhaustion from accumulated worktrees across waves. The function removes the worktree directory, prunes the git worktree list, and updates `execution.worktreeTracking` in quantum.json.
+
+## Step 4: Final Integration Gate
+
+When DAG query returns no eligible stories and all stories have passed, run final checks before declaring COMPLETE:
+
+1. **Import smoke test:** verify the project's main module imports cleanly
+   - Python: `python -c "import <main_module>"`
+   - Node: `node -e "require('./<entry_point>')"`
+   - Go: `go build ./...`
+2. **Full test suite:** run ALL tests (not per-story)
+3. **Dead code scan:** every new function/class created during this feature has at least one call site outside its own file and tests. Use LSP "Find References" when available, fall back to grep.
+4. **If any check fails:** create a fix task, implement inline, re-test, commit. Do NOT output COMPLETE until all checks pass.
+
+## Step 4B: Full-Feature Code Review
+
+After Step 4 passes, run a holistic review of the **entire feature branch diff** — not per-story, but the combined change set. Per-story reviews catch local issues; this step catches cross-story problems that only emerge when viewed as a whole.
+
+```bash
+git diff main...HEAD --stat    # overview of all files changed
+git diff main...HEAD           # full diff for review
+```
+
+### 4B.1: Cross-Story Consistency
+- **Naming:** Did parallel agents use different names for the same concept? (e.g., `image_mode` vs `imageMode`, `_build_images_used` vs `_create_image_refs`)
+- **Duplicate logic:** Did two stories implement overlapping helpers or utility functions? If so, consolidate into one and update callers.
+- **Contradictory design:** Did one story return a list where another expects a dict? Check type consistency across story boundaries.
+
+### 4B.2: Architecture Coherence
+- Read the PRD goals section. For each goal, verify the combined implementation achieves it end-to-end (not just per-story acceptance criteria).
+- Check that the feature's data flow is complete: config → filtering → generation → validation → output. No stage should be half-wired.
+- Verify backward compatibility: run the test suite with the feature **disabled** (default config) and confirm identical behavior to the base branch.
+
+### 4B.3: Security and Quality
+- Grep the full diff for hardcoded secrets, TODO/FIXME/HACK comments, disabled tests, and `# type: ignore` suppressions.
+- Check error handling at feature boundaries: what happens when image_mode=True but no images exist? When the Vision API is unreachable?
+- Review any new async code for missing `await`, unhandled exceptions, or resource leaks.
+
+### 4B.4: Disposition
+- **If issues found:** Fix them inline, re-run tests, commit with `fix: <description>`.
+- **If clean:** Proceed to Step 5.
+- **Log:** Print a summary: `[FEATURE REVIEW] N files changed, M issues found (X fixed, Y deferred)`
+
+This review is NOT optional. Per-story reviews miss cross-cutting concerns. Field data: the most common post-merge issues (duplicate helpers, inconsistent naming, half-wired pipelines) are only visible at the full-feature level.
+
+### Step 4C: Promote Discovered Contracts
+
+After Step 4B passes and before generating observations, promote runtime-discovered contracts to permanent status so that future executions benefit from them.
+
+1. **Read discovered contracts:** Read `execution.discoveredContracts` from quantum.json. If the field is absent or empty, log `[CONTRACTS] No discovered contracts to promote` and skip to Step 5.
+
+2. **Filter for consolidated entries only:** For each entry in `discoveredContracts`, check the `consolidated` field:
+   - If `consolidated: true` — this is a verified duplicate that was successfully consolidated by the type-auditor agent. Promote it.
+   - If `consolidated: false` — this is a false positive (same name, different concept). Do NOT promote it. Skip silently.
+
+3. **Promote to permanent contracts:** For each `consolidated: true` entry, add a new entry to `contracts.shared_types`:
+   - `value`: the type name (the key from `discoveredContracts`)
+   - `definitionFile`: taken from the entry's `consolidatedFile` field
+   - `consumers`: derived from the entry's `sourceFiles` context (the files that contained duplicate definitions indicate which stories consume the type)
+   - Do NOT duplicate — if `contracts.shared_types` already has an entry with the same `value`, update it rather than adding a duplicate
+
+4. **Write to quantum.json:** The promotion is a quantum.json write, not a separate commit. It is included in the observations commit (Step 5). Use the standard atomic write pattern:
+   ```bash
+   python -c "
+   import json
+   from datetime import datetime, timezone
+   data = json.load(open('quantum.json'))
+   discovered = data.get('execution', {}).get('discoveredContracts', {})
+   promoted = []
+   for name, entry in discovered.items():
+       if entry.get('consolidated', False):
+           new_contract = {
+               'value': name,
+               'definitionFile': entry.get('consolidatedFile', ''),
+               'consumers': entry.get('sourceFiles', [])
+           }
+           # Update existing or insert (shared_types is a dict keyed by type name)
+           data.setdefault('contracts', {}).setdefault('shared_types', {})[name] = new_contract
+           promoted.append(name)
+   data['updatedAt'] = datetime.now(timezone.utc).isoformat()
+   json.dump(data, open('quantum.json', 'w'), indent=2)
+   print(f'[CONTRACTS] Promoted {len(promoted)} discovered types to permanent contracts: {", ".join(promoted)}')
+   "
+   ```
+
+5. **Log the result:**
+   - If types were promoted: `[CONTRACTS] Promoted N discovered types to permanent contracts: TypeA, TypeB, ...`
+   - If no discovered contracts (or none with `consolidated: true`): `[CONTRACTS] No discovered contracts to promote`
+
+## Step 5: Generate Execution Observations
+
+After the main loop exits (COMPLETE, BLOCKED, or max iterations), generate an observations document:
+
+1. **File path:** `docs/post-mortems/YYYY-MM-DD-<branchName>-observations.md`
+2. **Content:**
+   - **Header:** Date, story counts (passed/failed/blocked/total), execution mode (sequential/parallel), number of iterations, approximate wall-clock time
+   - **Failure summary table:** For each failed or blocked story, show story ID, title, failure phase, error message, retry count
+   - **Patterns observed:** Recurring failure modes (same root cause in 2+ stories), what worked well, suggested improvements for the pipeline
+   - **Contract Effectiveness:** Summary of how type contracts performed during execution. Include these 7 metrics:
+     | Metric | Description |
+     |--------|-------------|
+     | Contracts defined | N types — total number of contract categories defined in `quantum.json.contracts` |
+     | Materialized | N (multi-consumer only) — contracts that were written to shared files for import by multiple stories |
+     | Divergence prevented | N — types where all consuming agents imported from the materialized contract file instead of inventing their own |
+     | Divergence detected by L5 audit | N (consolidated) — type divergences discovered by the Layer 5 post-merge audit and successfully consolidated |
+     | False positives (L5) | N — cases where L5 flagged a name collision but the types represent different concepts (same name, different semantics — not consolidated) |
+     | Missed | N — divergences not caught by contracts or L5, discovered only in post-merge review or integration testing |
+     | Promoted to permanent contracts | N — contract entries that proved valuable enough to be added to the project's permanent type definitions |
+
+     **How metrics are computed:**
+     - **Contracts defined:** Count the keys in `quantum.json.contracts` (each key is a contract category/type).
+     - **Materialized:** Count entries in `execution.materializedContracts` — these are contracts that were written to shared files because multiple stories consume them.
+     - **Divergence prevented:** For each materialized contract, check whether all consuming stories imported from the materialized file (rather than defining their own version). Count the contracts where all consumers used the shared file.
+     - **Divergence detected by L5 audit:** Count entries in `execution.discoveredContracts` where `consolidated: true` — these are type divergences the Layer 5 audit found and merged into a single definition.
+     - **False positives (L5):** Count entries in `execution.discoveredContracts` where `consolidated: false` — these are name collisions flagged by L5 that turned out to be distinct concepts (same identifier, different semantics).
+     - **Missed:** Count entries in story `retries.failureLog` arrays where `phase` is `"merge_typecheck"` or `"merge_conflict"` — these represent type divergences that escaped both contracts and L5, surfacing only at merge time.
+     - **Promoted to permanent contracts:** Count contracts that were added to the project's permanent type definitions during this execution (tracked in progress entries with action `"contract_promoted"`).
+
+     **This section appears even if all values are 0.** A run with all-zero contract metrics indicates no shared types were defined for this feature, which is itself useful information for future planning.
+   - **Module Timing:** Performance metrics for each hardening module. Throughout execution, the orchestrator accumulates timing data from module log messages (each module logs `[TAG] Completed in Nms`). Report a table:
+
+     | Module | Total Invocations | Total Time (ms) | Avg Time (ms) |
+     |--------|-------------------|------------------|----------------|
+     | BARREL-REGEN | N | N | N |
+     | DEP-MANIFEST | N | N | N |
+     | MERGE-STRATEGY | N | N | N |
+     | KNOWN-FAILURES | N | N | N |
+     | WORKTREE | N | N | N |
+
+     **How to accumulate timing data:** Parse log output for lines matching `\[(BARREL-REGEN|DEP-MANIFEST|MERGE-STRATEGY|KNOWN-FAILURES|WORKTREE)\].*Completed in (\d+)ms`. For KNOWN-FAILURES, aggregate across baseline, snapshot, and delta operations. For WORKTREE, aggregate across cleanup and register operations.
+
+     **Performance flag:** If any module's Total Time exceeds **10,000ms (10s)**, flag it in the observations:
+     ```
+     WARNING: Module <NAME> exceeded 10s total execution time (<actual>ms across <N> invocations).
+     Consider profiling or optimizing this module for large codebases.
+     ```
+
+     **This section appears even if all values are 0** (indicating no modules were invoked, e.g., sequential execution).
+   - **Raw data:** Full progress log and failure logs in collapsed `<details>` sections
+3. **Commit:** `git add <file> && git commit -m "docs: execution observations for <branchName>"`
+
+This document is **always** generated locally. It provides a record for continuous pipeline improvement.
+
+### Step 5B: File GitHub Issue (user-confirmed)
+
+Only propose filing a GitHub issue when observations contain **any of:**
+- Blocked stories (exhausted all retries)
+- Recurring failure patterns (same root cause in 2+ stories)
+- Stale story detections
+
+**Process:**
+1. Use `AskUserQuestion` tool: "I found N issues worth reporting. Would you like me to file a GitHub issue on andyzengmath/quantum-loop with these observations?"
+2. **Only file if the user confirms.** Default is No.
+3. Issue command: `gh issue create --repo andyzengmath/quantum-loop --title "Execution observations: <branchName> (<date>)" --body "<observations doc content>" --label "execution-feedback"`
+4. If `gh` is not available or the command fails: skip silently — the local doc is the primary artifact.
+
+## Step 6: Completion
+
+When all integration checks pass:
 
 **All passed:**
 ```
@@ -191,11 +918,15 @@ US-004     Integration tests              BLOCKED  3/3
 - Use the Read tool, not cached values
 
 ### Writing quantum.json
-- Use Bash with jq for atomic updates:
+- **Only the orchestrator writes quantum.json** — implementer subagents in worktrees should NOT edit the main quantum.json (their copy is isolated)
+- Use Bash with Python or jq for atomic updates (never use the Edit tool on quantum.json — string matching hits duplicates in large JSON):
   ```bash
+  python -c "import json; d=json.load(open('quantum.json')); <mutations>; json.dump(d, open('quantum.json','w'), indent=2)"
+  # Or with jq:
   jq '<expression>' quantum.json > quantum.json.tmp && mv quantum.json.tmp quantum.json
   ```
 - Always update `updatedAt` timestamp
+- When updating multiple stories (e.g., marking a wave as passed), do it in ONE write, not one write per story
 
 ### Progress Entries
 After each story (pass or fail):
@@ -222,10 +953,82 @@ After each story (pass or fail):
 | All retries exhausted | Story ineligible, downstream stories blocked |
 | All stories blocked | Output BLOCKED with root cause diagnosis |
 
+## New quantum.json Fields: Init-Guard and Resilience
+
+The init-guard and resilience modules introduce the following fields in quantum.json under `execution`:
+
+### execution.initGuard
+
+Populated by `run_preflight()` from `lib/init-guard.sh`. Records the results of environment pre-flight checks:
+
+```json
+{
+  "execution": {
+    "initGuard": {
+      "ranAt": "<ISO 8601>",
+      "warnings": ["<warning message 1>", "<warning message 2>"],
+      "shortPathBase": "<short path base for worktrees on Windows>",
+      "prunedWorktrees": 0,
+      "cleanedOrphans": 0,
+      "forceSequential": false
+    }
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `ranAt` | string (ISO 8601) | Timestamp of the last successful pre-flight run. Used for idempotency: if within 1 hour, `run_preflight` skips re-running. |
+| `warnings` | string[] | Non-fatal warnings from pre-flight checks (e.g., low disk space, old git version). Empty array if no warnings. |
+| `shortPathBase` | string | On Windows, the 8.3 short path base used for worktree creation to avoid MAX_PATH issues. Null on non-Windows systems. |
+| `prunedWorktrees` | number | Count of stale git worktrees pruned during pre-flight cleanup. |
+| `cleanedOrphans` | number | Count of orphaned worktree directories cleaned up during pre-flight. |
+| `forceSequential` | boolean | When `true`, forces the orchestrator to use sequential execution even when 2+ stories are eligible. Set by `run_preflight` when the environment cannot support parallel worktrees, or manually by the user. |
+
+### execution.resilience
+
+Populated by `detect_resumable_work()` and `squash_and_merge()` from `lib/resilience.sh`. Tracks WIP commit recovery and merge operations:
+
+```json
+{
+  "execution": {
+    "resilience": {
+      "wipCommits": {
+        "<story_id>": {
+          "detectedAt": "<ISO 8601>",
+          "completedTasks": ["T-001", "T-002"],
+          "branchRef": "<branch name>",
+          "resumedAt": "<ISO 8601 or null>"
+        }
+      },
+      "squashMerges": {
+        "<story_id>": {
+          "mergedAt": "<ISO 8601>",
+          "commitsSquashed": 3,
+          "quantumJsonExcluded": true
+        }
+      }
+    }
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `wipCommits.<story_id>.detectedAt` | string (ISO 8601) | When WIP commits were detected for a stale story. |
+| `wipCommits.<story_id>.completedTasks` | string[] | Task IDs that were completed before the story went stale, as determined from WIP commit analysis. |
+| `wipCommits.<story_id>.branchRef` | string | The worktree branch containing the WIP commits. |
+| `wipCommits.<story_id>.resumedAt` | string or null | When the story was re-spawned with resumed task context. Null if not yet resumed. |
+| `squashMerges.<story_id>.mergedAt` | string (ISO 8601) | When the squash merge was performed. |
+| `squashMerges.<story_id>.commitsSquashed` | number | Number of individual commits squashed into the merge commit. |
+| `squashMerges.<story_id>.quantumJsonExcluded` | boolean | Whether quantum.json was automatically excluded from the merge (should always be `true` when using `squash_and_merge`). |
+
 ## Anti-Rationalization Guards
 
 | Excuse | Reality |
 |--------|---------|
+| "Skip worktree isolation, these stories don't conflict" | You cannot predict implicit file conflicts. Worktree isolation is MANDATORY for parallel execution. Without it: bash contention, quantum.json races, file overwrites. |
+| "Worktrees won't work on this OS/path" | Test it first: `git worktree add --detach /tmp/test-wt HEAD && git worktree remove /tmp/test-wt`. Only fall back to sequential if this actually fails. |
 | "Skip review, this story is simple" | Simple stories have the most unexamined assumptions. Review everything. |
 | "Run two stories in one context to save time" | One story per context. Always. Context contamination causes subtle bugs. |
 | "Tests passed so the feature works" | Tests might not cover the acceptance criteria. Verify each criterion. |
@@ -234,3 +1037,5 @@ After each story (pass or fail):
 | "This retry won't help" | A fresh attempt often succeeds where the previous one failed. Try it. |
 | "The quality check warning isn't important" | Warnings become errors. Fix them now. |
 | "I can mark this task done without running verification" | NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE. |
+| "The function exists, so the story is done" | Existing but never called = dead code = wasted work. Verify it's WIRED IN. |
+| "Integration will happen in a later story" | If no later story explicitly wires it, it will never happen. Wire it now or add an explicit wiring task. |

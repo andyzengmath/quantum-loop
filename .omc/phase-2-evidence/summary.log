@@ -1,0 +1,27 @@
+test_dag_query: === Results: 35/35 passed, 0 failed ===
+test_spawn: === Results: 37/37 passed, 0 failed ===
+test_worktree: === Results: 54/54 passed, 0 failed ===
+test_barrel_regen: === Results: 75/75 passed, 0 failed ===
+test_dep_manifest: === Results: 76/76 passed, 0 failed ===
+test_init_guard: === Results: 56/56 passed, 0 failed ===
+test_known_failures: === Results: 90/90 passed, 0 failed ===
+test_materialize: === Results: 83/83 passed, 0 failed ===
+test_merge_escalation: === Results: 14/14 passed, 0 failed ===
+test_merge_semantic: ==========================================
+test_merge_strategy: ==========================================
+test_resilience: === Results: 43/43 passed, 0 failed ===
+test_signal_heuristics: === Results: 22/22 passed, 0 failed ===
+test_type_audit: === Results: 83/83 passed, 0 failed ===
+test_typecheck_gate: === Results: 21/33 passed, 12 failed ===
+test_worktree_lifecycle: === Results: 83/83 passed, 0 failed ===
+test_runner: === Results: 38/38 passed, 0 failed ===
+test_runner_load: === Results: 20/20 passed, 0 failed ===
+test_runner_manifests: === Results: 23/23 passed, 0 failed ===
+test_final_sweep: === Results: 4/4 passed ===
+test_observations: === Results: 6/6 passed ===
+test_stale_detection: === Results: 6/6 passed ===
+test_started_at: === Results: 3/3 passed ===
+test_timeout: === Results: 12/13 passed, 1 failed ===
+test_json_atomic: === Results: 19/19 passed, 0 failed ===
+test_monitor_merge: === Results: 15/15 passed, 0 failed ===
+test_monitor_merge_delegation: === Results: 32/32 passed, 0 failed ===

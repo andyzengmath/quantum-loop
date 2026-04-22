@@ -1,0 +1,35 @@
+Test: exact_signal_passed
+  PASS: SIGNAL_RESULT is STORY_PASSED
+  PASS: SIGNAL_CONFIDENCE is exact
+Test: exact_signal_failed
+  PASS: SIGNAL_RESULT is STORY_FAILED
+  PASS: SIGNAL_CONFIDENCE is exact
+Test: relaxed_whitespace
+  PASS: SIGNAL_RESULT is STORY_PASSED
+  PASS: SIGNAL_CONFIDENCE is exact
+Test: crash_exit_code
+  PASS: exit_code=1 → STORY_FAILED
+  PASS: exit_code=1 → confidence=high
+Test: both_signals_last_wins
+  PASS: last signal wins: STORY_FAILED
+  PASS: confidence is exact
+Test: heuristic_commit_and_tests
+  PASS: commit+tests → STORY_PASSED
+  PASS: commit+tests → confidence=high
+Test: heuristic_no_commit
+  PASS: no_commit → STORY_FAILED
+  PASS: no_commit → confidence=high
+Test: heuristic_commit_with_errors
+  PASS: commit+errors → STORY_FAILED
+  PASS: commit+errors → confidence=high
+Test: heuristic_commit_no_tests
+  PASS: commit-only → STORY_PASSED
+  PASS: commit-only → confidence=medium
+Test: heuristic_skipped_for_claude
+  PASS: heuristics disabled → STORY_FAILED
+  PASS: heuristics disabled → confidence=high
+Test: runner_parse_output_exact_signal_over_exit_code
+  PASS: exact signal wins over nonzero exit
+  PASS: confidence is exact (not high)
+
+=== Results: 22/22 passed, 0 failed ===

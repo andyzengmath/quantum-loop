@@ -1,0 +1,19 @@
+=== Stale Detection Tests ===
+
+Test 1: Stale story resets to failed
+  PASS: stale story status is failed
+  PASS: startedAt is cleared
+  PASS: retry count incremented
+
+Test 2: maxAttempts exhausted triggers blocked
+mktemp: failed to create directory via template ‘/tmp/tmp.MjVoTufEeX/tmp.XXXXXXXXXX’: No such file or directory
+  PASS: exhausted story status is blocked
+
+Test 3: Non-stale stories untouched
+  PASS: non-stale story stays in_progress
+
+Test 4: Configurable threshold
+mktemp: failed to create directory via template ‘/tmp/tmp.QODNZjOBbu/tmp.XXXXXXXXXX’: No such file or directory
+  PASS: custom threshold read from quantum.json
+
+=== Results: 6/6 passed ===

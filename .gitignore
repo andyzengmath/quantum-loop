@@ -11,6 +11,10 @@ progress.txt
 # Parallel execution worktrees
 .ql-wt/
 
+# Agent logs and output
+.quantum-logs/
+.ql-agent-output.txt
+
 # Archives of previous runs
 archive/
 
@@ -19,9 +23,14 @@ archive/
 Thumbs.db
 desktop.ini
 
+# Local Claude Code settings
+.claude/
+
 # Editor files
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+.omc/state/
+.omc/project-memory.json

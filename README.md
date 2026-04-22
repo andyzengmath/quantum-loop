@@ -65,7 +65,7 @@ Clone the repo, then edit three files in `~/.claude/`:
      "name": "quantum-loop",
      "source": { "source": "url", "url": "https://github.com/andyzengmath/quantum-loop.git" },
      "description": "Spec-driven autonomous development loop",
-     "version": "1.0.0",
+     "version": "0.3.3",
      "strict": true
    }
    ```
@@ -74,7 +74,7 @@ Clone the repo, then edit three files in `~/.claude/`:
    "quantum-loop@<marketplace-name>": [{
      "scope": "user",
      "installPath": "/path/to/quantum-loop",
-     "version": "1.0.0",
+     "version": "0.3.3",
      "installedAt": "2026-02-18T00:00:00.000Z",
      "lastUpdated": "2026-02-18T00:00:00.000Z"
    }]
@@ -104,12 +104,46 @@ After any install method, restart Claude Code. Commands use the `quantum-loop:` 
 # Step 4b: Or run autonomously -- sequential (one story at a time)
 ./quantum-loop.sh --max-iterations 20
 
+# Step 4b (alt): Run with a different coding agent
+./quantum-loop.sh --tool codex --max-iterations 20
+./quantum-loop.sh --tool gemini --max-iterations 10
+
 # Step 4c: Or run autonomously -- parallel (independent stories run concurrently)
 ./quantum-loop.sh --parallel --max-parallel 4 --max-iterations 20
 
 # Step 4d: Windows autonomous (native PowerShell, no bash required)
 .\quantum-loop.ps1 -MaxIterations 20 -SkipPermissions
+.\quantum-loop.ps1 -Tool codex -MaxIterations 20
 ```
+
+---
+
+## Supported Runners
+
+Quantum-loop can orchestrate any terminal-based coding agent CLI via JSON manifest files. Switch runners with `--tool <name>`.
+
+| Runner | Binary | Tier | Install | Instruction File |
+|--------|--------|------|---------|------------------|
+| Claude Code | `claude` | Guaranteed | `npm i -g @anthropic-ai/claude-code` | CLAUDE.md |
+| Codex CLI | `codex` | Tested | `npm i -g @openai/codex` | AGENTS.md |
+| Copilot CLI | `copilot` | Experimental | `npm i -g @github/copilot` | AGENTS.md |
+| Cursor Agent | `agent` | Experimental | [cursor.sh](https://cursor.sh) | AGENTS.md |
+| Gemini CLI | `gemini` | Experimental | `npm i -g @google/gemini-cli` | GEMINI.md |
+| Amp | `amp` | Experimental | `npm i -g @sourcegraph/amp` | AGENTS.md |
+| Aider | `aider` | Experimental | `pip install aider-chat` | CONVENTIONS.md |
+
+**Tiers:** Guaranteed = zero-regression CI gate. Tested = CI-verified. Experimental = community-contributed.
+
+### Adding a Custom Runner
+
+Drop a JSON file in `runners/` following the schema in `schemas/runner.schema.json`:
+
+```bash
+# Validate your manifest
+bash schemas/validate.sh runners/my-runner.json
+```
+
+The manifest defines how the CLI is invoked (flag, positional, or stdin delivery), which instruction file it reads, and whether it needs preamble injection or heuristic signal fallback.
 
 ---
 
@@ -179,14 +213,20 @@ Wave 3:  US-003 (API)      ─── worktree ─── [PASSED] ── merge   
 
 **How it works:**
 1. The orchestrator queries the DAG for all stories with satisfied dependencies
-2. Each story gets an isolated git worktree (`.ql-wt/<story-id>/`)
-3. A fresh Claude Code agent is spawned per worktree with the story ID in its prompt
-4. Agents implement the story, commit their changes (`git add -A && git commit`), then signal completion
-5. The orchestrator verifies changes are committed (safety commit if agent forgot), then merges the worktree branch into the feature branch
-6. The DAG is re-queried after every completion to spawn newly unblocked stories
-7. On merge conflict or failure, the story is retried in the next wave
+2. **File-conflict filtering** removes stories that share file paths with higher-priority stories in the same wave — preventing merge conflicts from parallel edits to the same file
+3. Each story gets an isolated git worktree (`.ql-wt/<story-id>/`)
+4. A fresh Claude Code agent is spawned per worktree with the story ID in its prompt
+5. Agents implement the story, commit their changes (`git add -A && git commit`), then signal completion
+6. The orchestrator runs an **inline review gate** (spec compliance + code quality) after each merge
+7. The DAG is re-queried after every completion to spawn newly unblocked stories
+8. On merge conflict or failure, the story is retried in the next wave
+9. After all stories pass, a **full-feature code review** examines the entire branch diff for cross-story consistency
 
 **Agents are fully isolated:** each works in its own worktree directory. Only the orchestrator reads/writes `quantum.json`. Agents must commit before signaling — the orchestrator includes a safety commit as a fallback, but uncommitted work in a removed worktree is lost. Agents that timeout (default 15 min) or crash are killed, their stories marked failed, and worktrees cleaned up.
+
+**Worktree nesting prevention:** If an agent is spawned inside a worktree (e.g., during mid-wave dispatch), `_resolve_repo_root()` resolves the path to the top-level repository root, preventing `.ql-wt/` directories from nesting inside each other. On Windows with long OneDrive paths, worktrees automatically fall back to a shorter temp-directory location.
+
+**Python project isolation:** Parallel worktrees share a single Python interpreter. Agents use `PYTHONPATH` injection instead of `pip install -e .` to avoid editable-install race conditions where one agent's install overwrites another's.
 
 **Two execution modes:**
 
@@ -226,6 +266,14 @@ Implementation complete
         │
         ▼
      Commit
+        │
+        ▼
+  Stage 3: Cross-Story Integration ── (after dependency chain completes)
+        │                               Traces call chains, type consistency,
+      PASS                              dead code, import resolution (LSP preferred)
+        │
+        ▼
+     COMPLETE
 ```
 
 Stage 2 never runs if Stage 1 fails. Code that doesn't match the spec is waste -- no matter how well-written.
@@ -237,6 +285,26 @@ NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE.
 ```
 
 The verification skill catches hedging language ("should work", "probably passes"), stale evidence ("passed earlier"), and partial checks ("linter passed so it's fine"). Every claim needs a fresh command run with full output.
+
+### Cross-Story Contracts
+
+When parallel agents share values (secret key names, env vars, API routes, type definitions), a `contracts` section in quantum.json ensures consistency:
+
+```json
+"contracts": {
+  "secret_keys": { "openai": { "value": "openai-api-key", "pattern": "^[a-z][a-z0-9-]*$" } }
+}
+```
+
+Implementers must use exact contract values. If they disagree, they halt and propose changes (propose-and-wait) rather than silently deviating.
+
+### Stale Story Detection
+
+Stories stuck `in_progress` are automatically detected and retried. The caller writes a `startedAt` timestamp before dispatching each agent. If `now - startedAt > staleThresholdMinutes` (default 20, CLI-overridable), the story is reset to `failed` and retried. Implemented in all execution paths: orchestrator agent, quantum-loop.sh, quantum-loop.ps1, and templates/quantum-loop.sh.
+
+### Execution Observations
+
+After every run, an observations document is auto-generated to `docs/post-mortems/` with failure summaries, recurring patterns, and raw data. Optionally filed as a GitHub issue (with user confirmation) to feed improvements back into the pipeline.
 
 ### Anti-Rationalization Engineering
 
@@ -259,15 +327,25 @@ The machine-readable state file that survives across sessions:
 {
   "project": "MyApp",
   "branchName": "ql/task-priority",
+  "coverageThreshold": 80,
+  "staleThresholdMinutes": 20,
+  "contracts": {
+    "secret_keys": { "openai": { "value": "openai-api-key" } },
+    "shared_types": { "priority": { "value": "Priority" } }
+  },
   "stories": [
     {
       "id": "US-001",
       "title": "Add priority field to database",
       "status": "passed",
+      "startedAt": null,
       "dependsOn": [],
       "tasks": [
         { "id": "T-001", "title": "Write migration test", "testFirst": true, "status": "passed" },
-        { "id": "T-002", "title": "Create migration", "testFirst": false, "status": "passed" }
+        { "id": "T-002", "title": "Create migration", "testFirst": false, "status": "passed",
+          "wiring_verification": { "file": "models/task.py", "must_contain": ["priority"] } },
+        { "id": "T-003", "title": "Create PriorityBadge", "testFirst": true, "status": "passed",
+          "consumedBy": ["US-003"] }
       ],
       "review": {
         "specCompliance": { "status": "passed" },
@@ -290,12 +368,12 @@ See [`quantum.json.example`](quantum.json.example) for the full schema with 3 st
 ```
 quantum-loop/
 ├── skills/
-│   ├── brainstorm/       # Socratic design exploration
-│   ├── spec/             # PRD generation
-│   ├── plan/             # quantum.json creation
-│   ├── execute/          # Thin dispatcher -> orchestrator agent
-│   ├── verify/           # Iron Law verification
-│   └── review/           # Two-stage code review
+│   ├── ql-brainstorm/    # Socratic design exploration
+│   ├── ql-spec/          # PRD generation
+│   ├── ql-plan/          # quantum.json creation
+│   ├── ql-execute/       # Thin dispatcher -> orchestrator agent
+│   ├── ql-verify/        # Iron Law verification
+│   └── ql-review/        # Two-stage code review
 ├── agents/
 │   ├── orchestrator      # Execution lifecycle manager (DAG, dispatch, review, commit)
 │   ├── implementer       # TDD implementation per story
@@ -303,25 +381,51 @@ quantum-loop/
 │   └── quality-reviewer  # Code quality check
 ├── lib/                  # Shell libraries for parallel orchestration
 │   ├── common.sh         # Shared validation utilities
-│   ├── dag-query.sh      # DAG query + cycle detection
+│   ├── dag-query.sh      # DAG query + cycle detection + file-conflict filtering
 │   ├── worktree.sh       # Git worktree lifecycle (create/remove/list)
 │   ├── spawn.sh          # Agent spawning (autonomous mode)
 │   ├── monitor.sh        # Agent polling, signal detection, merge-on-pass
 │   ├── json-atomic.sh    # Atomic quantum.json writes (tmp + mv)
-│   └── crash-recovery.sh # Orphaned worktree cleanup on startup
-├── tests/                # Shell test suites (110 tests)
+│   ├── init-guard.sh     # Environment detection and preflight checks
+│   ├── resilience.sh     # WIP commits, squash-on-merge, crash recovery
+│   ├── merge-semantic.sh # AST-aware 3-way merge (ts-morph, libcst, diff3)
+│   ├── merge-strategy.sh # Category-based merge conflict resolution
+│   ├── materialize.sh    # Contract type materialization
+│   ├── barrel-regen.sh   # Barrel/index file regeneration
+│   ├── known-failures.sh # Test failure tracking across waves
+│   └── dep-manifest.sh   # Dependency manifest protection
+├── tests/                # Shell test suites (800+ tests)
 │   ├── test_dag_query.sh
 │   ├── test_worktree.sh
 │   ├── test_spawn.sh
 │   ├── test_monitor_merge.sh
 │   ├── test_timeout.sh
 │   ├── test_json_atomic.sh
-│   └── test_crash_recovery.sh
+│   ├── test_crash_recovery.sh
+│   ├── test_init_guard.sh
+│   ├── test_resilience.sh
+│   ├── test_merge_semantic.sh
+│   ├── test_merge_strategy.sh
+│   ├── test_materialize.sh
+│   ├── test_stale_detection.sh
+│   ├── test_started_at.sh
+│   ├── test_final_sweep.sh
+│   └── test_observations.sh
 ├── quantum-loop.sh       # Autonomous bash loop (sequential + parallel)
 └── CLAUDE.md             # Agent template (parallel-aware)
 ```
 
-**`quantum-loop.sh`** drives autonomous execution:
+**Two runner scripts** (different purposes):
+
+| Script | For | Dependencies | Granularity |
+|--------|-----|-------------|-------------|
+| `quantum-loop.sh` (root) | Plugin repo development | `jq` + `lib/*.sh` | Story-level |
+| `templates/quantum-loop.sh` | **User projects** (copy this one) | `node` only, self-contained | Task-level |
+
+The root script is used internally by the plugin. For your projects, download the templates version:
+```bash
+curl -sO https://raw.githubusercontent.com/andyzengmath/quantum-loop/main/templates/quantum-loop.sh && chmod +x quantum-loop.sh
+```
 
 **Sequential mode** (default):
 1. Reads quantum.json state
@@ -333,8 +437,8 @@ quantum-loop/
 
 **Parallel mode** (`--parallel`):
 1. Recovers orphaned worktrees from any interrupted previous run
-2. Queries DAG for all independently executable stories
-3. Creates isolated git worktree per story (`.ql-wt/<story-id>/`)
+2. Queries DAG for all independently executable stories, filters out file conflicts
+3. Creates isolated git worktree per story (`.ql-wt/<story-id>/`, or `/tmp` fallback on long paths)
 4. Spawns background `claude --print` process per worktree (up to `--max-parallel`)
 5. Monitors agents: polls for signals, enforces 15-min timeout, detects crashes
 6. On pass: safety-commits any uncommitted changes, merges worktree branch into feature branch, re-queries DAG, spawns newly unblocked stories

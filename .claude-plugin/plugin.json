@@ -1,6 +1,6 @@
 {
   "name": "quantum-loop",
-  "description": "Spec-driven autonomous development loop: brainstorm, spec, plan, execute with TDD, two-stage review gates, and Iron Law verification.",
+  "description": "Universal CLI orchestrator with multi-runner support. Autonomous spec-driven development with dependency DAG, parallel worktree execution, two-stage review gates, and modular merge hardening.",
   "version": "0.4.1",
   "author": {
     "name": "andyzengmath"

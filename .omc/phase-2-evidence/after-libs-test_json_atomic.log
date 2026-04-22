@@ -1,0 +1,29 @@
+=== Test 1: write_quantum_json writes via tmp then renames ===
+  PASS: write exits 0
+  PASS: quantum.json exists after write
+  PASS: quantum.json.tmp removed after write
+  PASS: Content written correctly
+=== Test 2: cleanup_stale_tmp removes leftover .tmp ===
+  PASS: Stale .tmp removed
+  PASS: Original quantum.json untouched
+=== Test 3: cleanup_stale_tmp is no-op when no .tmp exists ===
+  PASS: cleanup exits 0 when no tmp
+=== Test 4: update_execution_field adds execution metadata ===
+  PASS: mode is parallel
+  PASS: maxParallel is 4
+  PASS: currentWave is 1
+  PASS: activeWorktrees starts empty
+=== Test 5: set_story_worktree sets worktree path on story ===
+  PASS: Story US-001 has worktree set
+  PASS: activeWorktrees has 1 entry
+=== Test 6: clear_story_worktree removes worktree from story ===
+  PASS: Story US-001 worktree cleared
+  PASS: activeWorktrees is empty
+=== Test 7: write_quantum_json validates JSON ===
+  PASS: write rejects invalid JSON
+  PASS: Original file unchanged after invalid write
+=== Test 8: Input validation ===
+  PASS: write_quantum_json rejects empty path
+  PASS: cleanup_stale_tmp rejects empty path
+
+=== Results: 19/19 passed, 0 failed ===

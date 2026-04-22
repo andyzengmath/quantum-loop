@@ -15,6 +15,7 @@ You will receive:
 - **BASE_SHA**: Git SHA before implementation
 - **HEAD_SHA**: Git SHA after implementation
 - **DESCRIPTION**: Brief summary of what was implemented
+- **CODING_STANDARDS**: Read the project's coding standards from: `CLAUDE.md` (project root), `.claude/rules/*.md` (user rules), and the `codebasePatterns` array in `quantum.json`. These define the project's mandatory conventions.
 
 ## Review Process
 
@@ -69,6 +70,26 @@ Read the full files for changed code, not just the diff. Context matters.
 - No unnecessary re-renders (React: missing useMemo, unstable references)?
 - No unbounded data fetching (missing pagination/limits)?
 - No memory leaks (missing cleanup, growing collections)?
+
+#### H. Coding Standards Compliance
+- Read `codebasePatterns` from quantum.json — verify each documented rule against the diff
+- Read the project's `CLAUDE.md` and `.claude/rules/` directory for additional coding standards
+- Check for violations of explicitly documented rules (e.g., immutability requirements, file size limits, naming conventions, error handling patterns)
+- **Violations of explicitly documented rules are CRITICAL severity** — these are not style preferences, they are project mandates agreed upon by the team
+- If no coding standards files exist, skip this dimension
+
+### Coverage Gate
+
+After evaluating all review dimensions, check test coverage for changed files:
+
+1. **Read `coverageThreshold`** from quantum.json. If present (a number), enforce it. If absent or `null`, report coverage but do not block.
+2. **Detect coverage tool** in this order: `c8` → `nyc` → `pytest-cov` → `go test -cover` → `JaCoCo`. Use the first one found.
+3. **Run coverage** on the files changed in this story's diff (not the entire project).
+4. **If coverage < threshold:** flag as **CRITICAL** — "Coverage for <file> is X% (threshold: Y%)"
+5. **If `coverageThreshold` is absent:** report the coverage percentage in the review summary but do not block the review.
+6. **If coverage tool cannot be found/run:** skip coverage check on the first story in this execution. After the first successful coverage measurement in any story during this execution, treat missing coverage as **CRITICAL** for subsequent stories.
+
+**Review output must include:** coverage percentage for each changed file, and which files (if any) are below the threshold.
 
 ### Step 3: Categorize Issues
 

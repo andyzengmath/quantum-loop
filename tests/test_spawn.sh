@@ -67,26 +67,34 @@ PROMPT=$(build_agent_prompt "US-003")
 assert_contains "Prompt warns about quantum.json" "quantum.json" "$PROMPT"
 
 # =========================================================================
-echo "=== Test 3: build_autonomous_command generates correct command ==="
+echo "=== Test 3: build_agent_prompt includes PYTHONPATH instruction ==="
+PROMPT=$(build_agent_prompt "US-003")
+assert_contains "Prompt warns against pip install -e ." "pip install -e ." "$PROMPT"
+assert_contains "Prompt includes PYTHONPATH" "PYTHONPATH" "$PROMPT"
+assert_contains "Prompt covers src-layout" "src-layout" "$PROMPT"
+assert_contains "Prompt covers flat-layout" "flat-layout" "$PROMPT"
+
+# =========================================================================
+echo "=== Test 4: build_autonomous_command generates correct command ==="
 CMD=$(build_autonomous_command "US-003" "/tmp/test-wt")
 assert_contains "Command includes worktree path" "/tmp/test-wt" "$CMD"
 assert_contains "Command includes story ID" "US-003" "$CMD"
 assert_contains "Command uses claude" "claude" "$CMD"
 
 # =========================================================================
-echo "=== Test 4: Input validation - empty story_id ==="
+echo "=== Test 5: Input validation - empty story_id ==="
 RESULT=$(build_agent_prompt "" 2>&1)
 EXIT_CODE=$?
 assert_eq "Empty story_id returns error" "1" "$EXIT_CODE"
 
 # =========================================================================
-echo "=== Test 5: Input validation - invalid story_id format ==="
+echo "=== Test 6: Input validation - invalid story_id format ==="
 RESULT=$(build_agent_prompt "../hack" 2>&1)
 EXIT_CODE=$?
 assert_eq "Invalid story_id returns error" "1" "$EXIT_CODE"
 
 # =========================================================================
-echo "=== Test 6: build_autonomous_command validates inputs ==="
+echo "=== Test 7: build_autonomous_command validates inputs ==="
 RESULT=$(build_autonomous_command "" "/tmp/wt" 2>&1)
 EXIT_CODE=$?
 assert_eq "Empty story_id in command returns error" "1" "$EXIT_CODE"
@@ -96,28 +104,28 @@ EXIT_CODE=$?
 assert_eq "Empty worktree_path in command returns error" "1" "$EXIT_CODE"
 
 # =========================================================================
-echo "=== Test 7: spawn_autonomous rejects empty story_id ==="
+echo "=== Test 8: spawn_autonomous rejects empty story_id ==="
 RESULT=$(spawn_autonomous "" "/tmp/wt" 2>&1)
 EXIT_CODE=$?
 assert_eq "spawn_autonomous empty story_id returns error" "1" "$EXIT_CODE"
 assert_contains "spawn_autonomous empty story_id error message" "story_id is required" "$RESULT"
 
 # =========================================================================
-echo "=== Test 8: spawn_autonomous rejects empty worktree_path ==="
+echo "=== Test 9: spawn_autonomous rejects empty worktree_path ==="
 RESULT=$(spawn_autonomous "US-001" "" 2>&1)
 EXIT_CODE=$?
 assert_eq "spawn_autonomous empty worktree_path returns error" "1" "$EXIT_CODE"
 assert_contains "spawn_autonomous empty worktree_path error message" "worktree_path is required" "$RESULT"
 
 # =========================================================================
-echo "=== Test 9: spawn_autonomous rejects nonexistent worktree_path ==="
+echo "=== Test 10: spawn_autonomous rejects nonexistent worktree_path ==="
 RESULT=$(spawn_autonomous "US-001" "/tmp/nonexistent-path-$$" 2>&1)
 EXIT_CODE=$?
 assert_eq "spawn_autonomous nonexistent worktree_path returns error" "1" "$EXIT_CODE"
 assert_contains "spawn_autonomous nonexistent path error message" "does not exist" "$RESULT"
 
 # =========================================================================
-echo "=== Test 10: spawn_autonomous returns PID with mock claude ==="
+echo "=== Test 11: spawn_autonomous returns PID with mock claude ==="
 # Create a temp directory to act as worktree
 TEST_WT=$(mktemp -d)
 # Create a mock 'claude' that just echoes and exits
@@ -158,11 +166,11 @@ fi
 rm -rf "$TEST_WT" "$MOCK_BIN"
 
 # =========================================================================
-echo "=== Test 11: AGENT_OUTPUT_FILENAME constant is defined ==="
+echo "=== Test 12: AGENT_OUTPUT_FILENAME constant is defined ==="
 assert_eq "AGENT_OUTPUT_FILENAME value" ".ql-agent-output.txt" "$AGENT_OUTPUT_FILENAME"
 
 # =========================================================================
-echo "=== Test 12: Multiple agents run concurrently ==="
+echo "=== Test 13: Multiple agents run concurrently ==="
 # Create 3 temp directories to act as worktrees
 WT1=$(mktemp -d)
 WT2=$(mktemp -d)
@@ -210,6 +218,44 @@ done
 
 # Cleanup
 rm -rf "$WT1" "$WT2" "$WT3" "$MOCK_BIN2" "$PID_DIR"
+
+# =========================================================================
+echo "=== Test 14: build_agent_prompt without completed_tasks has no skip section ==="
+PROMPT=$(build_agent_prompt "US-005")
+TOTAL=$((TOTAL + 1))
+if echo "$PROMPT" | grep -q "Previously completed tasks"; then
+  echo "  FAIL: Prompt without completed_tasks should NOT contain skip section"
+  FAIL=$((FAIL + 1))
+else
+  echo "  PASS: Prompt without completed_tasks has no skip section"
+  PASS=$((PASS + 1))
+fi
+
+# =========================================================================
+echo "=== Test 15: build_agent_prompt with empty completed_tasks has no skip section ==="
+PROMPT=$(build_agent_prompt "US-005" "")
+TOTAL=$((TOTAL + 1))
+if echo "$PROMPT" | grep -q "Previously completed tasks"; then
+  echo "  FAIL: Prompt with empty completed_tasks should NOT contain skip section"
+  FAIL=$((FAIL + 1))
+else
+  echo "  PASS: Prompt with empty completed_tasks has no skip section"
+  PASS=$((PASS + 1))
+fi
+
+# =========================================================================
+echo "=== Test 16: build_agent_prompt with completed_tasks includes skip section ==="
+PROMPT=$(build_agent_prompt "US-005" "T-001,T-002")
+assert_contains "Prompt contains Previously completed tasks" "Previously completed tasks" "$PROMPT"
+assert_contains "Prompt contains task list" "T-001,T-002" "$PROMPT"
+assert_contains "Prompt contains skip instruction" "DO NOT re-implement" "$PROMPT"
+assert_contains "Prompt contains start instruction" "Start from the next task" "$PROMPT"
+
+# =========================================================================
+echo "=== Test 17: build_agent_prompt with single completed task ==="
+PROMPT=$(build_agent_prompt "US-007" "T-001")
+assert_contains "Prompt contains single task" "T-001" "$PROMPT"
+assert_contains "Prompt contains skip section for single task" "Previously completed tasks" "$PROMPT"
 
 # =========================================================================
 echo ""

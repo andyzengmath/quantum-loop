@@ -1,0 +1,33 @@
+{
+  "$schema": "../schemas/runner.schema.json",
+  "name": "aider",
+  "displayName": "Aider",
+  "binary": "aider",
+  "tier": "experimental",
+  "installHint": "pip install aider-chat",
+  "version": ">=0.50.0",
+  "invocation": {
+    "promptDelivery": "flag",
+    "promptFlag": "-m",
+    "headlessFlags": [
+      "--yes-always"
+    ],
+    "autoApproveFlags": [],
+    "outputFlags": [],
+    "extraFlags": [],
+    "stdinPipe": false
+  },
+  "instructionFile": {
+    "native": "CONVENTIONS.md",
+    "fallbackFrom": "CLAUDE.md",
+    "autoGenerate": true
+  },
+  "signals": {
+    "preambleInjection": true,
+    "heuristicFallback": true
+  },
+  "quirks": {
+    "noMcp": true,
+    "notes": "Aider does not support MCP tools."
+  }
+}

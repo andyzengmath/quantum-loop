@@ -1,0 +1,18 @@
+=== Observations Tests ===
+
+Test 1: Observations doc created
+  PASS: observations doc created
+
+Test 2: Doc contains expected sections
+mktemp: failed to create directory via template ‘/tmp/tmp.Kx52ZGR5Ep/tmp.XXXXXXXXXX’: No such file or directory
+  PASS: has header
+  PASS: has failure summary
+  PASS: has raw data
+
+Test 3: Doc committed to git
+  PASS: observations doc committed
+
+Test 4: GitHub issue not filed without user confirmation
+  PASS: NON_INTERACTIVE flag prevents prompt
+
+=== Results: 6/6 passed ===

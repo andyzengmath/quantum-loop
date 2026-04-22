@@ -1,0 +1,18 @@
+=== Test 1: Create worktree at correct path ===
+Preparing worktree (new branch 'ql-wt/US-001')
+  PASS: create_worktree exits 0
+  PASS: Worktree directory created
+=== Test 2: Worktree has feature branch content ===
+  PASS: Feature file exists in worktree
+=== Test 3: List worktrees includes the new worktree ===
+  PASS: US-001 worktree listed
+=== Test 4: Remove worktree cleans up ===
+Deleted branch ql-wt/US-001 (was fef430e).
+  PASS: remove_worktree exits 0
+  PASS: Worktree directory removed
+=== Test 5: List worktrees after removal ===
+  PASS: US-001 not listed after removal
+=== Test 6: Remove nonexistent worktree is idempotent ===
+  PASS: remove_worktree for nonexistent exits 0
+
+=== Results: 8/8 passed, 0 failed ===
