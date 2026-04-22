@@ -335,8 +335,48 @@ generate_observations() {
       printf "No failures.\n"
     fi
 
+    # Phase 6 / P1.7 — Progress Log table: one row per failed-story phase
+    # so the learning loop has structured data (previously this block was
+    # just an empty <details> block when .progress was []).
+    printf "\n## Progress Log\n\n"
+    local progress_rows
+    progress_rows=$(jq -r '
+      [
+        (.stories[] | select(.retries.failureLog // [] | length > 0)
+          | .id as $sid
+          | (.retries.failureLog // [])[]
+          | [ $sid,
+              (.phase // "unknown"),
+              ((.error // "") | gsub("\\|"; "/") | .[0:80]),
+              "",
+              "",
+              "" ]
+          | @tsv),
+        (.progress // []
+          | .[]
+          | [ (.storyId // "(pipeline)"),
+              (.action // "unknown"),
+              ((.details // "") | gsub("\\|"; "/") | .[0:80]),
+              "",
+              "",
+              (.learnings // "") ]
+          | @tsv)
+      ] | .[]
+    ' quantum.json 2>/dev/null)
+    if [[ -n "$progress_rows" ]]; then
+      printf "| Story | Phase / Action | Error / Detail | Root cause | Fix applied | Lesson |\n"
+      printf "|-------|----------------|----------------|-----------|-------------|--------|\n"
+      while IFS=$'\t' read -r sid phase detail rc fix lesson; do
+        [[ -z "$sid" && -z "$phase" ]] && continue
+        printf "| %s | %s | %s | %s | %s | %s |\n" \
+          "${sid:-(pipeline)}" "${phase:-unknown}" "${detail:-}" "${rc:-}" "${fix:-}" "${lesson:-}"
+      done <<< "$progress_rows"
+    else
+      printf "_No failed / retried stories. Progress log is empty._\n"
+    fi
+
     printf "\n## Raw Data\n\n"
-    printf "<details>\n<summary>Progress Log</summary>\n\n"
+    printf "<details>\n<summary>Progress JSON</summary>\n\n"
     printf '```json\n'
     jq '.progress' quantum.json
     printf '```\n\n'
@@ -348,6 +388,25 @@ generate_observations() {
     printf '```\n\n'
     printf "</details>\n"
   } > "$obs_file"
+
+  # Phase 6 / P1.7 — promote generalizable lessons from progress entries into
+  # codebasePatterns so the next iteration inherits them.
+  local new_patterns
+  new_patterns=$(jq '[.progress // [] | .[] | select(.learnings? and (.learnings | length > 0)) | .learnings]' quantum.json 2>/dev/null)
+  if [[ "$new_patterns" != "[]" && -n "$new_patterns" ]]; then
+    local tmpfile
+    tmpfile=$(mktemp 2>/dev/null || mktemp -t qlobs)
+    jq --argjson newlessons "$new_patterns" '
+      .codebasePatterns = ((.codebasePatterns // []) + $newlessons | unique)
+    ' quantum.json > "$tmpfile" 2>/dev/null
+    if [[ -s "$tmpfile" ]]; then
+      mv "$tmpfile" quantum.json
+      printf "[OBSERVATIONS] Promoted %s lessons into codebasePatterns.\n" \
+        "$(echo "$new_patterns" | jq 'length')"
+    else
+      rm -f "$tmpfile"
+    fi
+  fi
 
   git add "$obs_file" && git commit -m "docs: execution observations for $branch" >/dev/null 2>&1 || true
   printf "[OBSERVATIONS] Generated %s\n" "$obs_file"

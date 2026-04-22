@@ -399,10 +399,37 @@ function Generate-Observations {
 
 $(jq -r '.stories[] | select(.status == "failed" or .status == "blocked") | "- **\(.id)** \(.title) — \(.status) (\(.retries.attempts)/\(.retries.maxAttempts) retries)"' quantum.json 2>$null)
 
+## Progress Log
+
+$(
+  $rows = jq -r '
+    [
+      (.stories[] | select(.retries.failureLog // [] | length > 0)
+        | .id as $sid
+        | (.retries.failureLog // [])[]
+        | [ $sid, (.phase // "unknown"), ((.error // "") | gsub("\\|"; "/") | .[0:80]), "", "", "" ]
+        | @tsv),
+      (.progress // [] | .[]
+        | [ (.storyId // "(pipeline)"), (.action // "unknown"), ((.details // "") | gsub("\\|"; "/") | .[0:80]), "", "", (.learnings // "") ]
+        | @tsv)
+    ] | .[]
+  ' quantum.json 2>$null
+  if ($rows) {
+    $header = "| Story | Phase / Action | Error / Detail | Root cause | Fix applied | Lesson |" + "`n" + "|-------|----------------|----------------|-----------|-------------|--------|"
+    $body = ($rows -split "`n" | Where-Object { $_ -match '.' } | ForEach-Object {
+      $f = $_ -split "`t"
+      "| " + ($f[0..5] -join " | ") + " |"
+    }) -join "`n"
+    "$header`n$body"
+  } else {
+    "_No failed / retried stories. Progress log is empty._"
+  }
+)
+
 ## Raw Data
 
 <details>
-<summary>Progress Log</summary>
+<summary>Progress JSON</summary>
 
 ``````json
 $(jq '.progress' quantum.json)

@@ -1,0 +1,22 @@
+=== Phase 6 Observation-Generator Tests ===
+
+Test 1: Failed story -> populated Progress Log table
+  PASS: Progress Log header present
+  PASS: table column header
+  PASS: US-001 row emitted
+  PASS: typecheck phase noted
+  PASS: Type X error excerpt
+  PASS: no empty-log fallback
+
+Test 2: All-passed run -> explicit empty-log copy
+  PASS: empty-log copy shown
+  PASS: no stray table header
+
+Test 3: Generalizable lessons promoted into codebasePatterns
+  PASS: codebasePatterns grew by 1
+  PASS: lesson text promoted
+
+Test 4: Regression guard — no stub leaks into real docs/post-mortems/
+  PASS: real post-mortems dir unchanged
+
+=== Results: 11/11 passed, 0 failed ===

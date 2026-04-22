@@ -1,0 +1,5 @@
+Test: runner_load_valid (claude)
+  PASS: load claude exits 0
+  PASS: RUNNER_NAME
+  PASS: RUNNER_TIER
+Test: runner_load_missing

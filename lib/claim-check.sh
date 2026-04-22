@@ -15,8 +15,10 @@
 # table + OMC Ralph's polite-stop ban. Grounded by FUR arXiv:2502.14829 which
 # shows verbalized CoT is often NOT parametrically faithful — claims need
 # artifacts, not rephrasing.
-
-set -euo pipefail
+#
+# Library contract: does NOT set shell flags at source-time. Sourcing scripts
+# keep their existing set -e / set -u semantics. (Direct CLI invocation at
+# the bottom of this file enables strict mode locally.)
 
 # ------------------------------------------------------------------------------
 # Configuration
@@ -25,6 +27,7 @@ set -euo pipefail
 # Case-insensitive match. Each phrase should be a rationalization, not a
 # description of degree (so "approximately 5 items" is fine; "should work"
 # is not).
+if [[ -z "${CLAIM_CHECK_HEDGE_PHRASES+x}" ]]; then
 readonly CLAIM_CHECK_HEDGE_PHRASES=(
   "should work"
   "should pass"
@@ -48,8 +51,6 @@ readonly CLAIM_CHECK_HEDGE_PHRASES=(
   "close enough"
   "good enough"
 )
-
-# Stale-evidence patterns — cite prior runs instead of current verification.
 readonly CLAIM_CHECK_STALE_PHRASES=(
   "passed earlier"
   "worked before"
@@ -61,9 +62,6 @@ readonly CLAIM_CHECK_STALE_PHRASES=(
   "checked before"
   "verified last time"
 )
-
-# Polite-stop anti-pattern — agent declares success and stops instead of
-# proceeding to the next mandated step in the same turn.
 readonly CLAIM_CHECK_POLITE_STOP_PHRASES=(
   "work is complete"
   "implementation is done"
@@ -74,6 +72,7 @@ readonly CLAIM_CHECK_POLITE_STOP_PHRASES=(
   "now awaiting"
   "will stop here"
 )
+fi  # guard against double-source
 
 # ------------------------------------------------------------------------------
 # Helpers
@@ -178,6 +177,7 @@ claim_check_block() {
 # CLI mode — if script is invoked directly (not sourced), run scan + verdict.
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  set -euo pipefail
   if [[ $# -eq 0 ]]; then
     cat >&2 <<USAGE
 Usage: $(basename "$0") [file | -]

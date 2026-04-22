@@ -212,6 +212,47 @@ if [[ -f "$RUNNER_LIB_DIR/signal-heuristics.sh" ]]; then
   source "$RUNNER_LIB_DIR/signal-heuristics.sh"
 fi
 
+# Source claim-check linter if available (Phase 5 / P1.5 completion-claim gate)
+if [[ -f "$RUNNER_LIB_DIR/claim-check.sh" ]]; then
+  # shellcheck source=lib/claim-check.sh
+  source "$RUNNER_LIB_DIR/claim-check.sh"
+fi
+
+# _runner_apply_claim_check(output_text)
+# After a signal has been resolved, scan the agent output for hedge /
+# stale-evidence / polite-stop patterns. Records findings in the global
+# SIGNAL_CLAIM_FINDINGS and down-grades confidence from exact/high to medium
+# when a hedge or polite-stop is present. Does NOT flip the signal itself —
+# a PASSED signal with hedge phrases is still PASSED, just lower confidence.
+_runner_apply_claim_check() {
+  local output="$1"
+  SIGNAL_CLAIM_FINDINGS=""
+  if ! type claim_check_scan &>/dev/null; then
+    return 0
+  fi
+  local findings verdict
+  findings=$(printf '%s\n' "$output" | claim_check_scan - 2>/dev/null || true)
+  verdict=$(printf '%s\n' "$findings" | claim_check_verdict 2>/dev/null || echo "clean")
+  SIGNAL_CLAIM_FINDINGS="$verdict"
+  if [[ "$verdict" == "clean" ]]; then
+    return 0
+  fi
+  # Any non-clean verdict demotes exact/high to medium. Lower levels stay.
+  case "$SIGNAL_CONFIDENCE" in
+    exact|high)
+      printf "[RUNNER] Claim-check: %s -- demoting confidence from %s to medium\n" \
+        "$verdict" "$SIGNAL_CONFIDENCE" >&2
+      # shellcheck disable=SC2034
+      SIGNAL_CONFIDENCE="medium"
+      ;;
+    *)
+      printf "[RUNNER] Claim-check: %s (confidence %s unchanged)\n" \
+        "$verdict" "$SIGNAL_CONFIDENCE" >&2
+      ;;
+  esac
+  return 0
+}
+
 # runner_parse_output(output, exit_code, [worktree_path])
 # Parses runner output for quantum signals. Falls back to heuristics if enabled.
 # Sets globals: SIGNAL_RESULT and SIGNAL_CONFIDENCE
@@ -237,12 +278,14 @@ runner_parse_output() {
     # shellcheck disable=SC2034
     SIGNAL_CONFIDENCE="exact"
     printf "[RUNNER] Signal: %s (exact, confidence=exact)\n" "$last_signal" >&2
+    _runner_apply_claim_check "$output"
     return 0
   fi
 
   # No exact signal — try heuristics if enabled
   if [[ "$RUNNER_HEURISTIC_FALLBACK" == "true" ]] && type parse_agent_output &>/dev/null; then
     parse_agent_output "$output" "$exit_code" "$wt_path"
+    _runner_apply_claim_check "$output"
     return 0
   fi
 
@@ -252,6 +295,7 @@ runner_parse_output() {
   # shellcheck disable=SC2034
   SIGNAL_CONFIDENCE="high"
   printf "[RUNNER] Signal: FAILED (no signal detected, heuristics disabled, confidence=high)\n" >&2
+  _runner_apply_claim_check "$output"
   return 0
 }
 
