@@ -170,7 +170,9 @@ claim_check_block() {
   while IFS='|' read -r cat rest; do
     [[ "$cat" == "$threshold" ]] && { hit=1; break; }
   done
-  return $((1 - hit))  # 0 if hit, 1 if none
+  # Contract: exit non-zero if findings present (so callers can use as a gate).
+  # 1 = blocked (findings matched threshold), 0 = clean.
+  return "$hit"
 }
 
 # ------------------------------------------------------------------------------

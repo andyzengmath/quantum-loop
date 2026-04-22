@@ -84,11 +84,11 @@ $py_expr
 # =========================================================================
 # Setup: create a temporary git repo for testing
 # =========================================================================
-TMPDIR=$(mktemp -d)
+TEST_TMPDIR=$(mktemp -d)
 ORIG_DIR=$(pwd)
 
 setup_test_repo() {
-  cd "$TMPDIR"
+  cd "$TEST_TMPDIR"
   git init --initial-branch=main . >/dev/null 2>&1
   git config user.email "test@test.com"
   git config user.name "Test"
@@ -103,14 +103,14 @@ setup_test_repo() {
 
 cleanup_test_repo() {
   cd "$ORIG_DIR"
-  if [[ -d "$TMPDIR" ]]; then
-    cd "$TMPDIR" 2>/dev/null && git worktree list --porcelain 2>/dev/null | grep "^worktree " | while read -r _ path; do
-      if [[ "$path" != "$TMPDIR" ]]; then
+  if [[ -d "$TEST_TMPDIR" ]]; then
+    cd "$TEST_TMPDIR" 2>/dev/null && git worktree list --porcelain 2>/dev/null | grep "^worktree " | while read -r _ path; do
+      if [[ "$path" != "$TEST_TMPDIR" ]]; then
         git worktree remove --force "$path" 2>/dev/null || true
       fi
     done
     cd "$ORIG_DIR"
-    rm -rf "$TMPDIR"
+    rm -rf "$TEST_TMPDIR"
   fi
 }
 
@@ -118,7 +118,7 @@ trap cleanup_test_repo EXIT
 
 setup_test_repo
 
-TEST_JSON="$TMPDIR/quantum.json"
+TEST_JSON="$TEST_TMPDIR/quantum.json"
 _PY_TJ=$(_to_python_path "$TEST_JSON")
 
 # =========================================================================
@@ -133,9 +133,9 @@ cat > "$TEST_JSON" <<'ENDJSON'
   ]
 }
 ENDJSON
-# Use $TMPDIR-based path; on Windows, MSYS2 converts /tmp/ paths for Python,
+# Use $TEST_TMPDIR-based path; on Windows, MSYS2 converts /tmp/ paths for Python,
 # so we verify the stored path ends with the expected suffix.
-register_worktree "$TEST_JSON" "US-R01" "$TMPDIR/wt/US-R01" "ql/test-feature" 1 2>/dev/null
+register_worktree "$TEST_JSON" "US-R01" "$TEST_TMPDIR/wt/US-R01" "ql/test-feature" 1 2>/dev/null
 EXIT_CODE=$?
 assert_eq "register_worktree exits 0" "0" "$EXIT_CODE"
 REG_PATH=$(_read_json_py "$TEST_JSON" "
@@ -186,7 +186,7 @@ except:
 assert_eq "register_worktree createdAt is valid ISO" "valid" "$REG_CA"
 
 echo "=== Test 4: register_worktree with wave=0 boundary ==="
-register_worktree "$TEST_JSON" "US-R02" "$TMPDIR/wt/US-R02" "ql/branch" 0 2>/dev/null
+register_worktree "$TEST_JSON" "US-R02" "$TEST_TMPDIR/wt/US-R02" "ql/branch" 0 2>/dev/null
 EXIT_CODE=$?
 assert_eq "register_worktree wave=0 exits 0" "0" "$EXIT_CODE"
 REG_WV0=$(_read_json_py "$TEST_JSON" "
@@ -197,7 +197,7 @@ print(entry[0]['wave'] if entry else 'missing')
 assert_eq "register_worktree stores wave=0" "0" "$REG_WV0"
 
 echo "=== Test 5: register_worktree with large wave number ==="
-register_worktree "$TEST_JSON" "US-R03" "$TMPDIR/wt/US-R03" "ql/branch" 99 2>/dev/null
+register_worktree "$TEST_JSON" "US-R03" "$TEST_TMPDIR/wt/US-R03" "ql/branch" 99 2>/dev/null
 EXIT_CODE=$?
 assert_eq "register_worktree wave=99 exits 0" "0" "$EXIT_CODE"
 REG_WV99=$(_read_json_py "$TEST_JSON" "
@@ -225,7 +225,7 @@ print(d['execution']['worktreeTracking']['cleanedThisSession'])
 assert_eq "register_worktree sets default cleanedThisSession=0" "0" "$CLEANED"
 
 echo "=== Test 8: register_worktree with nonexistent json file ==="
-register_worktree "$TMPDIR/no-such-file.json" "US-R04" "$TMPDIR/p" "ql/b" 1 2>/dev/null
+register_worktree "$TEST_TMPDIR/no-such-file.json" "US-R04" "$TEST_TMPDIR/p" "ql/b" 1 2>/dev/null
 EXIT_CODE=$?
 assert_eq "register_worktree with bad json_path returns 1" "1" "$EXIT_CODE"
 
@@ -236,7 +236,7 @@ print(len(d.get('stories', [])))
 assert_eq "register_worktree preserves stories array" "1" "$STORY_COUNT"
 
 echo "=== Test 10: register_worktree with duplicate storyId appends (no dedup) ==="
-register_worktree "$TEST_JSON" "US-R01" "$TMPDIR/another/path" "ql/branch2" 2 2>/dev/null
+register_worktree "$TEST_JSON" "US-R01" "$TEST_TMPDIR/another/path" "ql/branch2" 2 2>/dev/null
 DUP_COUNT=$(_read_json_py "$TEST_JSON" "
 wts = d['execution']['worktreeTracking']['activeWorktrees']
 dups = [w for w in wts if w['storyId'] == 'US-R01']
@@ -259,7 +259,7 @@ cat > "$TEST_JSON" <<'ENDJSON'
   }
 }
 ENDJSON
-register_worktree "$TEST_JSON" "US-X1" "$TMPDIR/new/path" "ql/b" 2 2>/dev/null
+register_worktree "$TEST_JSON" "US-X1" "$TEST_TMPDIR/new/path" "ql/b" 2 2>/dev/null
 PRESERVED_MAX=$(_read_json_py "$TEST_JSON" "
 print(d['execution']['worktreeTracking']['maxWorktrees'])
 ")
@@ -282,10 +282,10 @@ assert_eq "register_worktree appends to existing entries" "2" "$COMBINED_COUNT"
 # locks on the first entry; we verify tracking is correct regardless.
 # =========================================================================
 echo "=== Test 12: cleanup_stale with 2 stale worktrees (both passed) ==="
-create_worktree "US-ST1" "ql/test-feature" "$TMPDIR" >/dev/null 2>&1
-create_worktree "US-ST2" "ql/test-feature" "$TMPDIR" >/dev/null 2>&1
-assert_dir_exists "US-ST1 exists before cleanup" "$TMPDIR/.ql-wt/US-ST1"
-assert_dir_exists "US-ST2 exists before cleanup" "$TMPDIR/.ql-wt/US-ST2"
+create_worktree "US-ST1" "ql/test-feature" "$TEST_TMPDIR" >/dev/null 2>&1
+create_worktree "US-ST2" "ql/test-feature" "$TEST_TMPDIR" >/dev/null 2>&1
+assert_dir_exists "US-ST1 exists before cleanup" "$TEST_TMPDIR/.ql-wt/US-ST1"
+assert_dir_exists "US-ST2 exists before cleanup" "$TEST_TMPDIR/.ql-wt/US-ST2"
 
 cat > "$TEST_JSON" <<ENDJSON
 {
@@ -296,8 +296,8 @@ cat > "$TEST_JSON" <<ENDJSON
   "execution": {
     "worktreeTracking": {
       "activeWorktrees": [
-        {"path": "$TMPDIR/.ql-wt/US-ST1", "branch": "ql-wt/US-ST1", "storyId": "US-ST1", "createdAt": "2026-01-01T00:00:00Z", "wave": 1},
-        {"path": "$TMPDIR/.ql-wt/US-ST2", "branch": "ql-wt/US-ST2", "storyId": "US-ST2", "createdAt": "2026-01-01T00:00:00Z", "wave": 1}
+        {"path": "$TEST_TMPDIR/.ql-wt/US-ST1", "branch": "ql-wt/US-ST1", "storyId": "US-ST1", "createdAt": "2026-01-01T00:00:00Z", "wave": 1},
+        {"path": "$TEST_TMPDIR/.ql-wt/US-ST2", "branch": "ql-wt/US-ST2", "storyId": "US-ST2", "createdAt": "2026-01-01T00:00:00Z", "wave": 1}
       ],
       "cleanedThisSession": 0,
       "maxWorktrees": 4
@@ -306,7 +306,7 @@ cat > "$TEST_JSON" <<ENDJSON
 }
 ENDJSON
 
-OUTPUT=$(cleanup_stale_worktrees "$TEST_JSON" "$TMPDIR" 2>&1)
+OUTPUT=$(cleanup_stale_worktrees "$TEST_JSON" "$TEST_TMPDIR" 2>&1)
 EXIT_CODE=$?
 assert_eq "cleanup_stale with 2 stale exits 0" "0" "$EXIT_CODE"
 
@@ -336,15 +336,15 @@ fi
 assert_contains "cleanup_stale logs Cleaned" "Cleaned" "$OUTPUT"
 
 # Clean up any remaining worktree directories (Windows file-lock resilience)
-remove_worktree "US-ST1" "$TMPDIR" >/dev/null 2>&1
-remove_worktree "US-ST2" "$TMPDIR" >/dev/null 2>&1
+remove_worktree "US-ST1" "$TEST_TMPDIR" >/dev/null 2>&1
+remove_worktree "US-ST2" "$TEST_TMPDIR" >/dev/null 2>&1
 
 # =========================================================================
 # cleanup_stale_worktrees: single stale (passed) -- direct verification
 # =========================================================================
 echo "=== Test 13: cleanup_stale single passed story worktree ==="
-create_worktree "US-SP1" "ql/test-feature" "$TMPDIR" >/dev/null 2>&1
-assert_dir_exists "US-SP1 exists before cleanup" "$TMPDIR/.ql-wt/US-SP1"
+create_worktree "US-SP1" "ql/test-feature" "$TEST_TMPDIR" >/dev/null 2>&1
+assert_dir_exists "US-SP1 exists before cleanup" "$TEST_TMPDIR/.ql-wt/US-SP1"
 
 cat > "$TEST_JSON" <<ENDJSON
 {
@@ -354,7 +354,7 @@ cat > "$TEST_JSON" <<ENDJSON
   "execution": {
     "worktreeTracking": {
       "activeWorktrees": [
-        {"path": "$TMPDIR/.ql-wt/US-SP1", "branch": "ql-wt/US-SP1", "storyId": "US-SP1", "createdAt": "2026-01-01T00:00:00Z", "wave": 1}
+        {"path": "$TEST_TMPDIR/.ql-wt/US-SP1", "branch": "ql-wt/US-SP1", "storyId": "US-SP1", "createdAt": "2026-01-01T00:00:00Z", "wave": 1}
       ],
       "cleanedThisSession": 0,
       "maxWorktrees": 4
@@ -363,10 +363,10 @@ cat > "$TEST_JSON" <<ENDJSON
 }
 ENDJSON
 
-OUTPUT=$(cleanup_stale_worktrees "$TEST_JSON" "$TMPDIR" 2>/dev/null)
+OUTPUT=$(cleanup_stale_worktrees "$TEST_JSON" "$TEST_TMPDIR" 2>/dev/null)
 EXIT_CODE=$?
 assert_eq "cleanup_stale single passed exits 0" "0" "$EXIT_CODE"
-assert_dir_not_exists "US-SP1 removed" "$TMPDIR/.ql-wt/US-SP1"
+assert_dir_not_exists "US-SP1 removed" "$TEST_TMPDIR/.ql-wt/US-SP1"
 SP_CLEANED=$(_read_json_py "$TEST_JSON" "
 print(d['execution']['worktreeTracking']['cleanedThisSession'])
 ")
@@ -377,10 +377,10 @@ assert_contains "cleanup_stale single logs Cleaned 1" "Cleaned 1" "$OUTPUT"
 # cleanup_stale_worktrees: 0 stale (all in_progress)
 # =========================================================================
 echo "=== Test 14: cleanup_stale with 0 stale (all in_progress) ==="
-create_worktree "US-IP1" "ql/test-feature" "$TMPDIR" >/dev/null 2>&1
-create_worktree "US-IP2" "ql/test-feature" "$TMPDIR" >/dev/null 2>&1
-assert_dir_exists "US-IP1 exists" "$TMPDIR/.ql-wt/US-IP1"
-assert_dir_exists "US-IP2 exists" "$TMPDIR/.ql-wt/US-IP2"
+create_worktree "US-IP1" "ql/test-feature" "$TEST_TMPDIR" >/dev/null 2>&1
+create_worktree "US-IP2" "ql/test-feature" "$TEST_TMPDIR" >/dev/null 2>&1
+assert_dir_exists "US-IP1 exists" "$TEST_TMPDIR/.ql-wt/US-IP1"
+assert_dir_exists "US-IP2 exists" "$TEST_TMPDIR/.ql-wt/US-IP2"
 
 cat > "$TEST_JSON" <<ENDJSON
 {
@@ -391,8 +391,8 @@ cat > "$TEST_JSON" <<ENDJSON
   "execution": {
     "worktreeTracking": {
       "activeWorktrees": [
-        {"path": "$TMPDIR/.ql-wt/US-IP1", "branch": "ql-wt/US-IP1", "storyId": "US-IP1", "createdAt": "2026-01-01T00:00:00Z", "wave": 1},
-        {"path": "$TMPDIR/.ql-wt/US-IP2", "branch": "ql-wt/US-IP2", "storyId": "US-IP2", "createdAt": "2026-01-01T00:00:00Z", "wave": 1}
+        {"path": "$TEST_TMPDIR/.ql-wt/US-IP1", "branch": "ql-wt/US-IP1", "storyId": "US-IP1", "createdAt": "2026-01-01T00:00:00Z", "wave": 1},
+        {"path": "$TEST_TMPDIR/.ql-wt/US-IP2", "branch": "ql-wt/US-IP2", "storyId": "US-IP2", "createdAt": "2026-01-01T00:00:00Z", "wave": 1}
       ],
       "cleanedThisSession": 0,
       "maxWorktrees": 4
@@ -401,11 +401,11 @@ cat > "$TEST_JSON" <<ENDJSON
 }
 ENDJSON
 
-OUTPUT=$(cleanup_stale_worktrees "$TEST_JSON" "$TMPDIR" 2>/dev/null)
+OUTPUT=$(cleanup_stale_worktrees "$TEST_JSON" "$TEST_TMPDIR" 2>/dev/null)
 EXIT_CODE=$?
 assert_eq "cleanup_stale 0 stale exits 0" "0" "$EXIT_CODE"
-assert_dir_exists "US-IP1 still exists after cleanup" "$TMPDIR/.ql-wt/US-IP1"
-assert_dir_exists "US-IP2 still exists after cleanup" "$TMPDIR/.ql-wt/US-IP2"
+assert_dir_exists "US-IP1 still exists after cleanup" "$TEST_TMPDIR/.ql-wt/US-IP1"
+assert_dir_exists "US-IP2 still exists after cleanup" "$TEST_TMPDIR/.ql-wt/US-IP2"
 IP_REMAINING=$(_read_json_py "$TEST_JSON" "
 print(len(d['execution']['worktreeTracking']['activeWorktrees']))
 ")
@@ -413,14 +413,14 @@ assert_eq "cleanup_stale preserves 2 in_progress entries" "2" "$IP_REMAINING"
 assert_contains "cleanup_stale logs no stale found" "No stale" "$OUTPUT"
 
 # Clean up
-remove_worktree "US-IP1" "$TMPDIR" >/dev/null 2>&1
-remove_worktree "US-IP2" "$TMPDIR" >/dev/null 2>&1
+remove_worktree "US-IP1" "$TEST_TMPDIR" >/dev/null 2>&1
+remove_worktree "US-IP2" "$TEST_TMPDIR" >/dev/null 2>&1
 
 # =========================================================================
 # cleanup_stale: single failed story (removes it like passed)
 # =========================================================================
 echo "=== Test 15: cleanup_stale removes failed story worktree ==="
-create_worktree "US-F1" "ql/test-feature" "$TMPDIR" >/dev/null 2>&1
+create_worktree "US-F1" "ql/test-feature" "$TEST_TMPDIR" >/dev/null 2>&1
 cat > "$TEST_JSON" <<ENDJSON
 {
   "stories": [
@@ -429,7 +429,7 @@ cat > "$TEST_JSON" <<ENDJSON
   "execution": {
     "worktreeTracking": {
       "activeWorktrees": [
-        {"path": "$TMPDIR/.ql-wt/US-F1", "branch": "ql-wt/US-F1", "storyId": "US-F1", "createdAt": "2026-01-01T00:00:00Z", "wave": 1}
+        {"path": "$TEST_TMPDIR/.ql-wt/US-F1", "branch": "ql-wt/US-F1", "storyId": "US-F1", "createdAt": "2026-01-01T00:00:00Z", "wave": 1}
       ],
       "cleanedThisSession": 0,
       "maxWorktrees": 4
@@ -437,8 +437,8 @@ cat > "$TEST_JSON" <<ENDJSON
   }
 }
 ENDJSON
-cleanup_stale_worktrees "$TEST_JSON" "$TMPDIR" 2>/dev/null
-assert_dir_not_exists "US-F1 (failed) removed" "$TMPDIR/.ql-wt/US-F1"
+cleanup_stale_worktrees "$TEST_JSON" "$TEST_TMPDIR" 2>/dev/null
+assert_dir_not_exists "US-F1 (failed) removed" "$TEST_TMPDIR/.ql-wt/US-F1"
 F_CLEANED=$(_read_json_py "$TEST_JSON" "
 print(d['execution']['worktreeTracking']['cleanedThisSession'])
 ")
@@ -448,7 +448,7 @@ assert_eq "cleanup_stale failed cleanedThisSession=1" "1" "$F_CLEANED"
 # cleanup_stale: pending stories are NOT cleaned
 # =========================================================================
 echo "=== Test 16: cleanup_stale preserves pending story worktrees ==="
-create_worktree "US-PD1" "ql/test-feature" "$TMPDIR" >/dev/null 2>&1
+create_worktree "US-PD1" "ql/test-feature" "$TEST_TMPDIR" >/dev/null 2>&1
 cat > "$TEST_JSON" <<ENDJSON
 {
   "stories": [
@@ -457,7 +457,7 @@ cat > "$TEST_JSON" <<ENDJSON
   "execution": {
     "worktreeTracking": {
       "activeWorktrees": [
-        {"path": "$TMPDIR/.ql-wt/US-PD1", "branch": "ql-wt/US-PD1", "storyId": "US-PD1", "createdAt": "2026-01-01T00:00:00Z", "wave": 1}
+        {"path": "$TEST_TMPDIR/.ql-wt/US-PD1", "branch": "ql-wt/US-PD1", "storyId": "US-PD1", "createdAt": "2026-01-01T00:00:00Z", "wave": 1}
       ],
       "cleanedThisSession": 0,
       "maxWorktrees": 4
@@ -465,21 +465,21 @@ cat > "$TEST_JSON" <<ENDJSON
   }
 }
 ENDJSON
-cleanup_stale_worktrees "$TEST_JSON" "$TMPDIR" 2>/dev/null
-assert_dir_exists "US-PD1 (pending) preserved" "$TMPDIR/.ql-wt/US-PD1"
+cleanup_stale_worktrees "$TEST_JSON" "$TEST_TMPDIR" 2>/dev/null
+assert_dir_exists "US-PD1 (pending) preserved" "$TEST_TMPDIR/.ql-wt/US-PD1"
 PD_COUNT=$(_read_json_py "$TEST_JSON" "
 print(len(d['execution']['worktreeTracking']['activeWorktrees']))
 ")
 assert_eq "cleanup_stale pending: entry still in tracking" "1" "$PD_COUNT"
 
 # Clean up
-remove_worktree "US-PD1" "$TMPDIR" >/dev/null 2>&1
+remove_worktree "US-PD1" "$TEST_TMPDIR" >/dev/null 2>&1
 
 # =========================================================================
 # cleanup_stale: missing parameters
 # =========================================================================
 echo "=== Test 17: cleanup_stale validates parameters ==="
-cleanup_stale_worktrees "" "$TMPDIR" 2>/dev/null
+cleanup_stale_worktrees "" "$TEST_TMPDIR" 2>/dev/null
 EXIT_CODE=$?
 assert_eq "cleanup_stale rejects empty json_path" "1" "$EXIT_CODE"
 
@@ -487,7 +487,7 @@ cleanup_stale_worktrees "$TEST_JSON" "" 2>/dev/null
 EXIT_CODE=$?
 assert_eq "cleanup_stale rejects empty repo_root" "1" "$EXIT_CODE"
 
-cleanup_stale_worktrees "$TMPDIR/no-such-file.json" "$TMPDIR" 2>/dev/null
+cleanup_stale_worktrees "$TEST_TMPDIR/no-such-file.json" "$TEST_TMPDIR" 2>/dev/null
 EXIT_CODE=$?
 assert_eq "cleanup_stale rejects nonexistent json file" "1" "$EXIT_CODE"
 
@@ -496,12 +496,12 @@ assert_eq "cleanup_stale rejects nonexistent json file" "1" "$EXIT_CODE"
 # =========================================================================
 
 echo "=== Test 18: cleanup_merged removes all 3 specified worktrees ==="
-create_worktree "US-CM1" "ql/test-feature" "$TMPDIR" >/dev/null 2>&1
-create_worktree "US-CM2" "ql/test-feature" "$TMPDIR" >/dev/null 2>&1
-create_worktree "US-CM3" "ql/test-feature" "$TMPDIR" >/dev/null 2>&1
-assert_dir_exists "US-CM1 exists" "$TMPDIR/.ql-wt/US-CM1"
-assert_dir_exists "US-CM2 exists" "$TMPDIR/.ql-wt/US-CM2"
-assert_dir_exists "US-CM3 exists" "$TMPDIR/.ql-wt/US-CM3"
+create_worktree "US-CM1" "ql/test-feature" "$TEST_TMPDIR" >/dev/null 2>&1
+create_worktree "US-CM2" "ql/test-feature" "$TEST_TMPDIR" >/dev/null 2>&1
+create_worktree "US-CM3" "ql/test-feature" "$TEST_TMPDIR" >/dev/null 2>&1
+assert_dir_exists "US-CM1 exists" "$TEST_TMPDIR/.ql-wt/US-CM1"
+assert_dir_exists "US-CM2 exists" "$TEST_TMPDIR/.ql-wt/US-CM2"
+assert_dir_exists "US-CM3 exists" "$TEST_TMPDIR/.ql-wt/US-CM3"
 
 cat > "$TEST_JSON" <<ENDJSON
 {
@@ -513,9 +513,9 @@ cat > "$TEST_JSON" <<ENDJSON
   "execution": {
     "worktreeTracking": {
       "activeWorktrees": [
-        {"path": "$TMPDIR/.ql-wt/US-CM1", "branch": "ql-wt/US-CM1", "storyId": "US-CM1", "createdAt": "2026-01-01T00:00:00Z", "wave": 2},
-        {"path": "$TMPDIR/.ql-wt/US-CM2", "branch": "ql-wt/US-CM2", "storyId": "US-CM2", "createdAt": "2026-01-01T00:00:00Z", "wave": 2},
-        {"path": "$TMPDIR/.ql-wt/US-CM3", "branch": "ql-wt/US-CM3", "storyId": "US-CM3", "createdAt": "2026-01-01T00:00:00Z", "wave": 2}
+        {"path": "$TEST_TMPDIR/.ql-wt/US-CM1", "branch": "ql-wt/US-CM1", "storyId": "US-CM1", "createdAt": "2026-01-01T00:00:00Z", "wave": 2},
+        {"path": "$TEST_TMPDIR/.ql-wt/US-CM2", "branch": "ql-wt/US-CM2", "storyId": "US-CM2", "createdAt": "2026-01-01T00:00:00Z", "wave": 2},
+        {"path": "$TEST_TMPDIR/.ql-wt/US-CM3", "branch": "ql-wt/US-CM3", "storyId": "US-CM3", "createdAt": "2026-01-01T00:00:00Z", "wave": 2}
       ],
       "cleanedThisSession": 0,
       "maxWorktrees": 4
@@ -524,12 +524,12 @@ cat > "$TEST_JSON" <<ENDJSON
 }
 ENDJSON
 
-OUTPUT=$(cleanup_merged_worktrees "$TEST_JSON" "$TMPDIR" "US-CM1 US-CM2 US-CM3" 2>/dev/null)
+OUTPUT=$(cleanup_merged_worktrees "$TEST_JSON" "$TEST_TMPDIR" "US-CM1 US-CM2 US-CM3" 2>/dev/null)
 EXIT_CODE=$?
 assert_eq "cleanup_merged exits 0" "0" "$EXIT_CODE"
-assert_dir_not_exists "US-CM1 removed" "$TMPDIR/.ql-wt/US-CM1"
-assert_dir_not_exists "US-CM2 removed" "$TMPDIR/.ql-wt/US-CM2"
-assert_dir_not_exists "US-CM3 removed" "$TMPDIR/.ql-wt/US-CM3"
+assert_dir_not_exists "US-CM1 removed" "$TEST_TMPDIR/.ql-wt/US-CM1"
+assert_dir_not_exists "US-CM2 removed" "$TEST_TMPDIR/.ql-wt/US-CM2"
+assert_dir_not_exists "US-CM3 removed" "$TEST_TMPDIR/.ql-wt/US-CM3"
 
 CM_REMAINING=$(_read_json_py "$TEST_JSON" "
 wts = d['execution']['worktreeTracking']['activeWorktrees']
@@ -539,8 +539,8 @@ assert_eq "cleanup_merged all 3 removed from activeWorktrees" "0" "$CM_REMAINING
 assert_contains "cleanup_merged logs count" "3 merged" "$OUTPUT"
 
 echo "=== Test 19: cleanup_merged preserves unspecified worktrees ==="
-create_worktree "US-CM4" "ql/test-feature" "$TMPDIR" >/dev/null 2>&1
-create_worktree "US-CM5" "ql/test-feature" "$TMPDIR" >/dev/null 2>&1
+create_worktree "US-CM4" "ql/test-feature" "$TEST_TMPDIR" >/dev/null 2>&1
+create_worktree "US-CM5" "ql/test-feature" "$TEST_TMPDIR" >/dev/null 2>&1
 
 cat > "$TEST_JSON" <<ENDJSON
 {
@@ -551,8 +551,8 @@ cat > "$TEST_JSON" <<ENDJSON
   "execution": {
     "worktreeTracking": {
       "activeWorktrees": [
-        {"path": "$TMPDIR/.ql-wt/US-CM4", "branch": "ql-wt/US-CM4", "storyId": "US-CM4", "createdAt": "2026-01-01T00:00:00Z", "wave": 1},
-        {"path": "$TMPDIR/.ql-wt/US-CM5", "branch": "ql-wt/US-CM5", "storyId": "US-CM5", "createdAt": "2026-01-01T00:00:00Z", "wave": 1}
+        {"path": "$TEST_TMPDIR/.ql-wt/US-CM4", "branch": "ql-wt/US-CM4", "storyId": "US-CM4", "createdAt": "2026-01-01T00:00:00Z", "wave": 1},
+        {"path": "$TEST_TMPDIR/.ql-wt/US-CM5", "branch": "ql-wt/US-CM5", "storyId": "US-CM5", "createdAt": "2026-01-01T00:00:00Z", "wave": 1}
       ],
       "cleanedThisSession": 0,
       "maxWorktrees": 4
@@ -561,9 +561,9 @@ cat > "$TEST_JSON" <<ENDJSON
 }
 ENDJSON
 
-cleanup_merged_worktrees "$TEST_JSON" "$TMPDIR" "US-CM4" 2>/dev/null
-assert_dir_not_exists "US-CM4 removed" "$TMPDIR/.ql-wt/US-CM4"
-assert_dir_exists "US-CM5 preserved" "$TMPDIR/.ql-wt/US-CM5"
+cleanup_merged_worktrees "$TEST_JSON" "$TEST_TMPDIR" "US-CM4" 2>/dev/null
+assert_dir_not_exists "US-CM4 removed" "$TEST_TMPDIR/.ql-wt/US-CM4"
+assert_dir_exists "US-CM5 preserved" "$TEST_TMPDIR/.ql-wt/US-CM5"
 CM5_REMAINING=$(_read_json_py "$TEST_JSON" "
 wts = d['execution']['worktreeTracking']['activeWorktrees']
 ids = [w['storyId'] for w in wts]
@@ -572,10 +572,10 @@ print(' '.join(ids))
 assert_eq "cleanup_merged preserves US-CM5 entry" "US-CM5" "$CM5_REMAINING"
 
 # Clean up
-remove_worktree "US-CM5" "$TMPDIR" >/dev/null 2>&1
+remove_worktree "US-CM5" "$TEST_TMPDIR" >/dev/null 2>&1
 
 echo "=== Test 20: cleanup_merged validates parameters ==="
-cleanup_merged_worktrees "" "$TMPDIR" "US-001" 2>/dev/null
+cleanup_merged_worktrees "" "$TEST_TMPDIR" "US-001" 2>/dev/null
 EXIT_CODE=$?
 assert_eq "cleanup_merged rejects empty json_path" "1" "$EXIT_CODE"
 
@@ -583,7 +583,7 @@ cleanup_merged_worktrees "$TEST_JSON" "" "US-001" 2>/dev/null
 EXIT_CODE=$?
 assert_eq "cleanup_merged rejects empty repo_root" "1" "$EXIT_CODE"
 
-cleanup_merged_worktrees "$TMPDIR/no-such-file.json" "$TMPDIR" "US-001" 2>/dev/null
+cleanup_merged_worktrees "$TEST_TMPDIR/no-such-file.json" "$TEST_TMPDIR" "US-001" 2>/dev/null
 EXIT_CODE=$?
 assert_eq "cleanup_merged rejects nonexistent json file" "1" "$EXIT_CODE"
 
@@ -600,7 +600,7 @@ cat > "$TEST_JSON" <<'ENDJSON'
   }
 }
 ENDJSON
-OUTPUT=$(cleanup_merged_worktrees "$TEST_JSON" "$TMPDIR" "" 2>/dev/null)
+OUTPUT=$(cleanup_merged_worktrees "$TEST_JSON" "$TEST_TMPDIR" "" 2>/dev/null)
 EXIT_CODE=$?
 assert_eq "cleanup_merged with empty IDs exits 0" "0" "$EXIT_CODE"
 assert_contains "cleanup_merged empty logs no merged" "No merged" "$OUTPUT"
@@ -618,7 +618,7 @@ cat > "$TEST_JSON" <<'ENDJSON'
   }
 }
 ENDJSON
-cleanup_merged_worktrees "$TEST_JSON" "$TMPDIR" "US-NOPE" 2>/dev/null
+cleanup_merged_worktrees "$TEST_JSON" "$TEST_TMPDIR" "US-NOPE" 2>/dev/null
 EXIT_CODE=$?
 assert_eq "cleanup_merged with nonexistent ID exits 0" "0" "$EXIT_CODE"
 
@@ -676,7 +676,7 @@ EXIT_CODE=$?
 assert_eq "pre_spawn_check 4/4 (no stale) returns 1" "1" "$EXIT_CODE"
 
 echo "=== Test 25: pre_spawn_check at limit triggers cleanup, returns 0 if slot freed ==="
-create_worktree "US-PCS1" "ql/test-feature" "$TMPDIR" >/dev/null 2>&1
+create_worktree "US-PCS1" "ql/test-feature" "$TEST_TMPDIR" >/dev/null 2>&1
 cat > "$TEST_JSON" <<ENDJSON
 {
   "stories": [
@@ -686,8 +686,8 @@ cat > "$TEST_JSON" <<ENDJSON
   "execution": {
     "worktreeTracking": {
       "activeWorktrees": [
-        {"path": "$TMPDIR/.ql-wt/US-PCS1", "branch": "ql-wt/US-PCS1", "storyId": "US-PCS1", "createdAt": "2026-01-01T00:00:00Z", "wave": 1},
-        {"path": "$TMPDIR/somewhere", "branch": "ql-wt/US-PCS2", "storyId": "US-PCS2", "createdAt": "2026-01-01T00:00:00Z", "wave": 1}
+        {"path": "$TEST_TMPDIR/.ql-wt/US-PCS1", "branch": "ql-wt/US-PCS1", "storyId": "US-PCS1", "createdAt": "2026-01-01T00:00:00Z", "wave": 1},
+        {"path": "$TEST_TMPDIR/somewhere", "branch": "ql-wt/US-PCS2", "storyId": "US-PCS2", "createdAt": "2026-01-01T00:00:00Z", "wave": 1}
       ],
       "cleanedThisSession": 0,
       "maxWorktrees": 2
@@ -698,7 +698,7 @@ ENDJSON
 pre_spawn_check "$TEST_JSON" 2 2>/dev/null
 EXIT_CODE=$?
 assert_eq "pre_spawn_check frees slot by cleaning stale, returns 0" "0" "$EXIT_CODE"
-assert_dir_not_exists "US-PCS1 cleaned by pre_spawn_check" "$TMPDIR/.ql-wt/US-PCS1"
+assert_dir_not_exists "US-PCS1 cleaned by pre_spawn_check" "$TEST_TMPDIR/.ql-wt/US-PCS1"
 
 echo "=== Test 26: pre_spawn_check with 0 active (empty tracking) returns 0 ==="
 cat > "$TEST_JSON" <<'ENDJSON'
@@ -761,8 +761,8 @@ assert_eq "pre_spawn_check rejects empty max_worktrees" "1" "$EXIT_CODE"
 # Fallback: cleanup_stale without worktreeTracking
 # =========================================================================
 echo "=== Test 30: cleanup_stale fallback uses git worktree list ==="
-create_worktree "US-FB1" "ql/test-feature" "$TMPDIR" >/dev/null 2>&1
-assert_dir_exists "US-FB1 exists for fallback test" "$TMPDIR/.ql-wt/US-FB1"
+create_worktree "US-FB1" "ql/test-feature" "$TEST_TMPDIR" >/dev/null 2>&1
+assert_dir_exists "US-FB1 exists for fallback test" "$TEST_TMPDIR/.ql-wt/US-FB1"
 
 # quantum.json has NO worktreeTracking -- fallback mode
 cat > "$TEST_JSON" <<'ENDJSON'
@@ -773,14 +773,14 @@ cat > "$TEST_JSON" <<'ENDJSON'
 }
 ENDJSON
 
-OUTPUT=$(cleanup_stale_worktrees "$TEST_JSON" "$TMPDIR" 2>/dev/null)
+OUTPUT=$(cleanup_stale_worktrees "$TEST_JSON" "$TEST_TMPDIR" 2>/dev/null)
 EXIT_CODE=$?
 assert_eq "cleanup_stale fallback exits 0" "0" "$EXIT_CODE"
-assert_dir_not_exists "US-FB1 removed by fallback" "$TMPDIR/.ql-wt/US-FB1"
+assert_dir_not_exists "US-FB1 removed by fallback" "$TEST_TMPDIR/.ql-wt/US-FB1"
 assert_contains "cleanup_stale fallback logs cleaned" "Cleaned" "$OUTPUT"
 
 echo "=== Test 31: cleanup_stale fallback preserves in_progress worktree ==="
-create_worktree "US-FB2" "ql/test-feature" "$TMPDIR" >/dev/null 2>&1
+create_worktree "US-FB2" "ql/test-feature" "$TEST_TMPDIR" >/dev/null 2>&1
 cat > "$TEST_JSON" <<'ENDJSON'
 {
   "stories": [
@@ -788,12 +788,12 @@ cat > "$TEST_JSON" <<'ENDJSON'
   ]
 }
 ENDJSON
-OUTPUT=$(cleanup_stale_worktrees "$TEST_JSON" "$TMPDIR" 2>/dev/null)
-assert_dir_exists "US-FB2 preserved by fallback" "$TMPDIR/.ql-wt/US-FB2"
+OUTPUT=$(cleanup_stale_worktrees "$TEST_JSON" "$TEST_TMPDIR" 2>/dev/null)
+assert_dir_exists "US-FB2 preserved by fallback" "$TEST_TMPDIR/.ql-wt/US-FB2"
 assert_contains "cleanup_stale fallback logs no stale" "No stale" "$OUTPUT"
 
 # Clean up
-remove_worktree "US-FB2" "$TMPDIR" >/dev/null 2>&1
+remove_worktree "US-FB2" "$TEST_TMPDIR" >/dev/null 2>&1
 
 echo "=== Test 32: cleanup_stale fallback with no worktrees at all ==="
 cat > "$TEST_JSON" <<'ENDJSON'
@@ -803,7 +803,7 @@ cat > "$TEST_JSON" <<'ENDJSON'
   ]
 }
 ENDJSON
-OUTPUT=$(cleanup_stale_worktrees "$TEST_JSON" "$TMPDIR" 2>/dev/null)
+OUTPUT=$(cleanup_stale_worktrees "$TEST_JSON" "$TEST_TMPDIR" 2>/dev/null)
 EXIT_CODE=$?
 assert_eq "cleanup_stale fallback with no worktrees exits 0" "0" "$EXIT_CODE"
 assert_contains "cleanup_stale fallback no worktrees logs no stale" "No stale" "$OUTPUT"
@@ -828,7 +828,7 @@ cat > "$TEST_JSON" <<'ENDJSON'
   }
 }
 ENDJSON
-cleanup_stale_worktrees "$TEST_JSON" "$TMPDIR" 2>/dev/null
+cleanup_stale_worktrees "$TEST_JSON" "$TEST_TMPDIR" 2>/dev/null
 EXIT_CODE=$?
 assert_eq "cleanup_stale with ghost entry exits 0" "0" "$EXIT_CODE"
 GHOST_REMAINING=$(_read_json_py "$TEST_JSON" "
@@ -854,7 +854,7 @@ cat > "$TEST_JSON" <<'ENDJSON'
   }
 }
 ENDJSON
-cleanup_merged_worktrees "$TEST_JSON" "$TMPDIR" "US-GONE" 2>/dev/null
+cleanup_merged_worktrees "$TEST_JSON" "$TEST_TMPDIR" "US-GONE" 2>/dev/null
 EXIT_CODE=$?
 assert_eq "cleanup_merged with already-removed worktree exits 0" "0" "$EXIT_CODE"
 

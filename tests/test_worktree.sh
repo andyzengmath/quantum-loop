@@ -70,11 +70,11 @@ assert_contains() {
 # =========================================================================
 # Setup: create a temporary git repo for testing
 # =========================================================================
-TMPDIR=$(mktemp -d)
+TEST_TMPDIR=$(mktemp -d)
 ORIG_DIR=$(pwd)
 
 setup_test_repo() {
-  cd "$TMPDIR"
+  cd "$TEST_TMPDIR"
   git init --initial-branch=main . >/dev/null 2>&1
   git config user.email "test@test.com"
   git config user.name "Test"
@@ -91,14 +91,14 @@ setup_test_repo() {
 cleanup_test_repo() {
   cd "$ORIG_DIR"
   # Force remove worktrees before deleting the temp dir
-  if [[ -d "$TMPDIR" ]]; then
-    cd "$TMPDIR" 2>/dev/null && git worktree list --porcelain 2>/dev/null | grep "^worktree " | while read -r _ path; do
-      if [[ "$path" != "$TMPDIR" ]]; then
+  if [[ -d "$TEST_TMPDIR" ]]; then
+    cd "$TEST_TMPDIR" 2>/dev/null && git worktree list --porcelain 2>/dev/null | grep "^worktree " | while read -r _ path; do
+      if [[ "$path" != "$TEST_TMPDIR" ]]; then
         git worktree remove --force "$path" 2>/dev/null || true
       fi
     done
     cd "$ORIG_DIR"
-    rm -rf "$TMPDIR"
+    rm -rf "$TEST_TMPDIR"
   fi
 }
 
@@ -108,30 +108,30 @@ setup_test_repo
 
 # =========================================================================
 echo "=== Test 1: Create worktree at correct path ==="
-RESULT=$(create_worktree "US-001" "ql/test-feature" "$TMPDIR")
+RESULT=$(create_worktree "US-001" "ql/test-feature" "$TEST_TMPDIR")
 EXIT_CODE=$?
 assert_eq "create_worktree exits 0" "0" "$EXIT_CODE"
-assert_dir_exists "Worktree directory created" "$TMPDIR/.ql-wt/US-001"
+assert_dir_exists "Worktree directory created" "$TEST_TMPDIR/.ql-wt/US-001"
 
 # =========================================================================
 echo "=== Test 2: Worktree has feature branch content ==="
-assert_eq "Feature file exists in worktree" "0" "$(test -f "$TMPDIR/.ql-wt/US-001/feature.txt" && echo 0 || echo 1)"
+assert_eq "Feature file exists in worktree" "0" "$(test -f "$TEST_TMPDIR/.ql-wt/US-001/feature.txt" && echo 0 || echo 1)"
 
 # =========================================================================
 echo "=== Test 3: List worktrees includes the new worktree ==="
-WORKTREES=$(list_worktrees "$TMPDIR")
+WORKTREES=$(list_worktrees "$TEST_TMPDIR")
 assert_contains "US-001 worktree listed" "US-001" "$WORKTREES"
 
 # =========================================================================
 echo "=== Test 4: Remove worktree cleans up ==="
-remove_worktree "US-001" "$TMPDIR"
+remove_worktree "US-001" "$TEST_TMPDIR"
 EXIT_CODE=$?
 assert_eq "remove_worktree exits 0" "0" "$EXIT_CODE"
-assert_dir_not_exists "Worktree directory removed" "$TMPDIR/.ql-wt/US-001"
+assert_dir_not_exists "Worktree directory removed" "$TEST_TMPDIR/.ql-wt/US-001"
 
 # =========================================================================
 echo "=== Test 5: List worktrees after removal ==="
-WORKTREES=$(list_worktrees "$TMPDIR")
+WORKTREES=$(list_worktrees "$TEST_TMPDIR")
 TOTAL=$((TOTAL + 1))
 if echo "$WORKTREES" | grep -q "US-001"; then
   echo "  FAIL: US-001 should not be listed after removal"
@@ -143,24 +143,24 @@ fi
 
 # =========================================================================
 echo "=== Test 6: Remove nonexistent worktree is idempotent ==="
-remove_worktree "US-999" "$TMPDIR" 2>/dev/null
+remove_worktree "US-999" "$TEST_TMPDIR" 2>/dev/null
 EXIT_CODE=$?
 assert_eq "remove_worktree for nonexistent exits 0" "0" "$EXIT_CODE"
 
 # =========================================================================
 echo "=== Test 7: _resolve_repo_root from main repo returns itself ==="
-RESOLVED=$(_resolve_repo_root "$TMPDIR")
-assert_eq "_resolve_repo_root main repo is identity" "$TMPDIR" "$RESOLVED"
+RESOLVED=$(_resolve_repo_root "$TEST_TMPDIR")
+assert_eq "_resolve_repo_root main repo is identity" "$TEST_TMPDIR" "$RESOLVED"
 
 # =========================================================================
 echo "=== Test 8: _resolve_repo_root from inside worktree returns main root ==="
 # Create a worktree to test from
-create_worktree "US-resolve" "ql/test-feature" "$TMPDIR" >/dev/null 2>&1
-WT_RESOLVE="$TMPDIR/.ql-wt/US-resolve"
+create_worktree "US-resolve" "ql/test-feature" "$TEST_TMPDIR" >/dev/null 2>&1
+WT_RESOLVE="$TEST_TMPDIR/.ql-wt/US-resolve"
 if [[ -d "$WT_RESOLVE" ]]; then
   RESOLVED=$(_resolve_repo_root "$WT_RESOLVE")
-  assert_eq "_resolve_repo_root from worktree returns main root" "$TMPDIR" "$RESOLVED"
-  remove_worktree "US-resolve" "$TMPDIR" >/dev/null 2>&1
+  assert_eq "_resolve_repo_root from worktree returns main root" "$TEST_TMPDIR" "$RESOLVED"
+  remove_worktree "US-resolve" "$TEST_TMPDIR" >/dev/null 2>&1
 else
   TOTAL=$((TOTAL + 1))
   echo "  FAIL: Could not create worktree for _resolve_repo_root test"
@@ -169,15 +169,15 @@ fi
 
 # =========================================================================
 echo "=== Test 9: create_worktree from nested path roots at top level ==="
-create_worktree "US-outer" "ql/test-feature" "$TMPDIR" >/dev/null 2>&1
-NESTED_ROOT="$TMPDIR/.ql-wt/US-outer"
+create_worktree "US-outer" "ql/test-feature" "$TEST_TMPDIR" >/dev/null 2>&1
+NESTED_ROOT="$TEST_TMPDIR/.ql-wt/US-outer"
 if [[ -d "$NESTED_ROOT" ]]; then
   create_worktree "US-inner" "ql/test-feature" "$NESTED_ROOT" >/dev/null 2>&1
   # Should land under main repo root, NOT double-nested
-  assert_dir_exists "US-inner under main root" "$TMPDIR/.ql-wt/US-inner"
+  assert_dir_exists "US-inner under main root" "$TEST_TMPDIR/.ql-wt/US-inner"
   assert_dir_not_exists "US-inner NOT nested inside US-outer" "$NESTED_ROOT/.ql-wt/US-inner"
-  remove_worktree "US-inner" "$TMPDIR" >/dev/null 2>&1
-  remove_worktree "US-outer" "$TMPDIR" >/dev/null 2>&1
+  remove_worktree "US-inner" "$TEST_TMPDIR" >/dev/null 2>&1
+  remove_worktree "US-outer" "$TEST_TMPDIR" >/dev/null 2>&1
 else
   TOTAL=$((TOTAL + 1))
   echo "  FAIL: Could not create outer worktree for nesting test"
@@ -186,8 +186,8 @@ fi
 
 # =========================================================================
 echo "=== Test 10: _short_path_base is deterministic ==="
-BASE1=$(_short_path_base "$TMPDIR")
-BASE2=$(_short_path_base "$TMPDIR")
+BASE1=$(_short_path_base "$TEST_TMPDIR")
+BASE2=$(_short_path_base "$TEST_TMPDIR")
 assert_eq "_short_path_base deterministic" "$BASE1" "$BASE2"
 assert_contains "_short_path_base has ql-wt prefix" "ql-wt-" "$BASE1"
 
@@ -224,7 +224,7 @@ $py_expr
 # --- T-011: register_worktree ---
 echo "=== Test 12: register_worktree adds entry to quantum.json ==="
 # Create a minimal quantum.json for testing
-TEST_JSON="$TMPDIR/quantum.json"
+TEST_JSON="$TEST_TMPDIR/quantum.json"
 cat > "$TEST_JSON" <<'ENDJSON'
 {
   "stories": [
@@ -233,7 +233,7 @@ cat > "$TEST_JSON" <<'ENDJSON'
 }
 ENDJSON
 
-register_worktree "$TEST_JSON" "US-001" "$TMPDIR/.ql-wt/US-001" "ql/test-feature" 1 2>/dev/null
+register_worktree "$TEST_JSON" "US-001" "$TEST_TMPDIR/.ql-wt/US-001" "ql/test-feature" 1 2>/dev/null
 EXIT_CODE=$?
 assert_eq "register_worktree exits 0" "0" "$EXIT_CODE"
 
@@ -263,16 +263,16 @@ print('yes' if wts and wts[0].get('createdAt') else 'no')
 assert_eq "register_worktree sets createdAt" "yes" "$REG_HAS_CREATED_AT"
 
 echo "=== Test 13: register_worktree validates story_id ==="
-register_worktree "$TEST_JSON" "" "$TMPDIR/.ql-wt/US-002" "ql/test" 1 2>/dev/null
+register_worktree "$TEST_JSON" "" "$TEST_TMPDIR/.ql-wt/US-002" "ql/test" 1 2>/dev/null
 EXIT_CODE=$?
 assert_eq "register_worktree rejects empty story_id" "1" "$EXIT_CODE"
 
-register_worktree "$TEST_JSON" "US/../bad" "$TMPDIR/.ql-wt/bad" "ql/test" 1 2>/dev/null
+register_worktree "$TEST_JSON" "US/../bad" "$TEST_TMPDIR/.ql-wt/bad" "ql/test" 1 2>/dev/null
 EXIT_CODE=$?
 assert_eq "register_worktree rejects invalid story_id" "1" "$EXIT_CODE"
 
 echo "=== Test 14: register_worktree appends to existing entries ==="
-register_worktree "$TEST_JSON" "US-002" "$TMPDIR/.ql-wt/US-002" "ql/test-feature" 1 2>/dev/null
+register_worktree "$TEST_JSON" "US-002" "$TEST_TMPDIR/.ql-wt/US-002" "ql/test-feature" 1 2>/dev/null
 ENTRY_COUNT=$(_read_json_py "$TEST_JSON" "
 wts = d.get('execution', {}).get('worktreeTracking', {}).get('activeWorktrees', [])
 print(len(wts))
@@ -288,7 +288,7 @@ cat > "$TEST_JSON" <<'ENDJSON'
   ]
 }
 ENDJSON
-register_worktree "$TEST_JSON" "US-010" "$TMPDIR/.ql-wt/US-010" "ql/test" 2 2>/dev/null
+register_worktree "$TEST_JSON" "US-010" "$TEST_TMPDIR/.ql-wt/US-010" "ql/test" 2 2>/dev/null
 EXIT_CODE=$?
 assert_eq "register_worktree creates tracking from scratch" "0" "$EXIT_CODE"
 REG_COUNT=$(_read_json_py "$TEST_JSON" "
@@ -309,10 +309,10 @@ assert_eq "register_worktree rejects empty json_path" "1" "$EXIT_CODE"
 # --- T-012: cleanup_stale_worktrees ---
 echo "=== Test 17: cleanup_stale_worktrees removes passed story worktrees ==="
 # Create worktrees for two stories, mark one as passed
-create_worktree "US-STALE1" "ql/test-feature" "$TMPDIR" >/dev/null 2>&1
-create_worktree "US-STALE2" "ql/test-feature" "$TMPDIR" >/dev/null 2>&1
-assert_dir_exists "US-STALE1 worktree exists before cleanup" "$TMPDIR/.ql-wt/US-STALE1"
-assert_dir_exists "US-STALE2 worktree exists before cleanup" "$TMPDIR/.ql-wt/US-STALE2"
+create_worktree "US-STALE1" "ql/test-feature" "$TEST_TMPDIR" >/dev/null 2>&1
+create_worktree "US-STALE2" "ql/test-feature" "$TEST_TMPDIR" >/dev/null 2>&1
+assert_dir_exists "US-STALE1 worktree exists before cleanup" "$TEST_TMPDIR/.ql-wt/US-STALE1"
+assert_dir_exists "US-STALE2 worktree exists before cleanup" "$TEST_TMPDIR/.ql-wt/US-STALE2"
 
 # Set up quantum.json with tracking and story statuses
 cat > "$TEST_JSON" <<'ENDJSON'
@@ -344,14 +344,14 @@ for wt in d['execution']['worktreeTracking']['activeWorktrees']:
     elif wt['storyId'] == 'US-STALE2':
         wt['path'] = sys.argv[2] + '/.ql-wt/US-STALE2'
 json.dump(d, open(sys.argv[1], 'w'), indent=2)
-" "$_PY_TJ" "$TMPDIR"
+" "$_PY_TJ" "$TEST_TMPDIR"
 
-cleanup_stale_worktrees "$TEST_JSON" "$TMPDIR" 2>/dev/null
+cleanup_stale_worktrees "$TEST_JSON" "$TEST_TMPDIR" 2>/dev/null
 EXIT_CODE=$?
 assert_eq "cleanup_stale_worktrees exits 0" "0" "$EXIT_CODE"
 # US-STALE1 (passed) should be removed, US-STALE2 (in_progress) should remain
-assert_dir_not_exists "US-STALE1 worktree removed (passed story)" "$TMPDIR/.ql-wt/US-STALE1"
-assert_dir_exists "US-STALE2 worktree kept (in_progress story)" "$TMPDIR/.ql-wt/US-STALE2"
+assert_dir_not_exists "US-STALE1 worktree removed (passed story)" "$TEST_TMPDIR/.ql-wt/US-STALE1"
+assert_dir_exists "US-STALE2 worktree kept (in_progress story)" "$TEST_TMPDIR/.ql-wt/US-STALE2"
 
 # Check activeWorktrees was updated
 REMAINING_COUNT=$(_read_json_py "$TEST_JSON" "
@@ -366,10 +366,10 @@ print(d.get('execution', {}).get('worktreeTracking', {}).get('cleanedThisSession
 assert_eq "cleanup_stale increments cleanedThisSession" "1" "$CLEANED_COUNT"
 
 # Clean up US-STALE2
-remove_worktree "US-STALE2" "$TMPDIR" >/dev/null 2>&1
+remove_worktree "US-STALE2" "$TEST_TMPDIR" >/dev/null 2>&1
 
 echo "=== Test 18: cleanup_stale_worktrees also removes failed story worktrees ==="
-create_worktree "US-FAIL1" "ql/test-feature" "$TMPDIR" >/dev/null 2>&1
+create_worktree "US-FAIL1" "ql/test-feature" "$TEST_TMPDIR" >/dev/null 2>&1
 cat > "$TEST_JSON" <<'ENDJSON'
 {
   "stories": [
@@ -391,15 +391,15 @@ import json, sys
 d = json.load(open(sys.argv[1]))
 d['execution']['worktreeTracking']['activeWorktrees'][0]['path'] = sys.argv[2] + '/.ql-wt/US-FAIL1'
 json.dump(d, open(sys.argv[1], 'w'), indent=2)
-" "$_PY_TJ" "$TMPDIR"
+" "$_PY_TJ" "$TEST_TMPDIR"
 
-cleanup_stale_worktrees "$TEST_JSON" "$TMPDIR" 2>/dev/null
-assert_dir_not_exists "US-FAIL1 worktree removed (failed story)" "$TMPDIR/.ql-wt/US-FAIL1"
+cleanup_stale_worktrees "$TEST_JSON" "$TEST_TMPDIR" 2>/dev/null
+assert_dir_not_exists "US-FAIL1 worktree removed (failed story)" "$TEST_TMPDIR/.ql-wt/US-FAIL1"
 
 echo "=== Test 19: cleanup_stale_worktrees fallback when worktreeTracking absent ==="
 # Create a worktree but no tracking in JSON -- fallback to list_worktrees
-create_worktree "US-NOTRACK" "ql/test-feature" "$TMPDIR" >/dev/null 2>&1
-assert_dir_exists "US-NOTRACK exists before fallback cleanup" "$TMPDIR/.ql-wt/US-NOTRACK"
+create_worktree "US-NOTRACK" "ql/test-feature" "$TEST_TMPDIR" >/dev/null 2>&1
+assert_dir_exists "US-NOTRACK exists before fallback cleanup" "$TEST_TMPDIR/.ql-wt/US-NOTRACK"
 cat > "$TEST_JSON" <<'ENDJSON'
 {
   "stories": [
@@ -407,10 +407,10 @@ cat > "$TEST_JSON" <<'ENDJSON'
   ]
 }
 ENDJSON
-cleanup_stale_worktrees "$TEST_JSON" "$TMPDIR" 2>/dev/null
+cleanup_stale_worktrees "$TEST_JSON" "$TEST_TMPDIR" 2>/dev/null
 EXIT_CODE=$?
 assert_eq "cleanup_stale_worktrees fallback exits 0" "0" "$EXIT_CODE"
-assert_dir_not_exists "US-NOTRACK removed by fallback cleanup" "$TMPDIR/.ql-wt/US-NOTRACK"
+assert_dir_not_exists "US-NOTRACK removed by fallback cleanup" "$TEST_TMPDIR/.ql-wt/US-NOTRACK"
 
 echo "=== Test 20: cleanup_stale_worktrees with no stale worktrees ==="
 cat > "$TEST_JSON" <<'ENDJSON'
@@ -427,18 +427,18 @@ cat > "$TEST_JSON" <<'ENDJSON'
   }
 }
 ENDJSON
-cleanup_stale_worktrees "$TEST_JSON" "$TMPDIR" 2>/dev/null
+cleanup_stale_worktrees "$TEST_JSON" "$TEST_TMPDIR" 2>/dev/null
 EXIT_CODE=$?
 assert_eq "cleanup_stale with empty list exits 0" "0" "$EXIT_CODE"
 
 # --- T-013: cleanup_merged_worktrees and pre_spawn_check ---
 echo "=== Test 21: cleanup_merged_worktrees removes specified story worktrees ==="
-create_worktree "US-MERGE1" "ql/test-feature" "$TMPDIR" >/dev/null 2>&1
-create_worktree "US-MERGE2" "ql/test-feature" "$TMPDIR" >/dev/null 2>&1
-create_worktree "US-MERGE3" "ql/test-feature" "$TMPDIR" >/dev/null 2>&1
-assert_dir_exists "US-MERGE1 exists" "$TMPDIR/.ql-wt/US-MERGE1"
-assert_dir_exists "US-MERGE2 exists" "$TMPDIR/.ql-wt/US-MERGE2"
-assert_dir_exists "US-MERGE3 exists" "$TMPDIR/.ql-wt/US-MERGE3"
+create_worktree "US-MERGE1" "ql/test-feature" "$TEST_TMPDIR" >/dev/null 2>&1
+create_worktree "US-MERGE2" "ql/test-feature" "$TEST_TMPDIR" >/dev/null 2>&1
+create_worktree "US-MERGE3" "ql/test-feature" "$TEST_TMPDIR" >/dev/null 2>&1
+assert_dir_exists "US-MERGE1 exists" "$TEST_TMPDIR/.ql-wt/US-MERGE1"
+assert_dir_exists "US-MERGE2 exists" "$TEST_TMPDIR/.ql-wt/US-MERGE2"
+assert_dir_exists "US-MERGE3 exists" "$TEST_TMPDIR/.ql-wt/US-MERGE3"
 
 cat > "$TEST_JSON" <<'ENDJSON'
 {
@@ -466,15 +466,15 @@ d = json.load(open(sys.argv[1]))
 for wt in d['execution']['worktreeTracking']['activeWorktrees']:
     wt['path'] = sys.argv[2] + '/.ql-wt/' + wt['storyId']
 json.dump(d, open(sys.argv[1], 'w'), indent=2)
-" "$_PY_TJ" "$TMPDIR"
+" "$_PY_TJ" "$TEST_TMPDIR"
 
 # Remove only US-MERGE1 and US-MERGE2 (space-separated IDs)
-cleanup_merged_worktrees "$TEST_JSON" "$TMPDIR" "US-MERGE1 US-MERGE2" 2>/dev/null
+cleanup_merged_worktrees "$TEST_JSON" "$TEST_TMPDIR" "US-MERGE1 US-MERGE2" 2>/dev/null
 EXIT_CODE=$?
 assert_eq "cleanup_merged_worktrees exits 0" "0" "$EXIT_CODE"
-assert_dir_not_exists "US-MERGE1 removed by cleanup_merged" "$TMPDIR/.ql-wt/US-MERGE1"
-assert_dir_not_exists "US-MERGE2 removed by cleanup_merged" "$TMPDIR/.ql-wt/US-MERGE2"
-assert_dir_exists "US-MERGE3 untouched by cleanup_merged" "$TMPDIR/.ql-wt/US-MERGE3"
+assert_dir_not_exists "US-MERGE1 removed by cleanup_merged" "$TEST_TMPDIR/.ql-wt/US-MERGE1"
+assert_dir_not_exists "US-MERGE2 removed by cleanup_merged" "$TEST_TMPDIR/.ql-wt/US-MERGE2"
+assert_dir_exists "US-MERGE3 untouched by cleanup_merged" "$TEST_TMPDIR/.ql-wt/US-MERGE3"
 
 MERGE_REMAINING=$(_read_json_py "$TEST_JSON" "
 wts = d.get('execution', {}).get('worktreeTracking', {}).get('activeWorktrees', [])
@@ -483,7 +483,7 @@ print(len(wts))
 assert_eq "cleanup_merged leaves 1 active worktree" "1" "$MERGE_REMAINING"
 
 # Clean up US-MERGE3
-remove_worktree "US-MERGE3" "$TMPDIR" >/dev/null 2>&1
+remove_worktree "US-MERGE3" "$TEST_TMPDIR" >/dev/null 2>&1
 
 echo "=== Test 22: cleanup_merged_worktrees with empty IDs ==="
 cat > "$TEST_JSON" <<'ENDJSON'
@@ -498,7 +498,7 @@ cat > "$TEST_JSON" <<'ENDJSON'
   }
 }
 ENDJSON
-cleanup_merged_worktrees "$TEST_JSON" "$TMPDIR" "" 2>/dev/null
+cleanup_merged_worktrees "$TEST_JSON" "$TEST_TMPDIR" "" 2>/dev/null
 EXIT_CODE=$?
 assert_eq "cleanup_merged_worktrees with empty IDs exits 0" "0" "$EXIT_CODE"
 
@@ -547,7 +547,7 @@ EXIT_CODE=$?
 assert_eq "pre_spawn_check at limit (no stale) returns 1" "1" "$EXIT_CODE"
 
 echo "=== Test 25: pre_spawn_check cleans stale and returns 0 ==="
-create_worktree "US-PSTALE" "ql/test-feature" "$TMPDIR" >/dev/null 2>&1
+create_worktree "US-PSTALE" "ql/test-feature" "$TEST_TMPDIR" >/dev/null 2>&1
 cat > "$TEST_JSON" <<ENDJSON
 {
   "stories": [
@@ -557,7 +557,7 @@ cat > "$TEST_JSON" <<ENDJSON
   "execution": {
     "worktreeTracking": {
       "activeWorktrees": [
-        {"path": "$TMPDIR/.ql-wt/US-PSTALE", "branch": "ql-wt/US-PSTALE", "storyId": "US-PSTALE", "createdAt": "2026-01-01T00:00:00Z", "wave": 1},
+        {"path": "$TEST_TMPDIR/.ql-wt/US-PSTALE", "branch": "ql-wt/US-PSTALE", "storyId": "US-PSTALE", "createdAt": "2026-01-01T00:00:00Z", "wave": 1},
         {"path": "/some/active", "branch": "ql-wt/US-PACTIVE", "storyId": "US-PACTIVE", "createdAt": "2026-01-01T00:00:00Z", "wave": 1}
       ],
       "cleanedThisSession": 0,
@@ -569,7 +569,7 @@ ENDJSON
 pre_spawn_check "$TEST_JSON" 2 2>/dev/null
 EXIT_CODE=$?
 assert_eq "pre_spawn_check cleans stale then returns 0" "0" "$EXIT_CODE"
-assert_dir_not_exists "US-PSTALE cleaned by pre_spawn_check" "$TMPDIR/.ql-wt/US-PSTALE"
+assert_dir_not_exists "US-PSTALE cleaned by pre_spawn_check" "$TEST_TMPDIR/.ql-wt/US-PSTALE"
 
 echo "=== Test 26: pre_spawn_check requires parameters ==="
 pre_spawn_check "" 4 2>/dev/null

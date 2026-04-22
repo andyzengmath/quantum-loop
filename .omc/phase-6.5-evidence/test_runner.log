@@ -1,0 +1,56 @@
+Test: runner_load_valid (claude)
+  PASS: load claude exits 0
+  PASS: RUNNER_NAME
+  PASS: RUNNER_TIER
+Test: runner_load_missing
+  PASS: missing exits 1
+  PASS: lists available
+Test: runner_load_invalid_schema
+  PASS: invalid exits 1
+  PASS: missing required
+Test: runner_build_cmd_claude
+  PASS: claude binary
+  PASS: print flag
+  PASS: auto-approve
+  PASS: prompt flag -p
+  PASS: prompt text
+  PASS: no preamble for Claude
+Test: runner_build_cmd_codex (positional)
+  PASS: codex binary
+  PASS: headless -q
+  PASS: approval-mode
+  PASS: has preamble
+Test: runner_build_cmd_stdin (amp)
+  PASS: uses printf pipe
+  PASS: amp binary
+  PASS: auto-approve
+Test: runner_ensure_instructions_creates
+  PASS: creates AGENTS.md
+  PASS: has ql-generated marker
+Test: runner_ensure_instructions_no_overwrite
+  PASS: preserves user content
+Test: runner_ensure_instructions_idempotent
+  PASS: idempotent: same output
+Test: runner_build_cmd_copilot_hook
+  PASS: copilot hook injects --autopilot
+  PASS: copilot hook injects --no-ask-user
+  PASS: pre_spawn not leaked to claude
+Test: runner_ensure_instructions_no_fallback
+  PASS: returns 1 when fallback missing
+  PASS: error mentions file
+Test: runner_build_cmd_unknown_delivery
+  PASS: unknown delivery returns 1
+  PASS: error mentions Unknown promptDelivery
+Test: runner_inject_preamble_missing_file
+  PASS: returns prompt unchanged when preamble missing
+Test: runner_load_invalid_tool_name
+  PASS: path traversal rejected
+  PASS: error mentions Invalid runner name
+Test: runner_load_unsafe_binary_name
+  PASS: unsafe binary rejected
+  PASS: error mentions Invalid binary name
+Test: runner_load_unsafe_manifest_flags
+  PASS: unsafe headlessFlag rejected
+  PASS: error mentions Unsafe characters
+
+=== Results: 38/38 passed, 0 failed ===

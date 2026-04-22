@@ -324,7 +324,8 @@ generate_observations() {
 
     printf "## Failure Summary\n\n"
     local failures
-    failures=$(jq -r '.stories[] | select(.status == "failed" or .status == "blocked") | "\(.id)|\(.title)|\(.status)|\(.retries.attempts)/\(.retries.maxAttempts)"' quantum.json 2>/dev/null)
+    # Sanitize pipe characters in title so the markdown table stays aligned
+    failures=$(jq -r '.stories[] | select(.status == "failed" or .status == "blocked") | "\(.id)|\(.title | gsub("\\|"; "/"))|\(.status)|\(.retries.attempts)/\(.retries.maxAttempts)"' quantum.json 2>/dev/null)
     if [[ -n "$failures" ]]; then
       printf "| Story | Title | Status | Retries |\n"
       printf "|-------|-------|--------|--------|\n"

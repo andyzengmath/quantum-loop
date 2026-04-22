@@ -99,12 +99,12 @@ assert_valid_json() {
 # =========================================================================
 # Setup
 # =========================================================================
-TMPDIR=$(mktemp -d)
+TEST_TMPDIR=$(mktemp -d)
 ORIG_DIR=$(pwd)
 
 cleanup() {
   cd "$ORIG_DIR" || true
-  rm -rf "$TMPDIR"
+  rm -rf "$TEST_TMPDIR"
 }
 trap cleanup EXIT
 
@@ -184,7 +184,7 @@ echo ""
 # =========================================================================
 echo "--- Scenario 1: Tracked quantum.json preserved through clean merge ---"
 
-REPO1="$TMPDIR/repo1"
+REPO1="$TEST_TMPDIR/repo1"
 setup_merge_repo "$REPO1"
 cd "$REPO1" || exit 1
 
@@ -233,7 +233,7 @@ echo ""
 # =========================================================================
 echo "--- Scenario 2: Tracked quantum.json preserved through escalated merge ---"
 
-REPO2="$TMPDIR/repo2"
+REPO2="$TEST_TMPDIR/repo2"
 setup_merge_repo "$REPO2"
 cd "$REPO2" || exit 1
 
@@ -283,7 +283,7 @@ echo ""
 # =========================================================================
 echo "--- Scenario 3: Tracked quantum.json preserved through resolved conflict ---"
 
-REPO3="$TMPDIR/repo3"
+REPO3="$TEST_TMPDIR/repo3"
 setup_merge_repo "$REPO3"
 cd "$REPO3" || exit 1
 
@@ -327,7 +327,7 @@ echo ""
 # =========================================================================
 echo "--- Scenario 4: Untracked quantum.json (.gitignored) preserved through clean merge ---"
 
-REPO4="$TMPDIR/repo4"
+REPO4="$TEST_TMPDIR/repo4"
 mkdir -p "$REPO4"
 cd "$REPO4" || exit 1
 git init --initial-branch=main . >/dev/null 2>&1
@@ -380,7 +380,7 @@ echo ""
 # =========================================================================
 echo "--- Scenario 5: Untracked quantum.json (.gitignored) preserved through escalated merge ---"
 
-REPO5="$TMPDIR/repo5"
+REPO5="$TEST_TMPDIR/repo5"
 mkdir -p "$REPO5"
 cd "$REPO5" || exit 1
 git init --initial-branch=main . >/dev/null 2>&1
@@ -431,7 +431,7 @@ echo ""
 # =========================================================================
 echo "--- Scenario 6: Clean working tree — no stash needed, quantum.json untouched ---"
 
-REPO6="$TMPDIR/repo6"
+REPO6="$TEST_TMPDIR/repo6"
 setup_merge_repo "$REPO6"
 cd "$REPO6" || exit 1
 
@@ -471,7 +471,7 @@ echo ""
 # =========================================================================
 echo "--- Scenario 7: Other dirty files stashed and restored alongside quantum.json ---"
 
-REPO7="$TMPDIR/repo7"
+REPO7="$TEST_TMPDIR/repo7"
 setup_merge_repo "$REPO7"
 cd "$REPO7" || exit 1
 

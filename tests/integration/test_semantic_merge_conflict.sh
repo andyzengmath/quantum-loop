@@ -80,12 +80,12 @@ assert_not_contains() {
 # =========================================================================
 # Setup
 # =========================================================================
-TMPDIR=$(mktemp -d)
+TEST_TMPDIR=$(mktemp -d)
 ORIG_DIR=$(pwd)
 
 cleanup() {
   cd "$ORIG_DIR" || true
-  rm -rf "$TMPDIR"
+  rm -rf "$TEST_TMPDIR"
 }
 trap cleanup EXIT
 
@@ -96,7 +96,7 @@ echo ""
 # Step 1: Create a temp git repo with base TypeScript file
 # =========================================================================
 echo "--- Step 1: Set up repo with base interface ---"
-REPO="$TMPDIR/semantic-merge-test"
+REPO="$TEST_TMPDIR/semantic-merge-test"
 mkdir -p "$REPO"
 cd "$REPO" || exit 1
 git init --initial-branch=main . >/dev/null 2>&1
@@ -226,9 +226,9 @@ fi
 echo ""
 echo "--- Step 5: Extract file versions for 3-way merge ---"
 
-BASE_FILE="$TMPDIR/base.ts"
-OURS_FILE="$TMPDIR/ours.ts"
-THEIRS_FILE="$TMPDIR/theirs.ts"
+BASE_FILE="$TEST_TMPDIR/base.ts"
+OURS_FILE="$TEST_TMPDIR/ours.ts"
+THEIRS_FILE="$TEST_TMPDIR/theirs.ts"
 
 git show "${BASE_SHA}:types.ts" > "$BASE_FILE" 2>/dev/null
 git show "${BRANCH_A_SHA}:types.ts" > "$OURS_FILE" 2>/dev/null

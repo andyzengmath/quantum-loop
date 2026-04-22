@@ -100,12 +100,12 @@ assert_file_not_contains() {
 }
 
 # =========================================================================
-TMPDIR=$(mktemp -d)
+TEST_TMPDIR=$(mktemp -d)
 ORIG_DIR=$(pwd)
 
 cleanup() {
   cd "$ORIG_DIR" || true
-  rm -rf "$TMPDIR"
+  rm -rf "$TEST_TMPDIR"
 }
 trap cleanup EXIT
 
@@ -142,7 +142,7 @@ echo ""
 
 # Step 1: Set up temp git repo with main branch
 echo "--- Step 1: Set up repo with initial package.json ---"
-REPO="$TMPDIR/deps-test"
+REPO="$TEST_TMPDIR/deps-test"
 mkdir -p "$REPO"
 cd "$REPO" || exit 1
 git init --initial-branch=main . >/dev/null 2>&1
@@ -202,7 +202,7 @@ git commit -m "add quantum.json" >/dev/null 2>&1
 
 # Mock npm install to avoid actually running it
 # Create a mock npm script that just exits 0
-MOCK_BIN="$TMPDIR/mock-bin"
+MOCK_BIN="$TEST_TMPDIR/mock-bin"
 mkdir -p "$MOCK_BIN"
 cat > "$MOCK_BIN/npm" << 'MOCKEOF'
 #!/usr/bin/env bash

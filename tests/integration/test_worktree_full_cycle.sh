@@ -76,26 +76,26 @@ $py_expr
 # =========================================================================
 # Setup: create a temporary git repo with 4 stories
 # =========================================================================
-TMPDIR=$(mktemp -d)
+TEST_TMPDIR=$(mktemp -d)
 ORIG_DIR=$(pwd)
 
 cleanup_test_repo() {
   cd "$ORIG_DIR"
-  if [[ -d "$TMPDIR" ]]; then
-    cd "$TMPDIR" 2>/dev/null && git worktree list --porcelain 2>/dev/null | grep "^worktree " | while read -r _ path; do
-      if [[ "$path" != "$TMPDIR" ]]; then
+  if [[ -d "$TEST_TMPDIR" ]]; then
+    cd "$TEST_TMPDIR" 2>/dev/null && git worktree list --porcelain 2>/dev/null | grep "^worktree " | while read -r _ path; do
+      if [[ "$path" != "$TEST_TMPDIR" ]]; then
         git worktree remove --force "$path" 2>/dev/null || true
       fi
     done
     cd "$ORIG_DIR"
-    rm -rf "$TMPDIR"
+    rm -rf "$TEST_TMPDIR"
   fi
 }
 
 trap cleanup_test_repo EXIT
 
 setup_test_repo() {
-  cd "$TMPDIR"
+  cd "$TEST_TMPDIR"
   git init --initial-branch=main . >/dev/null 2>&1
   git config user.email "test@test.com"
   git config user.name "Test"
@@ -159,7 +159,7 @@ echo ""
 
 # =========================================================================
 echo "--- Step 1: Create quantum.json with 4 stories ---"
-JSON_PATH="$TMPDIR/quantum.json"
+JSON_PATH="$TEST_TMPDIR/quantum.json"
 create_quantum_json "$JSON_PATH"
 
 STORY_COUNT=$(_read_json_py "$JSON_PATH" "print(len(d.get('stories', [])))")
@@ -171,12 +171,12 @@ echo "--- Step 2: Register 4 worktrees ---"
 
 # Create actual git worktrees for each story
 for sid in US-A US-B US-C US-D; do
-  create_worktree "$sid" "ql/test-feature" "$TMPDIR" >/dev/null 2>&1
+  create_worktree "$sid" "ql/test-feature" "$TEST_TMPDIR" >/dev/null 2>&1
 done
 
 # Register all 4 in worktreeTracking
 for sid in US-A US-B US-C US-D; do
-  WT_PATH="$TMPDIR/.ql-wt/$sid"
+  WT_PATH="$TEST_TMPDIR/.ql-wt/$sid"
   register_worktree "$JSON_PATH" "$sid" "$WT_PATH" "ql-wt/$sid" 1 >/dev/null 2>&1
 done
 
@@ -187,7 +187,7 @@ assert_eq "4 worktrees registered in activeWorktrees" "4" "$ACTIVE_COUNT"
 
 # Verify worktree directories exist
 for sid in US-A US-B US-C US-D; do
-  assert_dir_exists "worktree directory $sid exists" "$TMPDIR/.ql-wt/$sid"
+  assert_dir_exists "worktree directory $sid exists" "$TEST_TMPDIR/.ql-wt/$sid"
 done
 
 # =========================================================================
@@ -205,15 +205,15 @@ assert_eq "US-B status is passed" "passed" "$STATUS_B"
 # =========================================================================
 echo ""
 echo "--- Step 4: cleanup_merged_worktrees for US-A US-B ---"
-cleanup_merged_worktrees "$JSON_PATH" "$TMPDIR" "US-A US-B" 2>/dev/null
+cleanup_merged_worktrees "$JSON_PATH" "$TEST_TMPDIR" "US-A US-B" 2>/dev/null
 
 # Verify: worktree directories for US-A and US-B are removed
-assert_dir_not_exists "US-A worktree directory removed" "$TMPDIR/.ql-wt/US-A"
-assert_dir_not_exists "US-B worktree directory removed" "$TMPDIR/.ql-wt/US-B"
+assert_dir_not_exists "US-A worktree directory removed" "$TEST_TMPDIR/.ql-wt/US-A"
+assert_dir_not_exists "US-B worktree directory removed" "$TEST_TMPDIR/.ql-wt/US-B"
 
 # Verify: worktree directories for US-C and US-D remain
-assert_dir_exists "US-C worktree directory still exists" "$TMPDIR/.ql-wt/US-C"
-assert_dir_exists "US-D worktree directory still exists" "$TMPDIR/.ql-wt/US-D"
+assert_dir_exists "US-C worktree directory still exists" "$TEST_TMPDIR/.ql-wt/US-C"
+assert_dir_exists "US-D worktree directory still exists" "$TEST_TMPDIR/.ql-wt/US-D"
 
 # Verify: only 2 remain in activeWorktrees
 REMAINING_COUNT=$(_read_json_py "$JSON_PATH" \
@@ -264,11 +264,11 @@ echo ""
 echo "--- Step 6: cleanup_stale_worktrees -- remaining are in_progress, expect 0 removals ---"
 
 # US-C and US-D are still in_progress, so stale cleanup should not remove them
-STALE_OUTPUT=$(cleanup_stale_worktrees "$JSON_PATH" "$TMPDIR" 2>&1)
+STALE_OUTPUT=$(cleanup_stale_worktrees "$JSON_PATH" "$TEST_TMPDIR" 2>&1)
 
 # Verify: US-C and US-D worktree directories still exist
-assert_dir_exists "US-C still exists after stale cleanup" "$TMPDIR/.ql-wt/US-C"
-assert_dir_exists "US-D still exists after stale cleanup" "$TMPDIR/.ql-wt/US-D"
+assert_dir_exists "US-C still exists after stale cleanup" "$TEST_TMPDIR/.ql-wt/US-C"
+assert_dir_exists "US-D still exists after stale cleanup" "$TEST_TMPDIR/.ql-wt/US-D"
 
 # Verify: still 2 in activeWorktrees
 POST_STALE_COUNT=$(_read_json_py "$JSON_PATH" \
@@ -292,9 +292,9 @@ echo "--- Step 7: Verify cleanedThisSession counter ---"
 # Now mark US-C as passed and run cleanup_stale to verify cleanedThisSession increments
 mark_stories_passed "$JSON_PATH" US-C
 
-STALE_OUTPUT2=$(cleanup_stale_worktrees "$JSON_PATH" "$TMPDIR" 2>&1)
-assert_dir_not_exists "US-C removed by stale cleanup" "$TMPDIR/.ql-wt/US-C"
-assert_dir_exists "US-D still exists (still in_progress)" "$TMPDIR/.ql-wt/US-D"
+STALE_OUTPUT2=$(cleanup_stale_worktrees "$JSON_PATH" "$TEST_TMPDIR" 2>&1)
+assert_dir_not_exists "US-C removed by stale cleanup" "$TEST_TMPDIR/.ql-wt/US-C"
+assert_dir_exists "US-D still exists (still in_progress)" "$TEST_TMPDIR/.ql-wt/US-D"
 
 # cleanedThisSession should be 3 (2 from merged cleanup + 1 from stale cleanup of US-C)
 CLEANED_COUNT=$(_read_json_py "$JSON_PATH" \

@@ -67,12 +67,12 @@ assert_not_contains() {
 # =========================================================================
 # Setup: create temporary directories and mock context files
 # =========================================================================
-TMPDIR=$(mktemp -d)
+TEST_TMPDIR=$(mktemp -d)
 ORIG_DIR=$(pwd)
 
 cleanup() {
   cd "$ORIG_DIR" || true
-  rm -rf "$TMPDIR"
+  rm -rf "$TEST_TMPDIR"
 }
 trap cleanup EXIT
 
@@ -103,7 +103,7 @@ echo "=== T-036: Test classify_conflict for all rule categories ==="
 
 # --- Test 1: dependency_manifest pattern match (package.json) ---
 echo "--- Test 1: dependency_manifest pattern match ---"
-CTX1="$TMPDIR/ctx1.txt"
+CTX1="$TEST_TMPDIR/ctx1.txt"
 create_default_context "$CTX1"
 RESULT=$(classify_conflict "package.json" "$CTX1" 2>/dev/null)
 assert_eq "package.json -> dependency_manifest:ours:install" "dependency_manifest:ours:install" "$RESULT"
@@ -155,35 +155,35 @@ assert_eq "new file not on HEAD -> new_story_file:theirs:" "new_story_file:their
 
 # --- Test 11: shared_infrastructure (file_merged_in_earlier_wave) ---
 echo "--- Test 11: shared_infrastructure (file in filesChanged) ---"
-CTX11="$TMPDIR/ctx11.txt"
+CTX11="$TEST_TMPDIR/ctx11.txt"
 create_default_context "$CTX11" "lib/common.sh"
 RESULT=$(classify_conflict "lib/common.sh" "$CTX11" 2>/dev/null)
 assert_eq "file in filesChanged (on HEAD) -> shared_infrastructure:ours:" "shared_infrastructure:ours:" "$RESULT"
 
 # --- Test 12: contract_stub (file_in_materializedContracts) ---
 echo "--- Test 12: contract_stub (file in materializedContracts) ---"
-CTX12="$TMPDIR/ctx12.txt"
+CTX12="$TEST_TMPDIR/ctx12.txt"
 create_default_context "$CTX12" "" "lib/common.sh"
 RESULT=$(classify_conflict "lib/common.sh" "$CTX12" 2>/dev/null)
 assert_eq "file in materializedContracts -> contract_stub:theirs:" "contract_stub:theirs:" "$RESULT"
 
 # --- Test 13: no match -> unknown:escalate: ---
 echo "--- Test 13: no match -> escalate ---"
-CTX13="$TMPDIR/ctx13.txt"
+CTX13="$TEST_TMPDIR/ctx13.txt"
 create_default_context "$CTX13"
 RESULT=$(classify_conflict "lib/common.sh" "$CTX13" 2>/dev/null)
 assert_eq "no match -> unknown:escalate:" "unknown:escalate:" "$RESULT"
 
 # --- Test 14: rule ordering - first match wins ---
 echo "--- Test 14: rule ordering - first match wins ---"
-CTX14="$TMPDIR/ctx14.txt"
+CTX14="$TEST_TMPDIR/ctx14.txt"
 create_default_context "$CTX14"
 RESULT=$(classify_conflict "package.json" "$CTX14" 2>/dev/null)
 assert_eq "first match wins: package.json -> dependency_manifest (not new_story_file)" "dependency_manifest:ours:install" "$RESULT"
 
 # --- Test 15: rule ordering with reordered rules ---
 echo "--- Test 15: rule ordering with reordered rules ---"
-CTX15="$TMPDIR/ctx15.txt"
+CTX15="$TEST_TMPDIR/ctx15.txt"
 cat > "$CTX15" << 'EOF'
 defaultAction=escalate
 materializedContracts=
@@ -195,7 +195,7 @@ assert_eq "first rule wins when both match" "barrel_export:regenerate:" "$RESULT
 
 # --- Test 16: empty rules -> falls back to defaultAction ---
 echo "--- Test 16: empty rules -> defaultAction ---"
-CTX16="$TMPDIR/ctx16.txt"
+CTX16="$TEST_TMPDIR/ctx16.txt"
 cat > "$CTX16" << 'EOF'
 defaultAction=escalate
 materializedContracts=
@@ -207,7 +207,7 @@ assert_eq "empty rules -> unknown:escalate:" "unknown:escalate:" "$RESULT"
 
 # --- Test 17: custom defaultAction ---
 echo "--- Test 17: custom defaultAction ---"
-CTX17="$TMPDIR/ctx17.txt"
+CTX17="$TEST_TMPDIR/ctx17.txt"
 cat > "$CTX17" << 'EOF'
 defaultAction=ours
 materializedContracts=
@@ -224,7 +224,7 @@ assert_eq "basename package.json matches" "dependency_manifest:ours:install" "$R
 
 # --- Test 19: condition with pattern both set - pattern takes priority ---
 echo "--- Test 19: pattern + condition - pattern checked first ---"
-CTX19="$TMPDIR/ctx19.txt"
+CTX19="$TEST_TMPDIR/ctx19.txt"
 cat > "$CTX19" << 'EOF'
 defaultAction=escalate
 materializedContracts=
@@ -236,14 +236,14 @@ assert_eq "pattern matches before condition checked" "mixed_rule:ours:" "$RESULT
 
 # --- Test 20: multiple files in filesChanged (pipe-delimited) ---
 echo "--- Test 20: multiple files in filesChanged ---"
-CTX20="$TMPDIR/ctx20.txt"
+CTX20="$TEST_TMPDIR/ctx20.txt"
 create_default_context "$CTX20" "lib/common.sh|README.md|quantum-loop.sh"
 RESULT=$(classify_conflict "README.md" "$CTX20" 2>/dev/null)
 assert_eq "README.md in multi-file filesChanged -> shared_infrastructure:ours:" "shared_infrastructure:ours:" "$RESULT"
 
 # --- Test 21: multiple files in materializedContracts ---
 echo "--- Test 21: multiple files in materializedContracts ---"
-CTX21="$TMPDIR/ctx21.txt"
+CTX21="$TEST_TMPDIR/ctx21.txt"
 create_default_context "$CTX21" "" "types/shared.ts|README.md|lib/common.sh"
 RESULT=$(classify_conflict "README.md" "$CTX21" 2>/dev/null)
 assert_eq "README.md in materializedContracts -> contract_stub:theirs:" "contract_stub:theirs:" "$RESULT"
@@ -349,7 +349,7 @@ with open('${py_repo_dir}/quantum.json', 'w') as f:
 
 # --- Test 25: Clean merge (no conflicts) ---
 echo "--- Test 25: Clean merge - no conflicts ---"
-REPO25="$TMPDIR/repo25"
+REPO25="$TEST_TMPDIR/repo25"
 setup_merge_repo "$REPO25"
 cd "$REPO25" || exit 1
 
@@ -379,7 +379,7 @@ assert_contains "clean merge logs timing" "Merge completed in" "$OUTPUT"
 
 # --- Test 26: All-resolved merge (ours for package.json and config.json) ---
 echo "--- Test 26: All-resolved merge with ours strategy ---"
-REPO26="$TMPDIR/repo26"
+REPO26="$TEST_TMPDIR/repo26"
 setup_merge_repo "$REPO26"
 cd "$REPO26" || exit 1
 
@@ -419,7 +419,7 @@ fi
 
 # --- Test 27: Escalation - unknown file conflict aborts merge ---
 echo "--- Test 27: Escalation on unknown file conflict ---"
-REPO27="$TMPDIR/repo27"
+REPO27="$TEST_TMPDIR/repo27"
 setup_merge_repo "$REPO27"
 cd "$REPO27" || exit 1
 
@@ -450,7 +450,7 @@ assert_eq "merge aborted - main content preserved" "main version of file" "$CURR
 
 # --- Test 28: Fallback when mergeStrategy absent from quantum.json ---
 echo "--- Test 28: Fallback - no mergeStrategy -> all escalate ---"
-REPO28="$TMPDIR/repo28"
+REPO28="$TEST_TMPDIR/repo28"
 setup_merge_repo "$REPO28"
 cd "$REPO28" || exit 1
 
@@ -487,7 +487,7 @@ assert_eq "missing json_path returns 1" "1" "$?"
 
 # --- Test 30: Mixed conflicts - some resolved, one escalates ---
 echo "--- Test 30: Mixed - some resolved, one escalates ---"
-REPO30="$TMPDIR/repo30"
+REPO30="$TEST_TMPDIR/repo30"
 setup_merge_repo "$REPO30"
 cd "$REPO30" || exit 1
 
@@ -520,7 +520,7 @@ assert_eq "merge aborted, main content preserved" "main txt" "$MAIN_TXT"
 
 # --- Test 31: get_merge_context with valid quantum.json ---
 echo "--- Test 31: get_merge_context reads correctly ---"
-REPO31="$TMPDIR/repo31"
+REPO31="$TEST_TMPDIR/repo31"
 mkdir -p "$REPO31"
 create_test_quantum_json "$REPO31" "a.ts|b.ts" "types/shared.ts"
 CTX_FILE=$(get_merge_context "$REPO31/quantum.json" 2>/dev/null)
@@ -551,7 +551,7 @@ assert_eq "get_merge_context on empty path returns 1" "1" "$?"
 
 # --- Test 34: get_merge_context fallback (no mergeStrategy) ---
 echo "--- Test 34: get_merge_context with no mergeStrategy ---"
-REPO34="$TMPDIR/repo34"
+REPO34="$TEST_TMPDIR/repo34"
 mkdir -p "$REPO34"
 create_test_quantum_json_no_strategy "$REPO34"
 CTX34=$(get_merge_context "$REPO34/quantum.json" 2>/dev/null)
@@ -579,7 +579,7 @@ echo "=== T-001: quantum.json backup/restore and stash exclusion ==="
 # AND the feature branch also has a different quantum.json. Without backup/restore,
 # the merge would overwrite the orchestrator's changes.
 echo "--- Test 35: quantum.json dirty content preserved when branch modifies it ---"
-REPO35="$TMPDIR/repo35"
+REPO35="$TEST_TMPDIR/repo35"
 setup_merge_repo "$REPO35"
 cd "$REPO35" || exit 1
 
@@ -621,7 +621,7 @@ fi
 
 # --- Test 37: quantum.json restored after escalation (merge abort) ---
 echo "--- Test 37: quantum.json restored after merge abort ---"
-REPO37="$TMPDIR/repo37"
+REPO37="$TEST_TMPDIR/repo37"
 setup_merge_repo "$REPO37"
 cd "$REPO37" || exit 1
 
@@ -689,7 +689,7 @@ fi
 # --- Test 39: Semantic merge used when available and succeeds ---
 # Set up a repo with a conflict in ours/theirs case, with a mock semantic merge
 echo "--- Test 39: Semantic merge delegates for ours conflict ---"
-REPO39="$TMPDIR/repo39"
+REPO39="$TEST_TMPDIR/repo39"
 setup_merge_repo "$REPO39"
 cd "$REPO39" || exit 1
 
@@ -697,7 +697,7 @@ cd "$REPO39" || exit 1
 MOCK_SEMANTIC="$MERGE_STRATEGY_LIB_DIR/merge-semantic.sh"
 MOCK_SEMANTIC_BACKUP=""
 if [[ -f "$MOCK_SEMANTIC" ]]; then
-  MOCK_SEMANTIC_BACKUP="$TMPDIR/merge-semantic.sh.bak"
+  MOCK_SEMANTIC_BACKUP="$TEST_TMPDIR/merge-semantic.sh.bak"
   cp "$MOCK_SEMANTIC" "$MOCK_SEMANTIC_BACKUP"
 fi
 cat > "$MOCK_SEMANTIC" << 'MOCKEOF'
@@ -765,7 +765,7 @@ git merge --abort 2>/dev/null || git reset --hard HEAD 2>/dev/null || true
 
 # --- Test 40: Semantic merge fallback when semantic_merge returns 1 ---
 echo "--- Test 40: Fallback to ours when semantic merge fails ---"
-REPO40="$TMPDIR/repo40"
+REPO40="$TEST_TMPDIR/repo40"
 setup_merge_repo "$REPO40"
 cd "$REPO40" || exit 1
 
@@ -810,7 +810,7 @@ git merge --abort 2>/dev/null || git reset --hard HEAD 2>/dev/null || true
 
 # --- Test 41: Theirs action also tries semantic merge ---
 echo "--- Test 41: Theirs action delegates to semantic merge ---"
-REPO41="$TMPDIR/repo41"
+REPO41="$TEST_TMPDIR/repo41"
 setup_merge_repo "$REPO41"
 cd "$REPO41" || exit 1
 
@@ -855,7 +855,7 @@ git merge --abort 2>/dev/null || git reset --hard HEAD 2>/dev/null || true
 
 # --- Test 42: No semantic merge when MERGE_SEMANTIC_AVAILABLE is false ---
 echo "--- Test 42: No semantic merge when unavailable ---"
-REPO42="$TMPDIR/repo42"
+REPO42="$TEST_TMPDIR/repo42"
 setup_merge_repo "$REPO42"
 cd "$REPO42" || exit 1
 
@@ -891,7 +891,7 @@ git merge --abort 2>/dev/null || git reset --hard HEAD 2>/dev/null || true
 
 # --- Test 43: can_semantic_merge returns 1 - skip semantic merge ---
 echo "--- Test 43: can_semantic_merge returns 1 - skip semantic ---"
-REPO43="$TMPDIR/repo43"
+REPO43="$TEST_TMPDIR/repo43"
 setup_merge_repo "$REPO43"
 cd "$REPO43" || exit 1
 

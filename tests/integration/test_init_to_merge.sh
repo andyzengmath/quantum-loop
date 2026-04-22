@@ -98,20 +98,20 @@ $py_expr
 # =========================================================================
 # Setup: create a temporary git repo
 # =========================================================================
-TMPDIR=$(mktemp -d)
+TEST_TMPDIR=$(mktemp -d)
 ORIG_DIR=$(pwd)
 
 cleanup_test_repo() {
   cd "$ORIG_DIR" 2>/dev/null || true
-  if [[ -d "$TMPDIR" ]]; then
+  if [[ -d "$TEST_TMPDIR" ]]; then
     # Remove any git worktrees first to avoid lock issues
-    cd "$TMPDIR" 2>/dev/null && git worktree list --porcelain 2>/dev/null | grep "^worktree " | while read -r _ path; do
-      if [[ "$path" != "$TMPDIR" ]]; then
+    cd "$TEST_TMPDIR" 2>/dev/null && git worktree list --porcelain 2>/dev/null | grep "^worktree " | while read -r _ path; do
+      if [[ "$path" != "$TEST_TMPDIR" ]]; then
         git worktree remove --force "$path" 2>/dev/null || true
       fi
     done
     cd "$ORIG_DIR" 2>/dev/null || true
-    rm -rf "$TMPDIR"
+    rm -rf "$TEST_TMPDIR"
   fi
 }
 
@@ -123,7 +123,7 @@ echo ""
 # =========================================================================
 echo "--- Step 1: Create temp git repo with quantum.json ---"
 
-cd "$TMPDIR"
+cd "$TEST_TMPDIR"
 git init --initial-branch=main . >/dev/null 2>&1
 git config user.email "test@test.com"
 git config user.name "Test"
@@ -134,7 +134,7 @@ git add file.txt
 git commit -m "initial commit" >/dev/null 2>&1
 
 # Create quantum.json with a story
-JSON_PATH="$TMPDIR/quantum.json"
+JSON_PATH="$TEST_TMPDIR/quantum.json"
 PY_JSON_PATH=$(_to_native_path "$JSON_PATH")
 
 python -c "
@@ -169,7 +169,7 @@ assert_file_exists "quantum.json created" "$JSON_PATH"
 echo ""
 echo "--- Step 2: Run run_preflight and verify initGuard populated ---"
 
-run_preflight "$TMPDIR" "$JSON_PATH" 2>/dev/null
+run_preflight "$TEST_TMPDIR" "$JSON_PATH" 2>/dev/null
 PREFLIGHT_EXIT=$?
 assert_eq "run_preflight exits 0" "0" "$PREFLIGHT_EXIT"
 
@@ -202,12 +202,12 @@ echo ""
 echo "--- Step 3: Create worktree branch ql-wt/US-INTEG ---"
 
 # Commit any quantum.json changes from preflight before creating worktree
-git -C "$TMPDIR" add -A >/dev/null 2>&1
-git -C "$TMPDIR" commit -m "post-preflight quantum.json update" -q >/dev/null 2>&1 || true
+git -C "$TEST_TMPDIR" add -A >/dev/null 2>&1
+git -C "$TEST_TMPDIR" commit -m "post-preflight quantum.json update" -q >/dev/null 2>&1 || true
 
-WT_PATH="$TMPDIR/.ql-wt/US-INTEG"
-mkdir -p "$TMPDIR/.ql-wt"
-git -C "$TMPDIR" worktree add "$WT_PATH" -b ql-wt/US-INTEG HEAD >/dev/null 2>&1
+WT_PATH="$TEST_TMPDIR/.ql-wt/US-INTEG"
+mkdir -p "$TEST_TMPDIR/.ql-wt"
+git -C "$TEST_TMPDIR" worktree add "$WT_PATH" -b ql-wt/US-INTEG HEAD >/dev/null 2>&1
 WT_EXIT=$?
 
 assert_eq "worktree created successfully" "0" "$WT_EXIT"
@@ -255,7 +255,7 @@ echo "--- Step 5: Add feat commit on top ---"
 git -C "$WT_PATH" commit --allow-empty -m "feat: US-INTEG - Integration test story" -q >/dev/null 2>&1
 
 # Verify total commit count on the worktree branch (relative to main)
-BRANCH_COMMIT_COUNT=$(git -C "$TMPDIR" rev-list --count main..ql-wt/US-INTEG 2>/dev/null)
+BRANCH_COMMIT_COUNT=$(git -C "$TEST_TMPDIR" rev-list --count main..ql-wt/US-INTEG 2>/dev/null)
 assert_eq "worktree branch has 4 commits ahead of main" "4" "$BRANCH_COMMIT_COUNT"
 
 # =========================================================================
@@ -263,20 +263,20 @@ echo ""
 echo "--- Step 6: squash_and_merge on main ---"
 
 # Ensure we are on main in the main repo
-cd "$TMPDIR"
+cd "$TEST_TMPDIR"
 git checkout main >/dev/null 2>&1
 
 # Count commits on main before merge
-COMMITS_BEFORE=$(git -C "$TMPDIR" rev-list --count HEAD)
+COMMITS_BEFORE=$(git -C "$TEST_TMPDIR" rev-list --count HEAD)
 
 # Call squash_and_merge
-squash_and_merge "ql-wt/US-INTEG" "$TMPDIR" "US-INTEG" "Integration test story" "$JSON_PATH" 2>/dev/null
+squash_and_merge "ql-wt/US-INTEG" "$TEST_TMPDIR" "US-INTEG" "Integration test story" "$JSON_PATH" 2>/dev/null
 MERGE_EXIT=$?
 
 assert_eq "squash_and_merge exits 0" "0" "$MERGE_EXIT"
 
 # Count commits on main after merge
-COMMITS_AFTER=$(git -C "$TMPDIR" rev-list --count HEAD)
+COMMITS_AFTER=$(git -C "$TEST_TMPDIR" rev-list --count HEAD)
 
 # Should have exactly 1 new commit (the squash commit)
 NEW_COMMITS=$((COMMITS_AFTER - COMMITS_BEFORE))
@@ -286,32 +286,32 @@ assert_eq "exactly 1 new commit on main after squash merge" "1" "$NEW_COMMITS"
 echo ""
 echo "--- Step 7: Verify squashed commit message ---"
 
-SQUASH_MSG=$(git -C "$TMPDIR" log -1 --format=%s)
+SQUASH_MSG=$(git -C "$TEST_TMPDIR" log -1 --format=%s)
 assert_eq "squash commit message is correct" "feat: US-INTEG - Integration test story" "$SQUASH_MSG"
 
 # =========================================================================
 echo ""
 echo "--- Step 8: Verify all 3 task files present on main ---"
 
-assert_file_exists "task1.txt present on main" "$TMPDIR/task1.txt"
-assert_file_exists "task2.txt present on main" "$TMPDIR/task2.txt"
-assert_file_exists "task3.txt present on main" "$TMPDIR/task3.txt"
+assert_file_exists "task1.txt present on main" "$TEST_TMPDIR/task1.txt"
+assert_file_exists "task2.txt present on main" "$TEST_TMPDIR/task2.txt"
+assert_file_exists "task3.txt present on main" "$TEST_TMPDIR/task3.txt"
 
 # Verify file contents are correct
-TASK1_CONTENT=$(cat "$TMPDIR/task1.txt")
+TASK1_CONTENT=$(cat "$TEST_TMPDIR/task1.txt")
 assert_eq "task1.txt has correct content" "first task output" "$TASK1_CONTENT"
 
-TASK2_CONTENT=$(cat "$TMPDIR/task2.txt")
+TASK2_CONTENT=$(cat "$TEST_TMPDIR/task2.txt")
 assert_eq "task2.txt has correct content" "second task output" "$TASK2_CONTENT"
 
-TASK3_CONTENT=$(cat "$TMPDIR/task3.txt")
+TASK3_CONTENT=$(cat "$TEST_TMPDIR/task3.txt")
 assert_eq "task3.txt has correct content" "third task output" "$TASK3_CONTENT"
 
 # =========================================================================
 echo ""
 echo "--- Step 9: Verify no WIP commits leaked onto main ---"
 
-WIP_ON_MAIN=$(git -C "$TMPDIR" log --oneline --format=%s | grep "^wip:" | wc -l | tr -d ' ')
+WIP_ON_MAIN=$(git -C "$TEST_TMPDIR" log --oneline --format=%s | grep "^wip:" | wc -l | tr -d ' ')
 assert_eq "no WIP commits on main history" "0" "$WIP_ON_MAIN"
 
 # =========================================================================
@@ -319,10 +319,10 @@ echo ""
 echo "--- Step 10: Remove worktree and verify working tree is clean ---"
 
 # Remove the worktree (simulating normal orchestrator cleanup after merge)
-git -C "$TMPDIR" worktree remove --force "$WT_PATH" 2>/dev/null || rm -rf "$WT_PATH"
-rmdir "$TMPDIR/.ql-wt" 2>/dev/null || true
+git -C "$TEST_TMPDIR" worktree remove --force "$WT_PATH" 2>/dev/null || rm -rf "$WT_PATH"
+rmdir "$TEST_TMPDIR/.ql-wt" 2>/dev/null || true
 
-GIT_STATUS=$(git -C "$TMPDIR" status --porcelain)
+GIT_STATUS=$(git -C "$TEST_TMPDIR" status --porcelain)
 assert_eq "working tree clean after merge and cleanup" "" "$GIT_STATUS"
 
 # =========================================================================

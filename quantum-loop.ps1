@@ -443,6 +443,22 @@ $(jq '.progress' quantum.json)
     git commit -m "docs: execution observations for $branch" 2>$null
     Write-Host "[OBSERVATIONS] Generated $obsFile" -ForegroundColor Cyan
 
+    # Phase 6 / P1.7 — promote generalizable lessons into codebasePatterns
+    # (parity with bash generate_observations)
+    $newPatterns = jq '[.progress // [] | .[] | select(.learnings? and (.learnings | length > 0)) | .learnings]' quantum.json 2>$null
+    if ($newPatterns -and $newPatterns -ne "[]") {
+        $tmpFile = [System.IO.Path]::GetTempFileName()
+        $updated = jq --argjson newlessons $newPatterns '.codebasePatterns = ((.codebasePatterns // []) + $newlessons | unique)' quantum.json 2>$null
+        if ($updated) {
+            $updated | Set-Content -Path $tmpFile -Encoding UTF8
+            Move-Item -Force -Path $tmpFile -Destination quantum.json
+            $count = jq 'length' <<< $newPatterns
+            Write-Host "[OBSERVATIONS] Promoted $count lessons into codebasePatterns." -ForegroundColor Cyan
+        } else {
+            Remove-Item -Force -Path $tmpFile -ErrorAction SilentlyContinue
+        }
+    }
+
     # Check if observations contain issues worth reporting
     $hasBlocked = [int](jq '[.stories[] | select(.status == "blocked" or .status == "failed")] | length' quantum.json)
     if ($hasBlocked -gt 0) {

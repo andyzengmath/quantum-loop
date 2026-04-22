@@ -255,7 +255,12 @@ _runner_apply_claim_check() {
 
 # runner_parse_output(output, exit_code, [worktree_path])
 # Parses runner output for quantum signals. Falls back to heuristics if enabled.
-# Sets globals: SIGNAL_RESULT and SIGNAL_CONFIDENCE
+# After signal resolution, applies claim-check lint (Phase 5) which may demote
+# SIGNAL_CONFIDENCE from exact/high to medium without changing SIGNAL_RESULT.
+# Sets globals:
+#   SIGNAL_RESULT          — "STORY_PASSED" | "STORY_FAILED" | "COMPLETE" | "BLOCKED"
+#   SIGNAL_CONFIDENCE      — "exact" | "high" | "medium"
+#   SIGNAL_CLAIM_FINDINGS  — "clean" | "hedge:N stale:M polite-stop:K"
 runner_parse_output() {
   local output="$1"
   local exit_code="$2"

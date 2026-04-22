@@ -87,12 +87,12 @@ assert_file_not_contains() {
 }
 
 # =========================================================================
-TMPDIR=$(mktemp -d)
+TEST_TMPDIR=$(mktemp -d)
 ORIG_DIR=$(pwd)
 
 cleanup() {
   cd "$ORIG_DIR" || true
-  rm -rf "$TMPDIR"
+  rm -rf "$TEST_TMPDIR"
 }
 trap cleanup EXIT
 
@@ -129,7 +129,7 @@ echo ""
 
 # Step 1: Set up temp git repo with main branch
 echo "--- Step 1: Set up repo with initial barrel file ---"
-REPO="$TMPDIR/barrel-test"
+REPO="$TEST_TMPDIR/barrel-test"
 mkdir -p "$REPO/src/parsers"
 cd "$REPO" || exit 1
 git init --initial-branch=main . >/dev/null 2>&1

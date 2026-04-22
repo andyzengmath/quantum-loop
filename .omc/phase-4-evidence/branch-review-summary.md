@@ -33,9 +33,9 @@ Every branch's diff against HEAD is net-negative (anywhere from -8,595 to -36,03
 
 ## Recovery
 
-All 9 branches tagged under `archive/pre-delete-ql-<name>-20260422` before deletion. Recovery:
+All 9 branches tagged under `archive-pre-delete-ql-<name>-20260422` before deletion. Recovery:
 
-    git checkout archive/pre-delete-ql-multi-runner-20260422
+    git checkout archive-pre-delete-ql-multi-runner-20260422
 
 81 total archive tags preserve the complete pre-consolidation state.
 
