@@ -1,0 +1,13 @@
+=== Final Sweep Tests ===
+
+Test 1: Test suite failure blocks COMPLETE
+  PASS: failed test suite blocks COMPLETE
+
+Test 2: Test suite success allows COMPLETE
+  PASS: passing test suite allows COMPLETE
+
+Test 3: Import smoke test failure is warning only
+  PASS: import smoke test failure is warning
+  PASS: COMPLETE still allowed despite smoke test warning
+
+=== Results: 4/4 passed ===

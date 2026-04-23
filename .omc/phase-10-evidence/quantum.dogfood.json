@@ -1,0 +1,90 @@
+{
+  "project": "quantum-loop",
+  "branchName": "ql/bug-gap-fix-2026-04",
+  "description": "Fix previous implementation bugs and gaps before next wave (P0 consolidation + P1 skill productionization)",
+  "prdPath": "tasks/prd-bug-gap-fix-2026-04-22.md",
+  "designPath": ".omc/plans/2026-04-22-bug-and-gap-fix-plan.md",
+  "createdAt": "2026-04-22T00:00:00Z",
+  "updatedAt": "2026-04-22T21:00:00Z",
+  "userIntent": {
+    "text": "We have found some issues in the current implementation ( please review \"idea-stage/IDEA_REPORT.md\"). We want to fix the previous implementation bugs and gaps before next wave of improvements and new features (see other docs). Please review each listed gaps/issues carefully and read relavant code (use agent teams if needed). Then let's propose a comprehensive plan",
+    "timestamp": "2026-04-22T12:00:00Z",
+    "source_message_id": null
+  },
+  "userClarifications": [
+    {"id": "CLAR-001", "timestamp": "2026-04-22T14:00:00Z", "text": "Let's carefully review those CPC variants and branches", "re-negotiates": "Phase 4 approach"},
+    {"id": "CLAR-002", "timestamp": "2026-04-22T15:00:00Z", "text": "Let's do a review first", "re-negotiates": "mid-arc review between P6 and P7"}
+  ],
+  "intentDrift": {
+    "bug-gap-fix-2026-04-22": {
+      "timestamp": "2026-04-22T21:00:00Z",
+      "base_sha": "a421263",
+      "head_sha": "58758d0",
+      "has_immutable_intent": true,
+      "stages_audited": ["intent→design", "design→prd", "prd→plan", "plan→impl"],
+      "findings": [],
+      "summary": {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0},
+      "verdict": "NO_DRIFT"
+    }
+  },
+  "reviews": {
+    "bug-gap-fix-2026-04-22": {
+      "deepReview": {
+        "feature_id": "bug-gap-fix-2026-04-22",
+        "timestamp": "2026-04-22T16:00:00Z",
+        "base_sha": "a421263",
+        "head_sha": "79204c0",
+        "files_changed": 197,
+        "stories_included": ["US-001","US-002","US-003","US-004","US-005","US-006","US-007","US-008","US-009","US-010"],
+        "risk_score": 55,
+        "tier": "MEDIUM",
+        "reviewers_dispatched": ["oh-my-claudecode:code-reviewer", "oh-my-claudecode:critic"],
+        "findings": [
+          {"id":"F-001","agents":["code-reviewer"],"severity":"high","confidence":85,"category":"correctness","file":"quantum-loop.sh","line_start":327,"line_end":327,"evidence_type":"code-reference","description":"Failure Summary table breaks on story titles containing |","suggested_fix":"Add gsub(\"\\\\|\"; \"/\") to .title"},
+          {"id":"F-002","agents":["code-reviewer"],"severity":"high","confidence":90,"category":"correctness","file":"lib/claim-check.sh","line_start":173,"line_end":173,"evidence_type":"code-reference","description":"claim_check_block return value inverted vs documented contract","suggested_fix":"Change to return $hit"}
+        ],
+        "conflicts": [],
+        "suppressed": [{"agent":"architect","reason":"no line citation","count":0}],
+        "kudos": ["Clean separation of concerns in claim-check integration; atomic temp-file + mv pattern for codebasePatterns promotion"],
+        "verdict": "APPROVE_WITH_COMMENTS",
+        "blockers": [],
+        "high_priority": ["F-001","F-002"]
+      }
+    }
+  },
+  "deslop": {},
+  "codebasePatterns": [
+    "Library shell scripts MUST NOT set shell flags (set -e / set -u / set -o pipefail) at source time — it leaks into every sourcing shell. Apply strict mode only inside the CLI-entry `if [[ \"${BASH_SOURCE[0]}\" == \"${0}\" ]]` block. Root cause of the Phase 5 runner-test abort: claim-check.sh had `set -euo pipefail` at top level, which caused $(runner_load \"nonexistent\") to exit the whole test script because runner_load returns 1 on missing manifest.",
+    "readonly array declarations MUST be guarded with `if [[ -z \"${VAR+x}\" ]]; then ... fi` to prevent warnings on multi-source. test_runner_integration sources runner.sh twice and triggered readonly-redeclaration noise until the guard was added.",
+    "Local `TMPDIR=$(mktemp -d)` shadows bash's magic TMPDIR env var. After teardown removes the directory, subsequent mktemp calls try to create inside the (now deleted) path, return empty, and code that trusts the assignment can silently land in CWD — in a test context that means writing to the repo's real working tree. Rename convention: use TEST_TMPDIR (or any non-magic name) in tests.",
+    "Test scripts that run `git commit` inside a tempdir MUST fail-fast if `cd $TMPDIR` didn't actually leave REPO_ROOT (canonicalize both paths and compare). Five stray 'init' commits landed on ql/bug-gap-fix-2026-04 during Phase 2 because a test fixture did `cd TMPDIR; git commit` after cd silently failed.",
+    "Archive-tag naming via `tr '/' '-'` loses the `archive/` slash prefix. If recovery docs write `git checkout archive/pre-delete-foo`, the tag won't match because the actual tag name is `archive-pre-delete-foo`. Either use the dashes consistently in docs OR don't tr the slash.",
+    "When promoting variant-suffixed files (*-CPC-* → plain), run the full test suite after EACH category batch (libs / agents / skills / root), not once at the end. Cheaper to rollback one batch than to untangle a combined regression.",
+    "Critic-reviewer agents that grep for archive tags may false-positive on naming confusions (slash vs dash). Always `git tag | grep <prefix>` before accepting a 'missing recovery artifact' finding.",
+    "Before merging multiple feature branches, `git diff HEAD..<branch> --name-status` can confirm whether the branches are strict subsets of current — if every A-classified file is something already deleted or superseded, the merge is a no-op and archive-tag + delete is sufficient. Saves a multi-hour conflict-resolution swamp."
+  ],
+  "stories": [
+    {"id":"US-001","title":"Phase 0-1: baseline + CHANGELOG backfill + plugin version reconciliation","status":"passed","priority":1,"dependsOn":[],"retries":{"attempts":0,"maxAttempts":3,"failureLog":[]},"acceptanceCriteria":["baseline test suite captured","CHANGELOG covers through 0.4.1","plugin.json 0.4.1 everywhere"],"tasks":[]},
+    {"id":"US-002","title":"Phase 2: CPC → canonical promotion","status":"passed","priority":2,"dependsOn":["US-001"],"retries":{"attempts":0,"maxAttempts":3,"failureLog":[]},"acceptanceCriteria":["zero CPC-pattern files","test suite green post-promotion","git merge --no-edit eliminated"],"tasks":[]},
+    {"id":"US-003","title":"Phase 3: dead-code + worktree + branch cleanup","status":"passed","priority":3,"dependsOn":["US-002"],"retries":{"attempts":0,"maxAttempts":3,"failureLog":[]},"acceptanceCriteria":["crash-recovery.sh deleted","orphan agent-* worktrees removed","45 worktree-agent branches + 12 other branches archived"],"tasks":[]},
+    {"id":"US-004","title":"Phase 4: archive 9 ql/* branches (no-op merge)","status":"passed","priority":4,"dependsOn":["US-003"],"retries":{"attempts":0,"maxAttempts":3,"failureLog":[]},"acceptanceCriteria":["9 branches archive-tagged + deleted","diff review confirms no net-new content"],"tasks":[]},
+    {"id":"US-005","title":"Phase 5+6: claim-check wiring + Progress-Log generator repair","status":"passed","priority":5,"dependsOn":["US-004"],"retries":{"attempts":0,"maxAttempts":3,"failureLog":[]},"acceptanceCriteria":["SIGNAL_CLAIM_FINDINGS exposed","generate_observations emits populated Progress Log table","codebasePatterns auto-promoted"],"tasks":[]},
+    {"id":"US-006","title":"Phase 6.5: review-response fixes","status":"passed","priority":6,"dependsOn":["US-005"],"retries":{"attempts":0,"maxAttempts":3,"failureLog":[]},"acceptanceCriteria":["2 HIGH bugs fixed (Failure Summary pipe-escape + claim_check_block inversion)","19 test files TMPDIR → TEST_TMPDIR","PS1 codebasePatterns promotion parity"],"tasks":[]},
+    {"id":"US-007","title":"Phase 7: ql-intent-check wiring (P1.4)","status":"passed","priority":7,"dependsOn":["US-005"],"retries":{"attempts":0,"maxAttempts":3,"failureLog":[]},"acceptanceCriteria":["userIntent / userClarifications / intentDrift fields in quantum.json.example","ql-brainstorm writes snapshot at exit","ql-verify consults intentDrift verdict"],"tasks":[]},
+    {"id":"US-008","title":"Phase 8: ql-deep-review safety rails (P1.1 + P1.2)","status":"passed","priority":8,"dependsOn":["US-007"],"retries":{"attempts":0,"maxAttempts":3,"failureLog":[]},"acceptanceCriteria":["lib/deep-review.sh ships 6 helpers","reviews field in schema","ql-execute wires post-pipeline review hook"],"tasks":[]},
+    {"id":"US-009","title":"Phase 9: ql-deslop safety rails (P1.6)","status":"passed","priority":9,"dependsOn":["US-008"],"retries":{"attempts":0,"maxAttempts":3,"failureLog":[]},"acceptanceCriteria":["lib/deslop.sh ships validate_scope / take_baseline / compare_baseline / rollback_pass / detect_language","deslop field in schema","ql-execute wires pre-merge slop-cleanup hook"],"tasks":[]},
+    {"id":"US-010","title":"Phase 10: dogfood","status":"passed","priority":10,"dependsOn":["US-007","US-008","US-009"],"retries":{"attempts":0,"maxAttempts":3,"failureLog":[]},"acceptanceCriteria":["PRD exists at tasks/prd-bug-gap-fix-2026-04-22.md","quantum.dogfood.json parses + end-to-end trivial-story check passes","codebasePatterns ≥ 1 new entry authored during this cycle"],"tasks":[]}
+  ],
+  "progress": [
+    {"timestamp":"2026-04-22T12:30:00Z","iteration":1,"storyId":"US-001","action":"story_passed","details":"baseline test suite captured + CHANGELOG backfilled to 0.4.1","filesChanged":["CHANGELOG.md",".claude-plugin/plugin.json",".claude-plugin/marketplace.json"],"learnings":"CHANGELOG backfill must mine git log + design docs, not the previous CHANGELOG alone; version-bump commits are the canonical boundary markers."},
+    {"timestamp":"2026-04-22T13:30:00Z","iteration":2,"storyId":"US-002","action":"story_passed","details":"42 CPC-variant files collapsed into canonical track; 150 files changed","filesChanged":["lib/*.sh","agents/*.md","skills/*/SKILL.md","root files"],"learnings":"Filename starting with `-` breaks mv — use `mv -- FILE DEST`. quantum.json is gitignored (runtime state) and should not be force-added during promotion."},
+    {"timestamp":"2026-04-22T14:15:00Z","iteration":3,"storyId":"US-003","action":"story_passed","details":"lib/crash-recovery.sh deleted; 45 worktrees removed; 12 misc branches pruned","filesChanged":["lib/crash-recovery.sh",".claude/worktrees/agent-*"],"learnings":"git worktree remove can succeed from git's POV without actually removing the Windows-OneDrive-locked directory. Follow up with rm -rf + git worktree prune."},
+    {"timestamp":"2026-04-22T14:30:00Z","iteration":4,"storyId":"US-004","action":"story_passed","details":"9 ql/* branches archived as no-op after diff review confirmed strict-subset of HEAD","filesChanged":[],"learnings":"Archive-tag names created via tr '/' '-' lose the archive/ slash prefix; recovery docs must use dashes consistently."},
+    {"timestamp":"2026-04-22T15:00:00Z","iteration":5,"storyId":"US-005","action":"story_passed","details":"claim-check wired into runner.sh signal parsing; Progress-Log generator emits markdown table + auto-promotes lessons","filesChanged":["lib/runner.sh","lib/claim-check.sh","quantum-loop.sh","quantum-loop.ps1"],"learnings":"Library scripts must not set shell flags at source time; readonly arrays must be guarded against re-source."},
+    {"timestamp":"2026-04-22T16:30:00Z","iteration":6,"storyId":"US-006","action":"story_passed","details":"2 HIGH bugs fixed (pipe-escape + block-return inversion); TMPDIR swept across 19 tests; PS1 parity restored","filesChanged":["quantum-loop.sh","lib/claim-check.sh","lib/runner.sh","quantum-loop.ps1","tests/test_*.sh"],"learnings":"Test scripts that run git commit in a tempdir MUST canonicalize the cwd before continuing, else silent leaks into the live repo."},
+    {"timestamp":"2026-04-22T17:30:00Z","iteration":7,"storyId":"US-007","action":"story_passed","details":"ql-intent-check schema + brainstorm/verify wiring + 19 machine-verifiable assertions","filesChanged":["quantum.json.example","skills/ql-brainstorm/SKILL.md","skills/ql-verify/SKILL.md","tests/test_intent_check.sh"],"learnings":"verbatim user-intent snapshot is a better anchor for drift detection than any LLM-extracted semantic graph — the fidelity tradeoff pays for itself."},
+    {"timestamp":"2026-04-22T18:30:00Z","iteration":8,"storyId":"US-008","action":"story_passed","details":"lib/deep-review.sh ships risk/dedup/hallucination/verdict helpers + 31 assertions","filesChanged":["lib/deep-review.sh","quantum.json.example","skills/ql-execute/SKILL.md","tests/test_deep_review.sh"],"learnings":"actionability filter must drop findings without file:line — Chowdhury 2604.03196 baseline shows low-signal findings drag the whole reviewer distribution below human performance."},
+    {"timestamp":"2026-04-22T19:30:00Z","iteration":9,"storyId":"US-009","action":"story_passed","details":"lib/deslop.sh ships scope-fence / baseline / rollback / detect-language helpers + 22 assertions","filesChanged":["lib/deslop.sh","quantum.json.example","skills/ql-execute/SKILL.md","tests/test_deslop.sh"],"learnings":"validate_scope must be a hard gate before any deslop edit — without it, the LLM-side pass will reach into adjacent files and silently widen scope."},
+    {"timestamp":"2026-04-22T20:30:00Z","iteration":10,"storyId":"US-010","action":"story_passed","details":"PRD + dogfood quantum.json + end-to-end trivial-story check","filesChanged":["tasks/prd-bug-gap-fix-2026-04-22.md",".omc/phase-10-evidence/quantum.dogfood.json"],"learnings":"Dogfood at the end of a consolidation cycle catches any schema-vs-code skew that the per-phase tests miss."}
+  ]
+}

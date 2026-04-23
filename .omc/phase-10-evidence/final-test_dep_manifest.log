@@ -1,0 +1,134 @@
+=== Test 1: detect_package_manager returns npm for package.json ===
+  PASS: detects npm
+=== Test 2: detect_package_manager returns yarn for yarn.lock ===
+  PASS: detects yarn
+=== Test 3: detect_package_manager returns pnpm for pnpm-lock.yaml ===
+  PASS: detects pnpm
+=== Test 4: detect_package_manager returns cargo for Cargo.toml ===
+  PASS: detects cargo
+=== Test 5: detect_package_manager returns pip for requirements.txt ===
+  PASS: detects pip
+=== Test 6: detect_package_manager returns poetry for poetry.lock+pyproject.toml ===
+  PASS: detects poetry
+=== Test 7: detect_package_manager returns go for go.mod ===
+  PASS: detects go
+=== Test 8: detect_package_manager returns empty for no manifests ===
+  PASS: empty for no manifests
+=== Test 9: detect_package_manager returns multiple managers ===
+  PASS: detects npm in multi
+  PASS: detects cargo in multi
+  PASS: detects go in multi
+=== Test 10: detect_package_manager with empty repo_root ===
+  PASS: empty repo_root returns error
+  PASS: error message for empty repo_root
+=== Test 11: detect_package_manager with nonexistent directory ===
+  PASS: nonexistent dir returns error
+=== Test 12: poetry requires BOTH poetry.lock and pyproject.toml ===
+  PASS: no poetry without pyproject.toml
+=== Test 13: pyproject.toml alone does not trigger poetry ===
+  PASS: no poetry without poetry.lock
+=== Test 14: protect_manifest protects known manifests ===
+  PASS: protect_manifest returns 1 for one manifest
+=== Test 15: protect_manifest with multiple manifests ===
+  PASS: protect_manifest returns 2 for two manifests
+=== Test 16: protect_manifest skips non-manifest files ===
+  PASS: protect_manifest returns 0 for non-manifest
+=== Test 17: protect_manifest with empty conflict_files ===
+  PASS: protect_manifest returns 0 for empty conflict list
+=== Test 18: protect_manifest with empty repo_root ===
+  PASS: protect_manifest empty repo_root returns error
+=== Test 19: protect_manifest with mixed manifest and non-manifest ===
+  PASS: protect_manifest counts only manifests
+=== Test 20: verify_lockfile finds non-empty package-lock.json ===
+  PASS: verify_lockfile npm returns 0
+=== Test 21: verify_lockfile fails for missing lockfile ===
+  PASS: verify_lockfile npm missing returns 1
+=== Test 22: verify_lockfile fails for empty lockfile ===
+  PASS: verify_lockfile npm empty returns 1
+=== Test 23: verify_lockfile for yarn ===
+  PASS: verify_lockfile yarn returns 0
+=== Test 24: verify_lockfile for pnpm ===
+  PASS: verify_lockfile pnpm returns 0
+=== Test 25: verify_lockfile for cargo ===
+  PASS: verify_lockfile cargo returns 0
+=== Test 26: verify_lockfile for pip (no lockfile concept) ===
+  PASS: verify_lockfile pip returns 0 with requirements.txt
+=== Test 27: verify_lockfile for poetry ===
+  PASS: verify_lockfile poetry returns 0
+=== Test 28: verify_lockfile for go ===
+  PASS: verify_lockfile go returns 0
+=== Test 29: verify_lockfile with empty repo_root ===
+  PASS: verify_lockfile empty repo_root returns 1
+=== Test 30: verify_lockfile with empty package_manager ===
+  PASS: verify_lockfile empty manager returns 1
+=== Test 31: verify_lockfile for unknown manager ===
+  PASS: verify_lockfile unknown manager returns 1
+=== Test 32: run_install with empty repo_root ===
+  PASS: run_install empty repo_root returns 1
+  PASS: run_install error for empty repo_root
+=== Test 33: run_install with empty package_manager ===
+  PASS: run_install empty manager returns 1
+=== Test 34: run_install with unknown manager ===
+  PASS: run_install unknown manager returns 1
+=== Test 35: run_install with npm runs npm install ===
+  PASS: run_install npm exits 0
+  PASS: run_install npm timing log
+  PASS: run_install npm completed message
+=== Test 36: run_install with cargo ===
+  PASS: run_install cargo exits 0
+  PASS: run_install cargo timing log
+=== Test 37: run_install with pip ===
+  PASS: run_install pip exits 0
+=== Test 38: run_install with poetry ===
+  PASS: run_install poetry exits 0
+=== Test 39: run_install with go ===
+  PASS: run_install go exits 0
+=== Test 40: run_install failure returns 1 but does not propagate ===
+  PASS: run_install failure returns 1
+=== Test 41: run_install timing log format ===
+  PASS: run_install yarn exits 0
+  PASS: timing format has ms
+=== Test 42: run_install with pnpm ===
+  PASS: run_install pnpm exits 0
+=== Test 43: protect_manifest with real merge conflict verifies --ours ===
+Auto-merging package.json
+CONFLICT (content): Merge conflict in package.json
+Automatic merge failed; fix conflicts and then commit the result.
+  PASS: protect_manifest resolves 1 conflict
+  PASS: resolved content has ours-modified
+  PASS: resolved content has no conflict markers
+  PASS: resolved content has no theirs version
+=== Test 44: protect_manifest ignores file not in conflict list ===
+  PASS: protect_manifest counts only listed manifests
+=== Test 45: detect_package_manager npm and pip together returns both ===
+  PASS: multi-detect includes npm
+  PASS: multi-detect includes pip
+  PASS: multi-detect returns 2 lines
+=== Test 46: run_install timeout kills long-running install ===
+  PASS: run_install timeout returns non-zero
+  PASS: timeout message logged
+=== Test 47: run_install failure with theirs recovery succeeds ===
+  PASS: run_install recovery succeeds
+  PASS: recovery timing log present
+=== Test 48: verify_lockfile returns 0 for existing non-empty lockfile ===
+  PASS: verify_lockfile existing non-empty returns 0
+=== Test 49: verify_lockfile returns 1 for missing lockfile ===
+  PASS: verify_lockfile missing Cargo.lock returns 1
+=== Test 50: run_install failure without recovery returns 1 ===
+  PASS: run_install double-failure returns 1
+  PASS: recovery failed message
+=== Test 51: multiple managers run independently ===
+  PASS: both detected: npm
+  PASS: both detected: pip
+  PASS: npm install ran successfully
+  PASS: pip install ran successfully
+  PASS: npm was invoked
+  PASS: pip was invoked
+=== Test 52: npm failure does not prevent pip from running ===
+  PASS: npm install failed
+  PASS: pip install still succeeded
+  PASS: pip was executed after npm failure
+=== Test 53: detect_package_manager with requirements-dev.txt detects pip ===
+  PASS: requirements-dev.txt does not trigger pip (only requirements.txt)
+
+=== Results: 76/76 passed, 0 failed ===

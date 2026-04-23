@@ -1,0 +1,135 @@
+=== Test 1: TypeScript duplicate — two files define same interface ===
+  PASS: TS duplicate detected (array length 1)
+  PASS: TS duplicate name is Foo
+  PASS: TS duplicate has 2 files
+=== Test 2: Python Protocol duplicate ===
+  PASS: Python Protocol duplicate detected (array length 1)
+  PASS: Python Protocol duplicate name is Bar
+=== Test 3: Go interface duplicate ===
+  PASS: Go interface duplicate detected (array length 1)
+  PASS: Go interface duplicate name is Handler
+=== Test 4: No duplicates — each type defined once ===
+  PASS: No duplicates returns empty array
+=== Test 5: Scoped to file list only — ignores files not in list ===
+  PASS: Scoped scan ignores files not in list
+=== Test 6: Cross-file only — same name in same file not flagged ===
+  PASS: Same-file duplicate not flagged (cross-file only)
+=== Test 7: Edge case — empty file list ===
+  PASS: Empty file list returns empty array
+=== Test 8: Edge case — empty repo root ===
+  PASS: Empty repo root returns empty array
+=== Test 9: Edge case — Python BaseModel duplicate ===
+  PASS: Python BaseModel duplicate detected
+  PASS: Python BaseModel duplicate name is Config
+=== Test 10: Edge case — nonexistent files in list ===
+  PASS: Nonexistent files return empty array
+=== Test 11: Edge case — Go struct duplicate ===
+  PASS: Go struct duplicate detected
+  PASS: Go struct duplicate name is Config
+=== Test 12: Edge case — TS export type duplicate ===
+  PASS: TS export type duplicate detected
+  PASS: TS export type duplicate name is Result
+=== Test 13: audit_wave_types — no duplicates logs skip and returns 0 ===
+  PASS: audit_wave_types returns 0 when no duplicates
+  PASS: audit_wave_types logs skip message
+=== Test 14: audit_wave_types — duplicates returns count and logs ===
+  PASS: audit_wave_types returns 1 (duplicate count) when duplicates found
+  PASS: audit_wave_types logs duplicate name UserConfig
+=== Test 15: audit_wave_types — empty repo root returns 0 ===
+  PASS: audit_wave_types with empty repo_root returns 0
+=== Test 16: audit_wave_types — builds type-auditor prompt on stdout ===
+  PASS: audit_wave_types outputs auditor prompt on stdout
+=== Test 17: audit_wave_types — checks contract shapes ===
+  PASS: audit_wave_types includes contract shape in prompt
+=== Test 18: audit_wave_types — missing json_path returns 0 ===
+  PASS: audit_wave_types with empty json_path returns 0
+=== Test 19: audit_wave_types — nonexistent repo_root returns 0 ===
+  PASS: audit_wave_types with nonexistent repo_root returns 0
+=== Test 20: audit_wave_types — multiple duplicates returns correct count ===
+  PASS: audit_wave_types returns 2 for two duplicate types
+=== Test 21: audit_wave_types — wave_num defaults to 1 ===
+  PASS: audit_wave_types defaults wave_num to 1
+=== Test 22: update_contracts_for_next_wave — adds entry to discoveredContracts ===
+[CONTRACTS] Added discovered contract: UserConfig (wave 2)
+  PASS: update_contracts_for_next_wave returns 0
+  PASS: discoveredContracts.UserConfig exists
+  PASS: discoveredInWave is 2
+  PASS: consolidated is true
+  PASS: consolidatedFile is correct
+  PASS: sourceFiles has 2 entries
+=== Test 23: update_contracts_for_next_wave — initializes discoveredContracts if absent ===
+[CONTRACTS] Added discovered contract: Config (wave 3)
+  PASS: update_contracts_for_next_wave returns 0 with missing discoveredContracts
+  PASS: discoveredContracts was initialized
+  PASS: Config.discoveredInWave is 3
+=== Test 24: update_contracts_for_next_wave — preserves existing entries ===
+[CONTRACTS] Added discovered contract: NewType (wave 2)
+  PASS: update_contracts_for_next_wave returns 0 preserving existing
+  PASS: ExistingType preserved
+  PASS: NewType added
+=== Test 25: update_contracts_for_next_wave — empty type_name returns error ===
+  PASS: update_contracts_for_next_wave with empty type_name returns 1
+=== Test 26: update_contracts_for_next_wave — empty json_path returns error ===
+  PASS: update_contracts_for_next_wave with empty json_path returns 1
+=== Test 27: update_contracts_for_next_wave — JSON remains valid after write ===
+  PASS: quantum.json remains valid JSON after update
+=== Test 28: update_contracts_for_next_wave — no execution field initializes it ===
+[CONTRACTS] Added discovered contract: Widget (wave 1)
+  PASS: update_contracts_for_next_wave returns 0 with no execution field
+  PASS: Widget.discoveredInWave is 1
+=== Test 29: Mixed language files — TS + Python in same scan ===
+  PASS: Mixed TS+Python: detects SharedConfig as duplicate across 3 files
+  PASS: Mixed TS+Python: duplicate name is SharedConfig
+  PASS: Mixed TS+Python: duplicate has 3 files (2 TS + 1 Python)
+=== Test 30: Mixed language — TS + Python both define same name cross-file ===
+  PASS: Mixed TS+Python cross-lang duplicate detected
+  PASS: Mixed TS+Python cross-lang duplicate name is Widget
+  PASS: Mixed TS+Python cross-lang duplicate has 2 files
+=== Test 31: Type name appears in 3+ files — single entry with all files ===
+  PASS: 3-file duplicate: exactly 1 entry in result array
+  PASS: 3-file duplicate: name is ApiResponse
+  PASS: 3-file duplicate: files array has 3 entries
+=== Test 32: Type name in 4 files — still one entry ===
+  PASS: 4-file duplicate: exactly 1 entry in result array
+  PASS: 4-file duplicate: files array has 4 entries
+=== Test 33: Empty file list (whitespace-only string) returns empty array ===
+  PASS: Whitespace-only file list returns empty array
+=== Test 34: Files with syntax errors — grep still extracts type names ===
+  PASS: Files with syntax errors: grep still finds duplicates
+  PASS: Files with syntax errors: duplicate name is Broken
+=== Test 35: Same-file duplicate with multiple type defs — not flagged ===
+  PASS: Same-file Python duplicate not flagged (cross-file only)
+=== Test 36: Same-file TS class duplicate — not flagged as cross-file ===
+  PASS: Same-file TS triple definition not flagged as cross-file
+=== Test 37: update_contracts_for_next_wave — appends to existing discoveredContracts, not replaces ===
+[CONTRACTS] Added discovered contract: Gamma (wave 2)
+  PASS: Append third contract returns 0
+  PASS: Alpha still exists after append
+  PASS: Beta still exists after append
+  PASS: Gamma was appended
+  PASS: Total discoveredContracts entries is 3
+[CONTRACTS] Added discovered contract: Delta (wave 3)
+  PASS: Append fourth contract returns 0
+  PASS: Total discoveredContracts entries is 4 after second append
+  PASS: Alpha consolidatedFile unchanged
+  PASS: Alpha sourceFiles unchanged (2 entries)
+=== Test 38: update_contracts_for_next_wave — nonexistent json_path returns error ===
+  PASS: update_contracts_for_next_wave with nonexistent json_path returns 1
+=== Test 39: update_contracts_for_next_wave — wave_num defaults when omitted ===
+[CONTRACTS] Added discovered contract: NoWave (wave 1)
+  PASS: update_contracts_for_next_wave with empty wave_num returns 0
+  PASS: Default wave_num is 1 when empty string
+=== Test 40: Mixed TS + Go files in same scan ===
+  PASS: Mixed TS+Go: Router detected as cross-file duplicate
+  PASS: Mixed TS+Go: duplicate name is Router
+  PASS: Mixed TS+Go: duplicate has 2 files
+=== Test 41: File with no type definitions — returns empty ===
+  PASS: Files with no type definitions return empty array
+=== Test 42: Binary/unreadable content in file — grep handles gracefully ===
+  PASS: Binary content does not crash grep_duplicate_definitions
+=== Test 43: Python @dataclass duplicate detection ===
+  PASS: Python @dataclass duplicate detected (array length 1)
+  PASS: Python @dataclass duplicate name is Foo
+  PASS: Python @dataclass duplicate has 2 files
+
+=== Results: 83/83 passed, 0 failed ===

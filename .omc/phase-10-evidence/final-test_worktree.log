@@ -1,0 +1,101 @@
+=== Test 1: Create worktree at correct path ===
+Preparing worktree (new branch 'ql-wt/US-001')
+  PASS: create_worktree exits 0
+  PASS: Worktree directory created
+=== Test 2: Worktree has feature branch content ===
+  PASS: Feature file exists in worktree
+=== Test 3: List worktrees includes the new worktree ===
+  PASS: US-001 worktree listed
+=== Test 4: Remove worktree cleans up ===
+Deleted branch ql-wt/US-001 (was 4f90965).
+  PASS: remove_worktree exits 0
+  PASS: Worktree directory removed
+=== Test 5: List worktrees after removal ===
+  PASS: US-001 not listed after removal
+=== Test 6: Remove nonexistent worktree is idempotent ===
+  PASS: remove_worktree for nonexistent exits 0
+=== Test 7: _resolve_repo_root from main repo returns itself ===
+  PASS: _resolve_repo_root main repo is identity
+=== Test 8: _resolve_repo_root from inside worktree returns main root ===
+  PASS: _resolve_repo_root from worktree returns main root
+=== Test 9: create_worktree from nested path roots at top level ===
+  PASS: US-inner under main root
+  PASS: US-inner NOT nested inside US-outer
+=== Test 10: _short_path_base is deterministic ===
+  PASS: _short_path_base deterministic
+  PASS: _short_path_base has ql-wt prefix
+=== Test 11: _short_path_base differs per repo root ===
+  PASS: Different repos get different short paths
+=== Test 12: register_worktree adds entry to quantum.json ===
+[WORKTREE] Registered US-001 at /tmp/tmp.i5nNN1h6te/.ql-wt/US-001
+  PASS: register_worktree exits 0
+  PASS: register_worktree sets storyId
+  PASS: register_worktree sets branch
+  PASS: register_worktree sets wave
+  PASS: register_worktree sets createdAt
+=== Test 13: register_worktree validates story_id ===
+  PASS: register_worktree rejects empty story_id
+  PASS: register_worktree rejects invalid story_id
+=== Test 14: register_worktree appends to existing entries ===
+[WORKTREE] Registered US-002 at /tmp/tmp.i5nNN1h6te/.ql-wt/US-002
+  PASS: register_worktree appends (count=2)
+=== Test 15: register_worktree creates worktreeTracking if absent ===
+[WORKTREE] Registered US-010 at /tmp/tmp.i5nNN1h6te/.ql-wt/US-010
+  PASS: register_worktree creates tracking from scratch
+  PASS: register_worktree has 1 entry after fresh create
+=== Test 16: register_worktree requires all parameters ===
+  PASS: register_worktree rejects empty path
+  PASS: register_worktree rejects empty json_path
+=== Test 17: cleanup_stale_worktrees removes passed story worktrees ===
+  PASS: US-STALE1 worktree exists before cleanup
+  PASS: US-STALE2 worktree exists before cleanup
+Deleted branch ql-wt/US-STALE1 (was 4f90965).
+[WORKTREE] Cleaned 1 stale worktrees
+  PASS: cleanup_stale_worktrees exits 0
+  PASS: US-STALE1 worktree removed (passed story)
+  PASS: US-STALE2 worktree kept (in_progress story)
+  PASS: cleanup_stale leaves 1 active worktree
+  PASS: cleanup_stale increments cleanedThisSession
+=== Test 18: cleanup_stale_worktrees also removes failed story worktrees ===
+Deleted branch ql-wt/US-FAIL1 (was 4f90965).
+[WORKTREE] Cleaned 1 stale worktrees
+  PASS: US-FAIL1 worktree removed (failed story)
+=== Test 19: cleanup_stale_worktrees fallback when worktreeTracking absent ===
+  PASS: US-NOTRACK exists before fallback cleanup
+Deleted branch ql-wt/US-NOTRACK (was 4f90965).
+[WORKTREE] Cleaned 1 stale worktrees
+  PASS: cleanup_stale_worktrees fallback exits 0
+  PASS: US-NOTRACK removed by fallback cleanup
+=== Test 20: cleanup_stale_worktrees with no stale worktrees ===
+[WORKTREE] No stale worktrees found
+  PASS: cleanup_stale with empty list exits 0
+=== Test 21: cleanup_merged_worktrees removes specified story worktrees ===
+  PASS: US-MERGE1 exists
+  PASS: US-MERGE2 exists
+  PASS: US-MERGE3 exists
+Deleted branch ql-wt/US-MERGE1 (was 4f90965).
+Deleted branch ql-wt/US-MERGE2 (was 4f90965).
+[WORKTREE] Removing 2 merged worktrees from Wave 1
+  PASS: cleanup_merged_worktrees exits 0
+  PASS: US-MERGE1 removed by cleanup_merged
+  PASS: US-MERGE2 removed by cleanup_merged
+  PASS: US-MERGE3 untouched by cleanup_merged
+  PASS: cleanup_merged leaves 1 active worktree
+=== Test 22: cleanup_merged_worktrees with empty IDs ===
+[WORKTREE] No merged worktrees to clean
+  PASS: cleanup_merged_worktrees with empty IDs exits 0
+=== Test 23: pre_spawn_check returns 0 when under limit ===
+  PASS: pre_spawn_check under limit returns 0
+=== Test 24: pre_spawn_check returns 1 when at limit with no stale ===
+[WORKTREE] No stale worktrees found
+  PASS: pre_spawn_check at limit (no stale) returns 1
+=== Test 25: pre_spawn_check cleans stale and returns 0 ===
+Deleted branch ql-wt/US-PSTALE (was 4f90965).
+[WORKTREE] Cleaned 1 stale worktrees
+  PASS: pre_spawn_check cleans stale then returns 0
+  PASS: US-PSTALE cleaned by pre_spawn_check
+=== Test 26: pre_spawn_check requires parameters ===
+  PASS: pre_spawn_check rejects empty json_path
+  PASS: pre_spawn_check rejects empty max_worktrees
+
+=== Results: 54/54 passed, 0 failed ===
