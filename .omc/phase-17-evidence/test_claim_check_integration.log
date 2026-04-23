@@ -1,0 +1,32 @@
+=== Phase 5 Claim-Check Integration Tests ===
+
+Test 1: Clean output — exact signal, no hedge
+  PASS: signal result is STORY_PASSED
+  PASS: confidence stays exact
+  PASS: claim findings clean
+
+Test 2: Hedge phrase demotes confidence but keeps signal
+  PASS: signal still STORY_PASSED
+  PASS: confidence demoted to medium
+  PASS: claim findings mention hedge
+
+Test 3: Polite-stop phrase demotes confidence
+  PASS: signal still STORY_PASSED
+  PASS: confidence demoted to medium
+  PASS: polite-stop recorded
+
+Test 4: Stale-evidence phrase demotes confidence
+  PASS: signal still STORY_PASSED
+  PASS: confidence demoted to medium
+  PASS: stale recorded
+
+Test 5: exit_code=1 + hedge keeps FAILED, but records claim
+  PASS: signal FAILED
+  PASS: confidence demoted medium
+  PASS: hedge recorded
+
+Test 6: no signal, heuristics off, clean output
+  PASS: signal FAILED
+  PASS: claim findings clean
+
+=== Results: 17/17 passed, 0 failed ===
