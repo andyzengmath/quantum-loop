@@ -113,6 +113,28 @@ Required shape (see `skills/ql-intent-check/SKILL.md` §"Immutable intent snapsh
 Inform the user:
 > "Design saved to `docs/plans/YYYY-MM-DD-<topic>-design.md`. User intent snapshot stored in quantum.json. When you're ready to create a formal spec, run `/quantum-loop:spec`."
 
+### Phase 4c: Write stage handoff (Phase 15 / P2.3)
+
+Before exiting, write a stage-handoff document at `.handoffs/brainstorm.md` so downstream skills (`/ql-spec`, `/ql-plan`, `/ql-execute`, reviewers) can read it even after this session's context is compacted.
+
+Use `lib/handoff.sh`:
+
+```bash
+bash lib/handoff.sh write brainstorm "$(cat <<'JSON'
+{
+  "decided":   ["<each approved-section decision, verbatim>"],
+  "rejected":  ["<each alternative considered and NOT chosen, with reason>"],
+  "risks":     ["<each risk surfaced during brainstorm>"],
+  "files":     ["docs/plans/YYYY-MM-DD-<topic>-design.md"],
+  "remaining": ["<any open question left for /ql-spec to resolve>"],
+  "notes":     "<free-form tail: unanswered questions, follow-ups>"
+}
+JSON
+)"
+```
+
+Every downstream skill opens with `bash lib/handoff.sh all | jq '.'` — so any decision you record here is durable even across session boundaries.
+
 ## Anti-Rationalization Guards
 
 You WILL be tempted to skip this process. Here's why every excuse is wrong:
