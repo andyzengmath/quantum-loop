@@ -69,7 +69,7 @@ After `COMPLETE` fires, the orchestrator SHOULD invoke `/quantum-loop:ql-deep-re
 Gate steps:
 
 1. Run the wave-boundary checks on the final commit range (`BASE_SHA..HEAD_SHA`):
-   - **Cross-story constant scan** — grep the merged diff for divergent keys such as `'google'` vs `'google-api-key'` (the Math-Research regression class).
+   - **Cross-story constant scan** — `bash lib/wave-boundary.sh scan BASE HEAD` emits JSON findings for literals that canonicalize to the same key across ≥2 stories (e.g. `'google'` vs `'google-api-key'`; the Math-Research regression class). Gate via `bash lib/wave-boundary.sh gate BASE HEAD` — exit 0 = divergence found, exit 1 = clean. Non-empty findings are treated as a `medium` (2 variants) or `high` (3+ variants) severity input to the reviewer-set dispatch.
    - **Wave-wide typecheck** (`lib/resilience.sh` `run_typecheck`).
    - **Full test suite**.
    - **Barrel + dep-manifest regeneration** (`lib/barrel-regen.sh`, `lib/dep-manifest.sh`).
