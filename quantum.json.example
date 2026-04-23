@@ -18,6 +18,8 @@
   "intentDrift": {},
   "_comment_reviews": "Output from /ql-deep-review, keyed by feature-id. Contains whole-feature multi-perspective review aggregation (risk-score + tier + reviewers + findings + verdict). See skills/ql-deep-review/SKILL.md for schema.",
   "reviews": {},
+  "_comment_deslop": "Output from /ql-deslop, keyed by story-id. Each entry contains per-pass results (pass_1 dead-code, pass_2 duplication, etc.) with scope_files, findings, edits_applied, regression_check, commit sha. See skills/ql-deslop/SKILL.md for schema.",
+  "deslop": {},
   "stories": [
     {
       "id": "US-001",
