@@ -137,5 +137,22 @@ Before claiming a feature is complete, verify:
 2. **All new functions have call sites outside tests:** Use LSP "Find References" or grep
 3. **Full test suite passes:** Not just per-story tests — ALL tests
 4. **No type mismatches across story boundaries:** Use LSP "Hover" or manual inspection
+5. **Intent-drift audit (Phase 7 / P1.4):** If `quantum.json.userIntent` exists, consult the most recent `intentDrift` entry (or invoke `/quantum-loop:ql-intent-check` if missing). A `verdict` of `CRITICAL_DRIFT_BLOCKS_MERGE` **MUST** block `STORY_PASSED`/`COMPLETE` signals. A `DRIFT_DETECTED_REVIEW_REQUIRED` verdict requires user acknowledgement in the commit message or a `userClarifications[]` entry explaining the re-negotiation. `NO_DRIFT` and `MINOR_DRIFT` are passing.
+6. **Claim-check signal (Phase 5 / P1.5):** if the orchestrator exposes `SIGNAL_CLAIM_FINDINGS` non-`clean` for the current story's output, do NOT accept exact/high confidence; downgrade or escalate.
 
-This is part of the Iron Law: "it passes unit tests" is NOT evidence that the feature works. Integration evidence is required. "Each story passed its review" is NOT evidence that the stories work together.
+This is part of the Iron Law: "it passes unit tests" is NOT evidence that the feature works. Integration evidence is required. "Each story passed its review" is NOT evidence that the stories work together. **Silent scope drift** (user asked for X, implementation delivered Y) is a real-world regression mode — which is why the intent-drift gate is mandatory when the snapshot exists.
+
+### Machine-checkable gate (quantum.json excerpt)
+
+```json
+{
+  "intentDrift": {
+    "feature-task-priority": {
+      "verdict": "NO_DRIFT",
+      "summary": {"critical": 0, "high": 0, "medium": 0, "low": 0}
+    }
+  }
+}
+```
+
+Refuse to emit `<quantum>STORY_PASSED</quantum>` if `.intentDrift[<current-feature>].verdict == "CRITICAL_DRIFT_BLOCKS_MERGE"`. Emit `<quantum>STORY_FAILED</quantum>` with the drift findings in the failureLog instead.
