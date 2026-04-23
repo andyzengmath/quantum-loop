@@ -16,6 +16,8 @@
   "userClarifications": [],
   "_comment_intentDrift": "Output from /ql-intent-check, keyed by feature-id. Contains per-run drift-audit results. See skills/ql-intent-check/SKILL.md for schema.",
   "intentDrift": {},
+  "_comment_reviews": "Output from /ql-deep-review, keyed by feature-id. Contains whole-feature multi-perspective review aggregation (risk-score + tier + reviewers + findings + verdict). See skills/ql-deep-review/SKILL.md for schema.",
+  "reviews": {},
   "stories": [
     {
       "id": "US-001",

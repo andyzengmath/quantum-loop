@@ -46,3 +46,26 @@ On Windows, use `/ql-execute` instead of the shell script for reliable execution
 | `<quantum>BLOCKED</quantum>` | No executable stories remain |
 | `<quantum>STORY_PASSED</quantum>` | One story completed (more remain) |
 | `<quantum>STORY_FAILED</quantum>` | One story failed (will retry if attempts remain) |
+
+## Post-pipeline review hook (Phase 8 / P1.1 + P1.2)
+
+After `COMPLETE` fires, the orchestrator SHOULD invoke `/quantum-loop:ql-deep-review` before handing the merged branch back to the user. Opt-in via `--deep-review` (or mandatory when the feature's risk tier is HIGH / CRITICAL per `lib/deep-review.sh compute_risk_score`).
+
+Gate steps:
+
+1. Run the wave-boundary checks on the final commit range (`BASE_SHA..HEAD_SHA`):
+   - **Cross-story constant scan** — grep the merged diff for divergent keys such as `'google'` vs `'google-api-key'` (the Math-Research regression class).
+   - **Wave-wide typecheck** (`lib/resilience.sh` `run_typecheck`).
+   - **Full test suite**.
+   - **Barrel + dep-manifest regeneration** (`lib/barrel-regen.sh`, `lib/dep-manifest.sh`).
+2. Compute risk tier: `bash lib/deep-review.sh score BASE HEAD` → then `bash lib/deep-review.sh tier <score>`.
+3. Dispatch the reviewer-set specified in `skills/ql-deep-review/SKILL.md §"Risk scoring"`.
+4. Apply `lib/deep-review.sh actionability / dedup / hallucination / verdict` in sequence to aggregate findings.
+5. Persist the final review object into `quantum.reviews[<feature-id>].deepReview`.
+6. Verdicts:
+   - `BLOCKS_MERGE` → refuse handoff; emit `STORY_FAILED` with blockers in the failureLog.
+   - `REQUEST_CHANGES` → route to a targeted fix-story in the next wave.
+   - `APPROVE_WITH_COMMENTS` → proceed but log comments into `codebasePatterns`.
+   - `APPROVE` → proceed cleanly.
+
+For legacy pipelines that predate this hook, `/quantum-loop:ql-deep-review` can be invoked manually post-merge.
