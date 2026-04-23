@@ -193,6 +193,37 @@ All three MUST pass. If ANY fails:
    - EXIT
 ```
 
+## Self-review checklist (P2.5, before signaling PASSED)
+
+Before emitting `<quantum>STORY_PASSED</quantum>`, work through this structured self-audit. Raise the floor of what the reviewer sees; catch obvious misses locally rather than bouncing through review-retry.
+
+Answer each item with a one-line status. If any item fails, **do not signal yet** — fix the gap first (or mark the story failed with a specific reason).
+
+**Completeness**
+- [ ] Every acceptance criterion has a concrete evidence line (test name, file:line, or command output) cited in my output message.
+- [ ] Every `wiring_verification.must_contain` string appears verbatim in its target file.
+- [ ] Any `consumedBy` contract for this story is satisfied (I imported, not re-created).
+- [ ] No task in this story is left `in_progress` or `pending`.
+
+**Quality**
+- [ ] Every new exported symbol has at least one caller outside its own file, or the caller lives in a sibling story referenced by `consumedBy`.
+- [ ] No "while I'm here" edits — the diff traces 1:1 to the story's ACs / tasks.
+- [ ] No TODO, FIXME, or commented-out code added.
+- [ ] No secrets, API keys, or hostnames baked into literals.
+
+**Discipline**
+- [ ] Tests were written FIRST for every task with `testFirst: true`; the RED → GREEN → REFACTOR trail is visible in the commit sequence (or WIP commits in worktree mode).
+- [ ] I did NOT modify a test to make it pass. If a test's expectation is genuinely wrong, I marked that task failed rather than softening the test.
+- [ ] No pre-existing dead code was removed (that's ql-deslop's scope, not mine).
+
+**Testing**
+- [ ] `typecheck`, `lint`, and `test` all exit 0 on the final tree (cite freshly-run commands, not cached output).
+- [ ] The full project test suite ran, not just this story's tests.
+- [ ] Every edge case the PRD names (empty, boundary, collision, scale) has a test.
+- [ ] Claim-check self-scan: my output does NOT contain "should work", "probably passes", "passed earlier", "seems correct" — if it does, I rewrite it with fresh evidence before signaling.
+
+If every box is checked, proceed to **On All Checks Passing**. Otherwise, fix the gap or mark the story failed — do NOT rationalize past a missing check.
+
 ## On All Checks Passing
 
 **Sequential mode (repo root):**
@@ -246,11 +277,38 @@ The orchestrator will merge your worktree branch and update quantum.json with yo
 - Add genuinely useful patterns to codebasePatterns (not obvious things like "use import").
 - Be specific in failure logs: include exact error messages, file paths, and line numbers.
 
-## Commit Format
+## Commit Format (P2.7 — structured trailers)
 
-When all checks pass and reviews complete, commit with:
+When all checks pass and reviews complete, commit with the body template:
+
 ```
 feat: [Story ID] - [Story Title]
+
+<one-paragraph summary of what changed and why, in imperative mood>
+
+Story: US-NNN
+Story-Title: <verbatim title>
+PRD: tasks/prd-<feature>.md#AC-<n>    (or ACs this commit satisfies)
+Files-changed: <N>                    (rough scope indicator)
+
+Constraint: <anything the story forced — e.g. "must support Windows OneDrive paths">
+Directive: <any explicit user instruction I followed — e.g. "user asked for dashes in tag names">
+Rejected: <option | reason>           (repeat for each considered-and-rejected alternative)
+Confidence: high | medium | low       (on this commit's correctness)
+Scope-risk: none | contained | spreads
+Not-tested: <path | reason>           (honest admission if any path lacks coverage)
+Deslop: ran | skipped | <reason>      (whether ql-deslop ran, and why if skipped)
 ```
+
+**Trailer rules** (all optional, all machine-parseable via `lib/commit-trailers.sh`):
+
+- Each trailer is `<Key>: <value>` on its own line. Multi-line values are not allowed (keep them short).
+- `Rejected:` MAY appear multiple times — one per alternative considered.
+- `Confidence: low` on a passing story is an honest signal to the reviewer, not a failure. The reviewer may choose to escalate to `ql-deep-review` even when the story gate passes.
+- `Not-tested:` is expected to be empty on TDD stories. If non-empty, the reviewer should require a follow-up story.
+- `Scope-risk: spreads` means the change affects files outside the story's declared `filePaths`. The reviewer should re-run the wave-boundary constant scan.
+- `Deslop: skipped | <reason>` is required whenever `--no-deslop` was passed. Machine-parseable audit of what was bypassed.
+
+These trailers mirror the OMC commit-trailer protocol. `git log --grep="Rejected:"` surfaces every previously-considered alternative, so future iterations can mine the decision history rather than re-deriving it.
 
 Example: `feat: US-001 - Add priority field to database`
