@@ -1,0 +1,47 @@
+=== Phase 17 orchestrator-wiring prompt tests ===
+
+Test 1: lib/wave-boundary.sh wired at wave boundary
+  PASS: 3C.NEG1 section present
+  PASS: references wave-boundary.sh scan
+  PASS: routes HIGH severity to fix-story
+
+Test 2: lib/watchdog.sh wired in monitor loop
+  PASS: watchdog tick header
+  PASS: references watchdog.sh poll
+  PASS: status-probe action branch
+  PASS: kill-and-requeue action branch
+  PASS: mark-failed action branch
+  PASS: circuit-breaker bump
+  PASS: circuit-breaker check
+
+Test 3: lib/deep-review.sh wired at full-feature review
+  PASS: 4B.5 deep-review section
+  PASS: score-from-quantum call
+  PASS: tier lookup
+  PASS: dispatch-set call
+  PASS: context preparation
+  PASS: aggregate pipe
+  PASS: BLOCKS_MERGE handled
+  PASS: REQUEST_CHANGES handled
+  PASS: persists into quantum.reviews
+
+Test 4: lib/deslop.sh wired between review-pass and commit
+  PASS: 3A.5B deslop section
+  PASS: validate_scope gate
+  PASS: baseline snapshot before
+  PASS: compare_baseline call
+  PASS: rollback on regression
+  PASS: DESLOP_ROLLED_BACK signal
+  PASS: opt-out via story.deslop.skip
+
+Test 5: lib/commit-trailers.sh validation gate
+  PASS: commit-trailers reference
+  PASS: non-blocking warning
+
+Test 6: handoff.sh ownership is skill-side (orchestrator doesn't write)
+  PASS: orchestrator does NOT write handoffs directly (skills do)
+
+Test 7: all wirings carry a Phase-17 attribution comment
+  PASS: 5 Phase-17 attributions
+
+=== Results: 30/30 passed, 0 failed ===
