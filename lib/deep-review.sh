@@ -195,6 +195,110 @@ synthesize_verdict() {
 }
 
 # ------------------------------------------------------------------------------
+# Phase 12 / P1.3 — risk-adaptive reviewer dispatch
+# ------------------------------------------------------------------------------
+
+# dispatch_set(tier)
+# Echoes a JSON array of reviewer agent IDs that SHOULD be dispatched at the
+# given tier. Canonical table from skills/ql-deep-review/SKILL.md §"Risk
+# scoring". Each tier is a strict superset of the previous, so HIGH includes
+# all MEDIUM reviewers, and CRITICAL includes all HIGH reviewers plus the
+# cross-provider critic.
+dispatch_set() {
+  local tier="${1:?dispatch_set: tier required (LOW|MEDIUM|HIGH|CRITICAL)}"
+  case "$tier" in
+    LOW)
+      jq -cn '["oh-my-claudecode:code-reviewer","soliton:synthesizer"]' ;;
+    MEDIUM)
+      jq -cn '["oh-my-claudecode:code-reviewer","soliton:synthesizer","oh-my-claudecode:security-reviewer","oh-my-claudecode:test-engineer"]' ;;
+    HIGH)
+      jq -cn '["oh-my-claudecode:code-reviewer","soliton:synthesizer","oh-my-claudecode:security-reviewer","oh-my-claudecode:test-engineer","oh-my-claudecode:critic","oh-my-claudecode:architect"]' ;;
+    CRITICAL)
+      jq -cn '["oh-my-claudecode:code-reviewer","soliton:synthesizer","oh-my-claudecode:security-reviewer","oh-my-claudecode:test-engineer","oh-my-claudecode:critic","oh-my-claudecode:architect","omc:ask-codex-critic"]' ;;
+    *)
+      printf 'ERROR: unknown tier %q (expected LOW|MEDIUM|HIGH|CRITICAL)\n' "$tier" >&2
+      return 1 ;;
+  esac
+}
+
+# risk_score_from_quantum(quantum_json_path, base_sha, head_sha)
+# Reads intentDrift critical count from quantum.json and feeds it into
+# compute_risk_score. Convenience wrapper so callers don't have to
+# re-extract the drift signal.
+risk_score_from_quantum() {
+  local qj="${1:?risk_score_from_quantum: quantum.json path required}"
+  local base="${2:-}"
+  local head="${3:-}"
+  local drift_crit=0
+  if [[ -f "$qj" ]]; then
+    drift_crit=$(jq -r '[.intentDrift // {} | to_entries[] | .value.summary.critical // 0] | add // 0' "$qj" 2>/dev/null || echo 0)
+  fi
+  compute_risk_score "$base" "$head" "" "$drift_crit"
+}
+
+# prepare_review_context(base, head, prd_path, intent_snapshot_text, tier)
+# Emits a JSON context package that each reviewer agent receives. The shape
+# matches the skill's documented handshake — callers dispatch the agent
+# with this JSON as the argument payload.
+prepare_review_context() {
+  local base="${1:?prepare_review_context: base_sha required}"
+  local head="${2:?prepare_review_context: head_sha required}"
+  local prd_path="${3:-}"
+  local intent_text="${4:-}"
+  local tier="${5:-MEDIUM}"
+  local files
+  files=$(git diff --name-only "$base..$head" 2>/dev/null | jq -R . | jq -s '.')
+  [[ -z "$files" ]] && files='[]'
+  jq -cn \
+    --arg base "$base" --arg head "$head" \
+    --arg prd "$prd_path" --arg intent "$intent_text" \
+    --arg tier "$tier" \
+    --argjson files "$files" \
+    '{
+      base_sha: $base,
+      head_sha: $head,
+      prd_path: $prd,
+      user_intent: $intent,
+      tier: $tier,
+      changed_files: $files,
+      evidence_requirements: {
+        must_cite: ["file", "line", "evidence_type"],
+        severity: ["critical","high","medium","low","info"]
+      }
+    }'
+}
+
+# aggregate_reviews(repo_root)
+# Input: JSON array of finding arrays — one per reviewer — on stdin. Chains:
+#   flatten → actionability_filter → dedup_findings → hallucination_check →
+#   synthesize_verdict, and emits a single JSON object:
+#   { verdict, tier_findings: [kept], suppressed: [with reasons], kudos: [] }
+aggregate_reviews() {
+  local repo_root="${1:-.}"
+  local flat
+  flat=$(jq -c '[.[] | .[]]')
+  local actionable
+  actionable=$(printf '%s' "$flat" | actionability_filter)
+  local kept_action sup_action
+  kept_action=$(printf '%s' "$actionable" | jq -c '.kept')
+  sup_action=$(printf '%s' "$actionable"  | jq -c '.suppressed')
+  local deduped
+  deduped=$(printf '%s' "$kept_action" | dedup_findings)
+  local checked kept_final sup_hall
+  checked=$(printf '%s' "$deduped" | hallucination_check "$repo_root")
+  kept_final=$(printf '%s' "$checked" | jq -c '.kept')
+  sup_hall=$(printf '%s'  "$checked" | jq -c '.suppressed')
+  local verdict
+  verdict=$(printf '%s' "$kept_final" | synthesize_verdict)
+  jq -cn \
+    --argjson k "$kept_final" \
+    --argjson sa "$sup_action" \
+    --argjson sh "$sup_hall" \
+    --arg v "$verdict" \
+    '{verdict: $v, findings: $k, suppressed: ($sa + $sh)}'
+}
+
+# ------------------------------------------------------------------------------
 # CLI entry: `bash lib/deep-review.sh <subcmd>`
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   set -euo pipefail
@@ -213,6 +317,10 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     dedup)         dedup_findings ;;
     hallucination) hallucination_check "$@" ;;
     verdict)       synthesize_verdict ;;
+    dispatch-set)  dispatch_set "$@"; printf "\n" ;;
+    context)       prepare_review_context "$@"; printf "\n" ;;
+    aggregate)     aggregate_reviews "$@" ;;
+    score-from-quantum) risk_score_from_quantum "$@"; printf "\n" ;;
     *)
       cat >&2 <<USAGE
 Usage: bash lib/deep-review.sh <subcmd> [args...]
