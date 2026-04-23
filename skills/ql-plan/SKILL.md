@@ -7,6 +7,34 @@ description: "Part of the quantum-loop autonomous development pipeline (brainsto
 
 You are converting a Product Requirements Document (PRD) into a machine-readable `quantum.json` file that will drive autonomous execution. Every decision you make here determines whether the execution loop succeeds or fails.
 
+## Phase 0: Phase-skip check (Phase 18 / P2.4)
+
+Before reading the PRD, check whether a prior `/ql-plan` run already converted the same PRD + spec handoff into quantum.json:
+
+```bash
+PRD=$(ls -t tasks/prd-*.md 2>/dev/null | head -1)
+SPEC_HANDOFF=".handoffs/spec.md"
+ARGS=()
+[[ -n "$PRD" ]]             && ARGS+=("$PRD")
+[[ -f "$SPEC_HANDOFF" ]]    && ARGS+=("$SPEC_HANDOFF")
+
+if bash lib/phase-skip.sh skip plan . "${ARGS[@]}"; then
+  echo "[SKIP] plan is up-to-date — PRD + spec handoff unchanged."
+  bash lib/handoff.sh read plan | jq '.'
+  exit 0
+fi
+```
+
+After writing quantum.json and `.handoffs/plan.md`, record the fingerprint:
+
+```bash
+PRD_H=$(bash lib/phase-skip.sh hash "$PRD")
+SPEC_H=$(bash lib/phase-skip.sh hash "$SPEC_HANDOFF")
+FP=$(jq -cn --arg pp "$PRD" --arg ph "$PRD_H" --arg sp "$SPEC_HANDOFF" --arg sh "$SPEC_H" \
+  '{artifacts: [{path: $pp, sha256: $ph}, {path: $sp, sha256: $sh}]}')
+bash lib/phase-skip.sh record plan "$FP" . >/dev/null
+```
+
 ## Prerequisite: read prior-stage handoffs (Phase 15 / P2.3)
 
 Before reading the PRD, ingest every prior-stage handoff so decisions, rejected alternatives, and risks carry forward across context compaction:

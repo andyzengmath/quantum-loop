@@ -1,0 +1,52 @@
+=== Phase 8 ql-deep-review helper tests ===
+
+Test 1: tier_of_score mapping
+  PASS: 0 -> LOW
+  PASS: 30 -> LOW
+  PASS: 31 -> MEDIUM
+  PASS: 60 -> MEDIUM
+  PASS: 61 -> HIGH
+  PASS: 80 -> HIGH
+  PASS: 81 -> CRITICAL
+  PASS: 100 -> CRITICAL
+
+Test 2: compute_risk_score bounds
+  PASS: empty refs -> 0
+  PASS: intent drift contributes 10
+
+Test 3: actionability_filter
+  PASS: kept count
+  PASS: suppressed count
+  PASS: suppressed has reason
+
+Test 4: dedup_findings
+  PASS: dedup reduces 3 -> 2
+  PASS: merged agents count
+  PASS: kept max confidence
+
+Test 5: hallucination_check suppresses missing files
+  PASS: 1 file kept
+  PASS: 1 file suppressed as hallucination
+  PASS: suppressed reason
+
+Test 6: synthesize_verdict
+  PASS: empty -> APPROVE
+  PASS: only low -> APPROVE
+  PASS: medium 60 -> APPROVE_WITH_COMMENTS
+  PASS: high 75 -> REQUEST_CHANGES
+  PASS: critical 85 -> BLOCKS_MERGE
+  PASS: critical 50 (below threshold) -> APPROVE
+
+Test 7: quantum.json.example schema
+  PASS: reviews is object
+  PASS: quantum.json.example still valid JSON
+
+Test 8: ql-execute mentions the post-pipeline hook
+  PASS: post-pipeline hook header present
+  PASS: references lib/deep-review.sh
+
+Test 9: CLI subcommands work
+  PASS: CLI tier 50 -> MEDIUM
+  PASS: CLI tier 100 -> CRITICAL
+
+=== Results: 31/31 passed, 0 failed ===
