@@ -118,6 +118,29 @@ as `/quantum-loop:ql-deep-review` but at per-story scope. The two are
 complementary, not redundant: per-story catches over-building early;
 deep-review catches the cross-story convergence.
 
+### Step 5e: Constitutional Constraints (Phase 22 / P3.11)
+
+Read `quantum.json.constitution[]` — project-wide inviolable rules enforced on every story per [Constitutional SDD, arXiv:2602.02584] (73% security-defect reduction). Run `bash lib/constitution.sh enforce quantum.json <diff-file>` over the story's BASE_SHA..HEAD_SHA diff:
+
+```bash
+git diff "$BASE_SHA..$HEAD_SHA" > /tmp/ql-$STORY_ID-diff.patch
+findings=$(bash lib/constitution.sh enforce quantum.json /tmp/ql-$STORY_ID-diff.patch)
+echo "$findings" | jq '.'
+```
+
+Findings categories (severity from rule catalog):
+- `no-secrets` (critical) — hardcoded provider tokens, API keys, or passwords
+- `no-sql-injection` (critical) — raw string interpolation into SQL queries
+- `input-validation` (high) — external input read without a nearby validation call
+- `immutable-schema` (high) — destructive change to migrations or schema
+
+Disposition:
+- ANY critical finding → **FAIL** the review. Do not pass to Stage 2 (code quality).
+- `high` findings → FAIL unless the story's AC explicitly authorizes the change (check PRD).
+- The rule catalog is language-agnostic regex; false positives are expected. When you believe a finding is a false positive, open a `constitutionFalsePositives` quantum.json entry with rationale — don't silently override.
+
+If `quantum.json.constitution[]` is empty or absent, log `[CONSTITUTION] No rules configured` and proceed. The gate is opt-in per project.
+
 ### Step 6: Wiring Verification
 
 For each task in this story that has a `wiring_verification` field:

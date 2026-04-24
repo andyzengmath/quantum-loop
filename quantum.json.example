@@ -20,6 +20,12 @@
   "reviews": {},
   "_comment_deslop": "Output from /ql-deslop, keyed by story-id. Each entry contains per-pass results (pass_1 dead-code, pass_2 duplication, etc.) with scope_files, findings, edits_applied, regression_check, commit sha. See skills/ql-deslop/SKILL.md for schema.",
   "deslop": {},
+  "_comment_constitution": "Project-wide inviolable rules (Phase 22 / P3.11, Constitutional SDD arXiv:2602.02584). Each entry is either a rule-id string (e.g., 'no-secrets') or an object with 'rule' field. Active rules are enforced by spec-reviewer on every story and by deep-review on every wave. See lib/constitution.sh for the catalog.",
+  "constitution": [
+    "no-secrets",
+    "no-sql-injection",
+    "input-validation"
+  ],
   "stories": [
     {
       "id": "US-001",
