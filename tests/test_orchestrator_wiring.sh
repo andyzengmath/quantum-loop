@@ -207,6 +207,18 @@ check "should_repair gate check" "| should_repair"
 check "build_analysis_context call" "| build_analysis_context"
 check "opaque-failure bypass documented" "opaque failure"
 
+# Test 10d: Dead-code wired at Step 3A.5C post-review advisory (Phase 33 / P3.10)
+echo ""
+echo "Test 10d: lib/dead-code.sh wired at Step 3A.5C"
+check "dead-code source line present" 'source "$REPO_ROOT/lib/dead-code.sh"'
+check "DEAD_CODE_AVAILABLE fallback flag" "DEAD_CODE_AVAILABLE=true"
+check "3A.5C header present" "3A.5C: Post-generation dead-code check"
+check "find_post_commit_dead invoked" 'find_post_commit_dead "$BASE_SHA" "HEAD"'
+check "advisory trailer generated" "Dead-Code: advisory"
+check "clean-case trailer" "Dead-Code: clean"
+check "side-file path for progress attach" ".quantum-dead-code.\$STORY_ID.json"
+check "non-blocking by design documented" "non-blocking by design"
+
 # Test 11: classify_age doc comment fixed (Phase 21 consistency fix)
 echo ""
 echo "Test 11: lib/watchdog.sh doc comment corrected"

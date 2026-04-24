@@ -1,0 +1,66 @@
+=== Phase 33 dead-code tests ===
+
+Test 1: TS default import
+  PASS: TS: 1 unused import
+  PASS: TS: name=unused
+
+Test 2: TS named imports (only some unused)
+  PASS: TS: only 'beta' flagged (1)
+  PASS: TS: name=beta
+
+Test 3: TS rename alias
+  PASS: TS: alias tracks local binding (0 unused)
+
+Test 4: TS namespace
+  PASS: TS: namespace used (0 unused)
+
+Test 5: Python import
+  PASS: PY: 2 unused imports
+  PASS: PY: names = beta,unused_mod
+
+Test 6: PY rename alias
+  PASS: PY: alias tracked (0 unused)
+
+Test 7: Go imports
+  PASS: Go: 1 unused (strings)
+  PASS: Go: name=strings
+
+Test 8: Rust use
+  PASS: RS: 1 unused (File)
+  PASS: RS: name=File
+
+Test 9: TS private helpers
+  PASS: TS: 2 orphans flagged
+  PASS: TS: names = _orphan,_var_orphan
+
+Test 10: exported private NOT flagged
+  PASS: export _intentional not flagged
+
+Test 11: PY private helpers
+  PASS: PY: 1 orphan
+  PASS: PY: name=_orphan
+
+Test 12: scan_dead_code directory walk
+  PASS: aggregate imports=2
+  PASS: aggregate privates=2
+  PASS: aggregate total=4
+
+Test 13: clean file has 0 findings
+  PASS: clean: total=0
+
+Test 14: missing path handling
+  PASS: missing: total=0
+  PASS: missing: imports=[]
+
+Test 15: find_post_commit_dead git-diff driven
+  PASS: post-commit detected 2 dead (1 import + 1 private)
+
+Test 16: CLI subcommands
+  PASS: CLI imports count=1
+  PASS: CLI scan total=1
+
+Test 17: unknown extension
+  PASS: unknown ext imports=[]
+  PASS: unknown ext privates=[]
+
+=== Results: 29/29 passed, 0 failed ===
