@@ -1,0 +1,57 @@
+=== Phase 15 handoff-protocol tests ===
+
+Test 1: round-trip write → read
+  PASS: handoff file created
+  PASS: stage round-trips
+  PASS: decided[0] round-trips
+  PASS: rejected[1] round-trips
+  PASS: risks length 1
+  PASS: files[0]
+  PASS: remaining[0]
+  PASS: timestamp non-empty
+  PASS: sha non-empty
+
+Test 2: missing handoff returns empty object
+  PASS: missing handoff → {}
+
+Test 3: sparse body fills missing fields
+  PASS: decided kept
+  PASS: rejected empty []
+  PASS: risks empty []
+  PASS: files empty []
+  PASS: remaining empty []
+
+Test 4: read_all_handoffs canonical order
+  PASS: all returns 3 handoffs
+  PASS: order[0] is brainstorm
+  PASS: order[1] is spec
+  PASS: order[2] is plan
+
+Test 5: list_prior_stages
+  PASS: prior of brainstorm empty
+  PASS: prior of spec
+  PASS: prior of plan
+  PASS: prior of execute
+  PASS: prior of review
+  PASS: prior of verify
+
+Test 6: written file shape
+  PASS: stage line present
+  PASS: decided line present
+  PASS: files JSON serialized
+  PASS: frontmatter fences
+
+Test 7: CLI subcommands
+  PASS: CLI write+read round-trip
+  PASS: CLI prior plan
+
+Test 8: skills wire the handoff protocol
+  PASS: brainstorm writes handoff
+  PASS: spec reads prior handoffs
+  PASS: spec writes its handoff
+  PASS: plan reads prior handoffs
+  PASS: plan writes its handoff
+  PASS: spec references brainstorm.remaining
+  PASS: plan references spec.decided binding
+
+=== Results: 38/38 passed, 0 failed ===

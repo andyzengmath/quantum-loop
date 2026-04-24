@@ -1,0 +1,55 @@
+=== Phase 16 watchdog + circuit-breaker tests ===
+
+Test 1: classify_age thresholds
+  PASS: 0s -> fresh
+  PASS: 300s -> fresh
+  PASS: 301s -> stale-check
+  PASS: 600s -> stale-check
+  PASS: 601s -> stale-reassign
+  PASS: 1200s -> stale-reassign
+  PASS: 1201s -> stale-reassign
+  PASS: 1800s -> stale-reassign
+  PASS: 1801s -> timed-out
+  PASS: 7200s -> timed-out
+
+Test 2: watchdog_poll on empty state
+  PASS: missing quantum.json -> []
+
+Test 3: watchdog_poll fresh in_progress story
+  PASS: only the in_progress story returned
+  PASS: story_id is US-001
+  PASS: fresh -> continue
+  PASS: classification fresh
+
+Test 4: watchdog_poll stale-check (~400s old)
+  PASS: 400s -> stale-check
+  PASS: stale-check -> status-probe
+
+Test 5: watchdog_poll timed-out (>30min old)
+  PASS: 2400s -> timed-out
+  PASS: timed-out -> mark-failed
+
+Test 6: error_counter_bump same signature increments
+  PASS: first bump count 1
+  PASS: second bump count 2
+  PASS: third bump count 3
+
+Test 7: different signature resets counter
+  PASS: sig-A count reaches 2
+  PASS: sig-B resets to 1
+  PASS: sig-B next bump is 2
+
+Test 8: should_circuit_break crosses threshold
+  PASS: count=1, threshold=3 -> no break (exit 1)
+  PASS: count=3, threshold=3 -> BREAK (exit 0)
+  PASS: count=3, threshold=10 -> no break
+
+Test 9: error_counter_reset
+  PASS: after reset, no break
+  PASS: count after reset=1
+
+Test 10: CLI subcommands
+  PASS: CLI classify 500 -> stale-check
+  PASS: CLI bump first -> 1
+
+=== Results: 32/32 passed, 0 failed ===
