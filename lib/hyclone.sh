@@ -89,8 +89,9 @@ _is_keyword() {
 alpha_normalize() {
   local text="${1:-}"
   [[ -z "$text" ]] && { printf ""; return 0; }
-  # Step 1-2: strip comments. Use sed for line comments. Block comments:
-  # use awk state machine since portable sed doesn't do multiline.
+  # Step 1-2: strip comments with string-state tracking so `//`, `/*`, or
+  # `#` inside a string literal (e.g. "http://x", "/regex/") is preserved.
+  # Without string tracking the naive stripper truncates URLs/regexes/paths.
   local stripped
   stripped=$(printf '%s' "$text" | awk '
     BEGIN { in_block = 0 }
@@ -98,11 +99,28 @@ alpha_normalize() {
       line = $0
       out = ""
       i = 1
+      in_string = ""
       while (i <= length(line)) {
         c  = substr(line, i, 1)
         c2 = substr(line, i, 2)
-        if (in_block) {
+        if (in_string != "") {
+          # Inside a string — copy through; handle backslash escape
+          out = out c
+          if (c == "\\" && i + 1 <= length(line)) {
+            out = out substr(line, i+1, 1)
+            i += 2
+          } else if (c == in_string) {
+            in_string = ""
+            i += 1
+          } else {
+            i += 1
+          }
+        } else if (in_block) {
           if (c2 == "*/") { in_block = 0; i += 2 } else { i += 1 }
+        } else if (c == "\"" || c == "'\''") {
+          in_string = c
+          out = out c
+          i += 1
         } else if (c2 == "/*") {
           in_block = 1; i += 2
         } else if (c2 == "//" || c == "#") {

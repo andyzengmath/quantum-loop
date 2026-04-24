@@ -56,7 +56,9 @@ _strip_ws() {
 
 # _strip_comments(text)
 # Remove line comments (# and //) and block comments (/* ... */) for
-# grade-2 detection (comment-only change).
+# grade-2 detection (comment-only change). String literals are preserved
+# verbatim so `//` or `/*` inside "http://x" or "/regex/" is not treated
+# as a comment marker.
 _strip_comments() {
   local text="${1:-}"
   printf '%s' "$text" | awk '
@@ -65,11 +67,27 @@ _strip_comments() {
       line = $0
       out = ""
       i = 1
+      in_string = ""
       while (i <= length(line)) {
         c2 = substr(line, i, 2)
         c  = substr(line, i, 1)
-        if (in_block) {
+        if (in_string != "") {
+          out = out c
+          if (c == "\\" && i + 1 <= length(line)) {
+            out = out substr(line, i+1, 1)
+            i += 2
+          } else if (c == in_string) {
+            in_string = ""
+            i += 1
+          } else {
+            i += 1
+          }
+        } else if (in_block) {
           if (c2 == "*/") { in_block = 0; i += 2 } else { i += 1 }
+        } else if (c == "\"" || c == "'\''") {
+          in_string = c
+          out = out c
+          i += 1
         } else if (c2 == "/*") {
           in_block = 1; i += 2
         } else if (c2 == "//" || c == "#") {
