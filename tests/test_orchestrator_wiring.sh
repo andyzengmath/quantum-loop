@@ -232,6 +232,19 @@ check "intent trailer form" "Intent-Graph: jaccard="
 check "bidirectional drift documented" "bidirectional"
 check "side-file path" ".quantum-intent-graph.\$STORY_ID.json"
 
+# Test 10f: Skeleton wired at Step 3A.1 preview + Step 3A.5E drift (Phase 31 / P3.1)
+echo ""
+echo "Test 10f: lib/skeleton.sh wired at 3A.1 + 3A.5E"
+check "skeleton source line present" 'source "$REPO_ROOT/lib/skeleton.sh"'
+check "SKELETON_AVAILABLE fallback flag" "SKELETON_AVAILABLE=true"
+check "3A.1 pre-skeleton preview step" "Skeleton preview"
+check "pre-skeleton side-file" ".quantum-skeleton-pre.\$STORY_ID.md"
+check "skeleton_text invoked in pre" "skeleton_text \"\$f\""
+check "3A.5E header present" "3A.5E: Skeleton drift check"
+check "skeleton_diff invoked" 'skeleton_diff "$PRE_TMP" "$POST_TMP"'
+check "trailer form has added/removed/changed" "Skeleton: added="
+check "post-task side-file" ".quantum-skeleton-diff.\$STORY_ID.json"
+
 # Test 11: classify_age doc comment fixed (Phase 21 consistency fix)
 echo ""
 echo "Test 11: lib/watchdog.sh doc comment corrected"
