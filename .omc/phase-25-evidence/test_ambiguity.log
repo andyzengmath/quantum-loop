@@ -1,0 +1,68 @@
+=== Phase 19 ambiguity-gate tests ===
+
+Test 1: score_ambiguity arithmetic
+  PASS: all 10s -> 0
+  PASS: all 0s -> 100
+  PASS: all 5s -> 50
+  PASS: goal only -> 60
+  PASS: constraints only -> 70
+  PASS: criteria only -> 70
+
+Test 2: score_ambiguity input validation
+  PASS: 11 rejected
+  PASS: -1 rejected
+  PASS: abc rejected
+
+Test 3: check_gate semantics
+  PASS: score 0 passes
+  PASS: score 19 passes
+  PASS: score 20 blocks
+  PASS: score 50 blocks
+  PASS: score 100 blocks
+  PASS: 30 < 50 passes
+  PASS: 60 >= 50 blocks
+
+Test 4: challenge_mode thresholds
+  PASS: round 1, score 100 -> normal
+  PASS: round 2, score 80  -> normal
+  PASS: round 3, score 45  -> contrarian
+  PASS: round 3, score 35  -> normal
+  PASS: round 4, score 35  -> simplifier
+  PASS: round 4, score 25  -> normal
+  PASS: round 5, score 25  -> ontologist
+  PASS: round 5, score 15  -> normal
+  PASS: round 6, score 50  -> ontologist
+
+Test 5: ontology_extract
+  PASS: extract tokens sorted+unique
+  PASS: empty -> empty
+  PASS: stopwords dropped
+
+Test 6: ontology_diff
+  PASS: 1 added
+  PASS: 1 removed
+  PASS: 2 carried
+  PASS: stability 0.50
+  PASS: identical stability 1.0
+  PASS: empty prior stability 0.00
+
+Test 7: CLI subcommands
+  PASS: CLI score 5 5 5 = 50
+  PASS: CLI gate 10 passes
+  PASS: CLI gate 25 blocks
+  PASS: CLI mode 5 30 = ontologist
+
+Test 8: ql-brainstorm wires lib/ambiguity.sh
+  PASS: Phase 0B ambiguity gate section
+  PASS: calls lib/ambiguity.sh score
+  PASS: calls lib/ambiguity.sh gate
+  PASS: calls lib/ambiguity.sh mode
+  PASS: ontology stability tracking
+  PASS: ontology diff call
+  PASS: contrarian mode described
+  PASS: simplifier mode described
+  PASS: ontologist mode described
+  PASS: thrashing ontology escalation
+  PASS: handoff records final_score
+
+=== Results: 49/49 passed, 0 failed ===
