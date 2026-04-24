@@ -1,0 +1,59 @@
+=== Phase 14 P2.5 + P2.7 tests ===
+
+Test 1: P2.5 self-review checklist prompt
+  PASS: self-review checklist header
+  PASS: four categories Completeness
+  PASS: four categories Quality
+  PASS: four categories Discipline
+  PASS: four categories Testing
+  PASS: claim-check self-scan item
+  PASS: AC evidence line item
+  PASS: wiring_verification item
+  PASS: consumedBy item
+  PASS: don't modify tests reminder
+
+Test 2: P2.7 commit-trailer protocol
+  PASS: Commit Format (P2.7) header
+  PASS: Confidence trailer
+  PASS: Scope-risk trailer
+  PASS: Rejected trailer
+  PASS: Deslop trailer
+  PASS: Not-tested trailer
+  PASS: references lib/commit-trailers.sh
+  PASS: Rejected may repeat
+
+Test 3: parse_trailers — canonical message
+  PASS: Story US-042
+  PASS: Confidence high
+  PASS: Scope-risk contained
+  PASS: Not-tested populated
+  PASS: Rejected array has 2 entries
+  PASS: PRD path captured
+  PASS: Deslop captured
+
+Test 4: unknown trailer keys ignored
+  PASS: unknown MadeUpKey dropped
+  PASS: unknown Signed-off-by dropped
+
+Test 5: validate_trailers — well-formed passes
+  PASS: well-formed exits 0
+
+Test 6: validate_trailers — missing Story fails
+  PASS: missing Story exits non-zero
+
+Test 7: validate_trailers — low confidence without Rejected fails
+  PASS: Confidence: low without Rejected fails
+
+Test 8: validate_trailers — low confidence WITH Rejected passes
+  PASS: Confidence: low with Rejected passes
+
+Test 9: bad Scope-risk value rejected
+  PASS: Scope-risk whatever fails
+
+Test 10: CLI parse subcommand
+  PASS: CLI parse Story round-trips
+
+Test 11: extract_commit on a real commit
+  PASS: extract_commit produces JSON with Rejected key
+
+=== Results: 34/34 passed, 0 failed ===

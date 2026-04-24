@@ -195,11 +195,65 @@ Before running reviews, verify the story's new code is actually connected:
 - Pass if: 0 Critical AND < 3 Important
 - If fails: ONE fix attempt, re-review
 
+### 3A.5B: Post-review slop-cleanup (Phase 17 wiring, P1.6)
+
+Between the review gate passing and the final commit, run the per-story slop-cleanup pass using `lib/deslop.sh`. Opt-out: if `story.deslop.skip = true` in quantum.json, record trailer `Deslop: skipped | <reason>` and jump to 3A.6.
+
+```bash
+# Phase 21 fix: graceful fallback guard matching every other hardening
+# module in this orchestrator. Without the guard, a missing lib/deslop.sh
+# under `set -euo pipefail` would abort the story AFTER the review gate
+# passed, leaving it permanently stuck in in_progress.
+DESLOP_AVAILABLE=true
+[[ -f "$REPO_ROOT/lib/deslop.sh" ]] || DESLOP_AVAILABLE=false
+
+if [[ "$DESLOP_AVAILABLE" == "false" ]]; then
+  echo "[DESLOP] lib/deslop.sh not found — skipping cleanup pass for $STORY_ID" >&2
+  # Record trailer + jump to 3A.6
+  DESLOP_TRAILER="Deslop: skipped | lib/deslop.sh absent"
+else
+  STORY_FILES=$(jq -r --arg sid "$STORY_ID" \
+    '.stories[] | select(.id==$sid) | .tasks[].filePaths // [] | .[]' "$JSON_PATH")
+
+  # 1. Baseline snapshot BEFORE any cleanup edits
+  bash "$REPO_ROOT/lib/deslop.sh" baseline "/tmp/ql-deslop-$STORY_ID-before.json"
+
+  # 2. Dispatch /quantum-loop:ql-deslop (LLM-driven smell detection)
+  #    The skill MUST restrict every edit to STORY_FILES via validate_scope.
+  #    Use BASE_SHA from 3A.1 (not STORY_BASE_SHA — that variable is
+  #    undefined; Phase 21 fix for PR #28 correctness finding).
+  for f in $STORY_FILES; do
+    bash "$REPO_ROOT/lib/deslop.sh" scope "$f" "$BASE_SHA" "HEAD" || {
+      echo "[DESLOP] out-of-scope attempt on $f — rejected" >&2
+      continue
+    }
+  done
+
+  # 3. After the pass applies its edits, snapshot again and compare
+  bash "$REPO_ROOT/lib/deslop.sh" baseline "/tmp/ql-deslop-$STORY_ID-after.json"
+  if ! bash "$REPO_ROOT/lib/deslop.sh" compare \
+       "/tmp/ql-deslop-$STORY_ID-before.json" "/tmp/ql-deslop-$STORY_ID-after.json"; then
+    # 4. Rollback on regression, emit DESLOP_ROLLED_BACK
+    bash "$REPO_ROOT/lib/deslop.sh" rollback "$BASE_SHA" $STORY_FILES
+    echo "<quantum>DESLOP_ROLLED_BACK</quantum>"
+    # Do NOT advance to the next pass until user inspects.
+  fi
+
+  # 5. Persist per-pass report into quantum.deslop[<story-id>].pass_<n>
+fi
+```
+
+`lib/deslop.sh detect-language` picks the appropriate dead-code detector (knip / ts-prune / vulture / staticcheck / cargo-udeps); tooling-missing → skip-clean (not fail).
+
 ### 3A.6: On Success
 ```bash
 # Scope git add to specific files to prevent index.lock contention on main branch
 git add quantum.json <changed_files>
 git commit -m "feat: <Story ID> - <Story Title>"
+# Validate commit trailer protocol (Phase 17 wiring, P2.7). Non-blocking
+# warning if the implementer's commit message is missing required trailers:
+git log -1 --format=%B HEAD | bash "$REPO_ROOT/lib/commit-trailers.sh" validate \
+  || echo "[TRAILERS] warning — HEAD commit missing required trailers" >&2
 ```
 
 Update quantum.json:
@@ -440,6 +494,41 @@ Wait for agent completion notifications. Do NOT poll in a loop — Claude Code a
 1. Use `TaskOutput` with `block: false, timeout: 5000`
 2. Check output for `<quantum>STORY_PASSED</quantum>` or `<quantum>STORY_FAILED</quantum>`
 
+**Watchdog tick (Phase 17 wiring, P2.6):** once per check cycle, consult `lib/watchdog.sh` for staleness:
+
+```bash
+POLL=$(bash "$REPO_ROOT/lib/watchdog.sh" poll "$JSON_PATH")
+for row in $(printf '%s' "$POLL" | jq -rc '.[]'); do
+  action=$(jq -r '.recommended_action' <<< "$row")
+  sid=$(jq -r '.story_id' <<< "$row")
+  case "$action" in
+    continue)         : ;;  # no-op
+    status-probe)     echo "[WATCHDOG] $sid stale >5min — probing agent output" >&2 ;;
+    kill-and-requeue) echo "[WATCHDOG] $sid stale >10min — killing + requeueing" >&2
+                      kill_agent_process "$sid" 2>/dev/null
+                      # story status reset to pending; bump startedAt=null
+                      ;;
+    mark-failed)      echo "[WATCHDOG] $sid >30min — timed out" >&2
+                      kill_agent_process "$sid" 2>/dev/null
+                      # append failureLog with phase=watchdog-timeout
+                      ;;
+  esac
+done
+```
+
+On each repeated same-error failure for a story, bump the circuit-breaker counter:
+
+```bash
+ERR_SIG=$(extract_error_signature "$STORY_OUTPUT")  # normalized error stack/phrase
+COUNT=$(bash "$REPO_ROOT/lib/watchdog.sh" bump "$STATE_DIR" "$sid" "$ERR_SIG")
+if bash "$REPO_ROOT/lib/watchdog.sh" circuit "$STATE_DIR" "$sid"; then
+  echo "[CIRCUIT] $sid hit consecutive-same-error threshold — flagging as fundamental issue" >&2
+  # Mark status=failed with retries.maxAttempts reached; do NOT retry.
+fi
+```
+
+Reset the counter on any pass or any different-category outcome via `bash lib/watchdog.sh reset`.
+
 **On STORY_PASSED:**
 - Log: `[PASSED] US-XXX - Story Title`
 - **Merge the worktree branch** using `squash_and_merge` (from `lib/resilience.sh`) as the primary merge path when available, falling back to `classify_and_merge` or standard git merge:
@@ -615,6 +704,27 @@ This ensures parallel execution has the same quality bar as sequential, while ad
 
 After stories from a wave are merged, verify they are actually wired together. This catches the "built in isolation, never called" failure pattern.
 
+### 3C.NEG1: Wave-boundary cross-story constant scan (Phase 17 wiring, P1.1)
+
+Before any other wave-boundary check, scan the merged diff for divergent constants across stories — the Math-Research class where story A uses `'google'` and story B uses `'google-api-key'` for the same concept. Per-story review is blind to this because each story is correct in isolation.
+
+```bash
+# BASE is the wave's pre-merge SHA; HEAD is the post-merge tip
+FINDINGS=$(bash lib/wave-boundary.sh scan "$WAVE_BASE_SHA" HEAD)
+if [[ $(printf '%s' "$FINDINGS" | jq 'length') -gt 0 ]]; then
+  printf '[WAVE-BOUNDARY] Divergent constants detected:\n%s\n' "$FINDINGS" >&2
+  # Severity "high" (3+ variants) routes to a targeted fix-story;
+  # "medium" (2 variants) is logged + passed to ql-deep-review as input.
+  HIGH_COUNT=$(printf '%s' "$FINDINGS" | jq '[.[] | select(.severity=="high")] | length')
+  if [[ "$HIGH_COUNT" -gt 0 ]]; then
+    # Emit a fix-story via the same path as 3C.3 integration failures
+    echo "[WAVE-BOUNDARY] HIGH severity — routing to fix-story." >&2
+  fi
+fi
+```
+
+Findings propagate into the deep-review context (Step 4B) even if non-blocking here.
+
 ### 3C.0: Type Audit (Layer 5)
 
 Before checking for dead code, scan the wave's changed files for duplicate type definitions. This catches type divergence that slipped past L1-L4 and feeds discoveries back into contracts for subsequent waves.
@@ -774,6 +884,47 @@ git diff main...HEAD           # full diff for review
 - **Log:** Print a summary: `[FEATURE REVIEW] N files changed, M issues found (X fixed, Y deferred)`
 
 This review is NOT optional. Per-story reviews miss cross-cutting concerns. Field data: the most common post-merge issues (duplicate helpers, inconsistent naming, half-wired pipelines) are only visible at the full-feature level.
+
+### 4B.5: Deep-review aggregation (Phase 17 wiring, P1.1 + P1.2 + P1.3)
+
+After the manual checks above pass, dispatch the risk-adaptive multi-reviewer pipeline using `lib/deep-review.sh`:
+
+```bash
+# 1. Compute risk score + tier from feature diff + intent-drift signal
+SCORE=$(bash "$REPO_ROOT/lib/deep-review.sh" score-from-quantum "$JSON_PATH" "$BASE_SHA" "HEAD")
+TIER=$(bash  "$REPO_ROOT/lib/deep-review.sh" tier "$SCORE")
+echo "[DEEP-REVIEW] Risk score=$SCORE tier=$TIER"
+
+# 2. Get the reviewer set for the tier
+REVIEWERS=$(bash "$REPO_ROOT/lib/deep-review.sh" dispatch-set "$TIER")
+
+# 3. Build the context package passed to every reviewer
+INTENT_TEXT=$(jq -r '.userIntent.text // ""' "$JSON_PATH")
+CONTEXT=$(bash "$REPO_ROOT/lib/deep-review.sh" context "$BASE_SHA" "HEAD" "$PRD_PATH" "$INTENT_TEXT" "$TIER")
+
+# 4. Dispatch each reviewer in parallel via the Agent tool, passing CONTEXT
+#    as the argument payload. Collect each reviewer's findings array into a
+#    single JSON array-of-arrays ALL_FINDINGS.
+
+# 5. Run the aggregation pipeline
+AGG=$(printf '%s' "$ALL_FINDINGS" | bash "$REPO_ROOT/lib/deep-review.sh" aggregate "$REPO_ROOT")
+VERDICT=$(jq -r '.verdict' <<< "$AGG")
+
+# 6. Persist into quantum.reviews[<feature-id>].deepReview
+jq --arg fid "$FEATURE_ID" --argjson agg "$AGG" --argjson score "$SCORE" --arg tier "$TIER" \
+  '.reviews[$fid] = {deepReview: ($agg + {risk_score: $score, tier: $tier})}' \
+  "$JSON_PATH" > "$JSON_PATH.tmp" && mv "$JSON_PATH.tmp" "$JSON_PATH"
+
+# 7. Act on verdict
+case "$VERDICT" in
+  BLOCKS_MERGE)          echo "[DEEP-REVIEW] BLOCKED — refusing COMPLETE" >&2; exit 1 ;;
+  REQUEST_CHANGES)       echo "[DEEP-REVIEW] REQUEST_CHANGES — creating fix-story" >&2 ;;
+  APPROVE_WITH_COMMENTS) echo "[DEEP-REVIEW] comments logged to codebasePatterns" >&2 ;;
+  APPROVE)               echo "[DEEP-REVIEW] clean" >&2 ;;
+esac
+```
+
+The tier table scales reviewer count from 2 (LOW) to 7 (CRITICAL, adds cross-provider critic via `omc ask codex --agent-prompt critic`). See `skills/ql-deep-review/SKILL.md` for per-tier reviewer mapping.
 
 ### Step 4C: Promote Discovered Contracts
 

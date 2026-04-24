@@ -1,0 +1,50 @@
+=== Phase 12 dispatch-set tests ===
+
+Test 1: dispatch_set cardinality per tier
+  PASS: LOW has 2 reviewers
+  PASS: MEDIUM has 4 reviewers
+  PASS: HIGH has 6 reviewers
+  PASS: CRITICAL has 7 reviewers
+
+Test 2: tier subset invariant
+  PASS: LOW ⊆ MEDIUM
+  PASS: MEDIUM ⊆ HIGH
+  PASS: HIGH ⊆ CRITICAL
+
+Test 3: core reviewers always present
+  PASS: LOW has code-reviewer
+  PASS: LOW has synthesizer
+  PASS: MEDIUM has code-reviewer
+  PASS: MEDIUM has synthesizer
+  PASS: HIGH has code-reviewer
+  PASS: HIGH has synthesizer
+  PASS: CRITICAL has code-reviewer
+  PASS: CRITICAL has synthesizer
+
+Test 4: CRITICAL tier includes cross-provider critic
+  PASS: CRITICAL has omc:ask-codex-critic
+  PASS: HIGH does NOT include cross-provider critic
+
+Test 5: unknown tier errors
+  PASS: unknown tier exits 1
+
+Test 6: risk_score_from_quantum extracts critical count
+  PASS: intent drift critical=1 contributes 10
+  PASS: missing quantum.json yields 0
+
+Test 7: prepare_review_context shape
+  PASS: context has base_sha
+  PASS: context has tier
+  PASS: context has verbatim intent
+  PASS: context has 1 changed file
+  PASS: context has evidence_requirements.must_cite with 3 entries
+
+Test 8: aggregate_reviews chain
+  PASS: aggregate kept 1 finding
+  PASS: aggregate suppressed 2 findings
+  PASS: verdict REQUEST_CHANGES (high ≥70)
+
+Test 9: CLI subcommands
+  PASS: CLI dispatch-set LOW -> 2
+
+=== Results: 29/29 passed, 0 failed ===

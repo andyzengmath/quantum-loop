@@ -7,6 +7,73 @@ description: "Part of the quantum-loop autonomous development pipeline (brainsto
 
 You are conducting a structured design exploration. Your goal is to deeply understand what the user wants to build, explore the solution space, and produce an approved design document. You must NEVER start implementing.
 
+## Phase 0: Phase-skip check (Phase 18 / P2.4)
+
+Before asking any question, check whether a prior `/ql-brainstorm` run already covered this exact input:
+
+```bash
+# Inputs that define "same brainstorm": verbatim user intent + any existing design doc
+INTENT_TEXT=$(jq -r '.userIntent.text // ""' quantum.json 2>/dev/null)
+DESIGN=$(ls docs/plans/*-design.md 2>/dev/null | tail -1)  # most recent if multiple
+ARGS=()
+[[ -n "$INTENT_TEXT" ]] && ARGS+=("inline:$INTENT_TEXT")
+[[ -n "$DESIGN" ]]      && ARGS+=("$DESIGN")
+
+if bash lib/phase-skip.sh skip brainstorm . "${ARGS[@]}"; then
+  echo "[SKIP] brainstorm is up-to-date — inputs unchanged since last run."
+  echo "Re-reading .handoffs/brainstorm.md for downstream context."
+  bash lib/handoff.sh read brainstorm | jq '.'
+  # Return control to caller. No re-questioning, no design regeneration.
+  exit 0
+fi
+```
+
+If skip returns non-zero (no record, or any input changed), proceed to Phase 1. After the design is approved and Phase 4c writes the handoff, also record the fingerprint:
+
+```bash
+FP=$(jq -cn --arg ip "inline://$INTENT_TEXT" --arg ih "$(bash lib/phase-skip.sh inline "$INTENT_TEXT" | tr -d '\n')" \
+            --arg dp "$DESIGN" --arg dh "$(bash lib/phase-skip.sh hash "$DESIGN" | tr -d '\n')" \
+  '{artifacts: [{path: $ip, sha256: $ih}, {path: $dp, sha256: $dh}]}')
+bash lib/phase-skip.sh record brainstorm "$FP" . >/dev/null
+```
+
+## Phase 0B: Ambiguity gate (Phase 19 / P2.8, OMC deep-interview)
+
+The skill MUST NOT produce a design doc until the ambiguity score falls below the gate threshold. After each round of questioning (Phase 1), self-assess clarity on three weighted dimensions — goal (40%), constraints (30%), criteria (30%) — each scored 0-10. Compute the composite via `lib/ambiguity.sh`:
+
+```bash
+# After round N of questioning, self-assess clarity 0-10 on each dimension:
+GOAL_CLARITY=<0-10>        # "Can I state what this feature does in one sentence?"
+CONSTRAINTS_CLARITY=<0-10> # "Can I list every constraint (time/tech/compliance)?"
+CRITERIA_CLARITY=<0-10>    # "Can I list every success / acceptance criterion?"
+
+SCORE=$(bash lib/ambiguity.sh score "$GOAL_CLARITY" "$CONSTRAINTS_CLARITY" "$CRITERIA_CLARITY")
+MODE=$(bash lib/ambiguity.sh mode "$ROUND" "$SCORE")
+
+if bash lib/ambiguity.sh gate "$SCORE"; then
+  echo "[AMBIGUITY] score=$SCORE  <20 — gate passes, proceed to Phase 4 (design)."
+else
+  echo "[AMBIGUITY] score=$SCORE  challenge-mode=$MODE — more questions required."
+  # Apply the challenge mode before the next question:
+  #   normal      — continue clarifying questions as usual
+  #   contrarian  — challenge every assumption with an opposing view; force justification
+  #   simplifier  — push "what is the minimum that solves 80% of this?"
+  #   ontologist  — refuse to proceed until every named object has a precise definition
+fi
+```
+
+**Ontology stability tracking**: each round, extract the substantive tokens from the accumulated Q&A via `bash lib/ambiguity.sh extract "$ROUND_TEXT"`. Diff against the prior round's token set via `bash lib/ambiguity.sh diff "$PRIOR" "$CURRENT"` (emits `{added, removed, carried, stability}`). **Thrashing ontology** (stability < 0.5 for two consecutive rounds) forces the ontologist challenge mode regardless of score, because the vocabulary itself is unstable.
+
+Record the final score in `.handoffs/brainstorm.md` as part of the Phase 4c handoff write, so downstream skills can verify the gate passed:
+
+```json
+{
+  "decided":  [...],
+  "ambiguity": { "final_score": 12, "rounds": 4, "final_mode": "normal" },
+  "notes":    "..."
+}
+```
+
 ## Phase 1: Understand the Problem
 
 Read existing project files for context:

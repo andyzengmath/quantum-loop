@@ -1,0 +1,41 @@
+=== Phase 9 ql-deslop helper tests ===
+
+Test 1: validate_scope
+  PASS: in-scope file accepted (exit 0)
+  PASS: out-of-scope file rejected (exit 1)
+
+Test 2: take_baseline snapshot shape
+  PASS: snapshot has test_exit
+  PASS: snapshot has lint_exit
+  PASS: snapshot has typecheck_exit
+  PASS: snapshot test_exit = 0
+
+Test 3: compare_baseline regression detection
+  PASS: matching baselines -> clean (exit 0)
+  PASS: test regression -> dirty (exit 1)
+  PASS: improvement -> clean (exit 0)
+
+Test 4: rollback_pass restores baseline content
+  PASS: pre-rollback content
+  PASS: post-rollback content
+
+Test 5: detect_language marker-file dispatch
+  PASS: empty dir -> unknown|skip
+  PASS: tsconfig.json -> typescript
+  PASS: package.json -> javascript
+  PASS: go.mod -> go
+  PASS: Cargo.toml -> rust
+
+Test 6: quantum.json.example schema
+  PASS: deslop is object
+  PASS: quantum.json.example still valid JSON
+
+Test 7: ql-execute mentions ql-deslop hook
+  PASS: slop-cleanup hook header present
+  PASS: references lib/deslop.sh
+  PASS: mentions DESLOP_ROLLED_BACK signal
+
+Test 8: CLI entrypoints
+  PASS: CLI detect-language typescript prefix
+
+=== Results: 22/22 passed, 0 failed ===

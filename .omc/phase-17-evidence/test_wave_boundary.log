@@ -1,0 +1,36 @@
+=== Phase 11 wave-boundary helper tests ===
+
+Test 1: canonicalize
+  PASS: google stays google
+  PASS: google-api-key -> google
+  PASS: GOOGLE_API_KEY -> google
+  PASS: openai-token -> openai
+  PASS: slack_secret -> slack
+  PASS: database-url -> database
+  PASS: user_id -> user
+  PASS: my-token -> my (token suffix stripped)
+
+Test 2: divergent constants flagged
+  PASS: one finding emitted
+  PASS: canonical is google
+  PASS: 2 variants recorded
+  PASS: severity is medium (2 distinct literals)
+  PASS: gate exits 0 when divergent
+
+Test 3: clean case — same literal reused
+  PASS: clean case has no findings
+  PASS: gate exits 1 when clean
+
+Test 4: three distinct variants → severity high
+  PASS: severity is high (3 distinct literals)
+
+Test 5: single-file divergence not flagged
+  PASS: single-file divergence not flagged
+
+Test 6: short and sentence-style literals filtered
+  PASS: short/sentence literals don't spurious-match
+
+Test 7: CLI canonicalize subcommand
+  PASS: CLI canonicalize slack-api-token -> slack
+
+=== Results: 19/19 passed, 0 failed ===
