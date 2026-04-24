@@ -42,6 +42,16 @@ Discard all entries with only 1 story.
 
 For each conflicting file, determine its severity using the following rules, evaluated in priority order (first match wins):
 
+#### Rule 0: None Severity -- Already Serialized via DAG
+
+**Evaluated BEFORE all other rules.** If every pair of stories in the conflict set has a direct or transitive `dependsOn` relationship (i.e., the stories form a chain in the DAG such that no two can be co-scheduled), classify as `"none"` — the conflict is benign because the stories cannot run concurrently. The downstream story always sees the upstream story's committed state when it runs.
+
+**Algorithm:** Build a transitive-closure reachability map from the `dependsOn` edges. For each unordered pair `(A, B)` in the conflict set, check whether A reaches B or B reaches A in the closure. If every pair has at least one direction of reachability, the set is totally ordered — classify `"none"`.
+
+**Why:** Without this rule, features that serialize shared-file edits via an explicit `dependsOn` chain (a common and correct pattern for small features that all edit one driver file) get flagged `"high"` for a non-problem. The user then wonders whether they're doing something wrong. They aren't — the DAG already guarantees no concurrent edits.
+
+**Note on reporting:** Even when classified `"none"`, the conflict SHOULD still appear in the `fileConflicts` output with `severity: "none"` so tooling can distinguish "no conflict possible (serialized)" from "no conflict examined yet." A `"none"` entry is informational; it does not trigger any synthetic edges or escalation.
+
 #### Rule 1: High Severity -- Barrel/Index Files
 
 Extract the basename of the file path (the filename without directory components). If the basename matches any entry in the `barrelFilePatterns` array, classify as `"high"`.
@@ -109,7 +119,7 @@ Each entry contains:
 
 - **files**: Array with a single file path string (the conflicting file)
 - **stories**: Array of all story IDs that touch this file, sorted alphabetically
-- **severity**: One of `"high"`, `"medium"`, or `"low"` as determined by Step 3
+- **severity**: One of `"none"`, `"high"`, `"medium"`, or `"low"` as determined by Step 3. `"none"` means the stories are totally ordered via `dependsOn` and cannot run concurrently — informational only, no remediation needed.
 
 Sort the `fileConflicts` array by severity (high first, then medium, then low), and alphabetically by file path within the same severity level.
 
