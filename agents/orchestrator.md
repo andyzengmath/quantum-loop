@@ -255,6 +255,10 @@ After all tasks pass, run the three quality gates — each wrapped in the tracec
 
 On failure, follow the Observe-Analyze-Repair loop (Phase 27 / P3.8 wiring) instead of a blind retry:
 
+For each gate `g in {typecheck, lint, test}`, run the project-configured
+command `GATE_CMD` (the same command Step 3A.3 lists: `tsc --noEmit`,
+`eslint`, `npm test`, etc.) through the Observe-Analyze-Repair loop:
+
 ```bash
 # Phase 27 wiring: tracecoder-guided quality-gate repair loop.
 # Benefit over a single-pass verify: the repair step reasons on parsed
@@ -263,30 +267,32 @@ On failure, follow the Observe-Analyze-Repair loop (Phase 27 / P3.8 wiring) inst
 # low-signal loop entirely — better to fail the story fast than burn a
 # retry on a signal the LLM can't ground.
 if [[ "$TRACECODER_AVAILABLE" != "false" ]]; then
-  for gate in typecheck lint test; do
-    # Observe: run the gate and capture exit/duration/tail as JSON
-    OBS=$(observe "${GATE_CMD[$gate]}" "$gate")
-    EXIT=$(jq -r '.exit' <<< "$OBS")
-    if (( EXIT == 0 )); then continue; fi
-
-    # Should we even try to repair? Only if exit!=0 AND >=1 marker parsed
+  # Observe: run the gate and capture exit/duration/tail as JSON.
+  # $GATE_CMD is the project's gate command for this phase (typecheck /
+  # lint / test); the orchestrator agent selects it per gate.
+  OBS=$(observe "$GATE_CMD" "$GATE_NAME")
+  EXIT=$(jq -r '.exit' <<< "$OBS")
+  if (( EXIT != 0 )); then
+    # Should we even try to repair? Only if exit!=0 AND >=1 marker parsed.
     if ! printf '%s' "$OBS" | should_repair; then
-      echo "[TRACECODER] $gate failed opaquely (no parsable markers) — marking failed, no repair loop" >&2
-      mark_story_failed "$STORY_ID" "$gate" "opaque failure: $(jq -r '.tail' <<< "$OBS" | head -1)"
-      break
+      echo "[TRACECODER] $GATE_NAME failed opaquely (no parsable markers) — marking failed, no repair" >&2
+      # Agent action: mark story failed, append failureLog entry with
+      # phase=opaque-$GATE_NAME and the tail's first line as the error
+      # message, then exit the story (same contract as other failure paths).
+    else
+      # Analyze: build the LLM-ready context (markers + tail).
+      CTX=$(printf '%s' "$OBS" | build_analysis_context)
+      # Repair: the agent applies ONE focused fix informed by $CTX,
+      # scoped to the story's files, then we re-observe.
+      # (Fix application is an agent-side action, not a shell call.)
+      OBS2=$(observe "$GATE_CMD" "$GATE_NAME-retry")
+      if (( $(jq -r '.exit' <<< "$OBS2") != 0 )); then
+        # Retry did not resolve — mark story failed with phase=$GATE_NAME
+        # and the retry tail's first line as the error. Exit the story.
+        :
+      fi
     fi
-
-    # Analyze: build the LLM-ready context (markers + tail)
-    CTX=$(printf '%s' "$OBS" | build_analysis_context)
-
-    # Repair: ONE focused fix informed by the context block, then re-observe
-    apply_focused_fix "$CTX"
-    OBS2=$(observe "${GATE_CMD[$gate]}" "$gate-retry")
-    if (( $(jq -r '.exit' <<< "$OBS2") != 0 )); then
-      mark_story_failed "$STORY_ID" "$gate" "repair attempt did not resolve: $(jq -r '.tail' <<< "$OBS2" | head -1)"
-      break
-    fi
-  done
+  fi
 else
   # Graceful fallback when lib/tracecoder.sh isn't installed: legacy
   # single-pass "one focused fix attempt" path.

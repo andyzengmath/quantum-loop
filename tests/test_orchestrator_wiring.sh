@@ -202,7 +202,7 @@ echo ""
 echo "Test 10c: lib/tracecoder.sh wired at Step 3A.3"
 check "tracecoder source line present" 'source "$REPO_ROOT/lib/tracecoder.sh"'
 check "TRACECODER_AVAILABLE fallback flag" "TRACECODER_AVAILABLE=true"
-check "observe primitive invoked" 'OBS=$(observe "${GATE_CMD'
+check "observe primitive invoked" 'OBS=$(observe "$GATE_CMD"'
 check "should_repair gate check" "| should_repair"
 check "build_analysis_context call" "| build_analysis_context"
 check "opaque-failure bypass documented" "opaque failure"
