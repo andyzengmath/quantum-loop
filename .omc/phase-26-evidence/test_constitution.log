@@ -1,0 +1,51 @@
+=== Phase 22 constitution tests ===
+
+Test 1: load_constitution
+  PASS: loads 2 rules
+  PASS: missing constitution -> empty
+  PASS: missing file -> empty
+  PASS: object form with .rule
+
+Test 2: check_no_secrets detects provider tokens
+  PASS: detects sk-live token
+  PASS: detects ghp_ token
+  PASS: ignores comment about passwords (no literal)
+
+Test 3: generic password/api_key literal
+  PASS: password= long literal flagged
+  PASS: api_key= long literal flagged
+  PASS: short literal not flagged
+
+Test 4: check_sql_injection
+  PASS: flags 2 SQL injections (template + concat)
+  PASS: parameterized query not flagged
+
+Test 5: check_input_validation
+  PASS: flags 2 unvalidated handler reads
+
+Test 6: check_commit_integrity
+  PASS: flags migration file
+  PASS: flags schema.prisma
+  PASS: flags .env.example
+  PASS: does NOT flag regular source file
+
+Test 7: enforce_constitution end-to-end
+  PASS: enforce finds 2 secret+sql findings
+  PASS: input-validation skipped when not active
+  PASS: input-validation active -> finds req.body
+  PASS: no constitution -> empty JSON array
+  PASS: unknown rule -> empty findings (warn only)
+
+Test 8: finding metadata
+  PASS: severity critical
+  PASS: description set
+  PASS: rule id set
+
+Test 9: CLI enforce
+  PASS: CLI enforce returns findings
+
+Test 10: quantum.json.example schema
+  PASS: constitution is array
+  PASS: quantum.json.example still valid JSON
+
+=== Results: 28/28 passed, 0 failed ===

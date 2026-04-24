@@ -1,0 +1,62 @@
+=== Phase 20 reaper + spawn exec-capture tests ===
+
+Test 1: detect_platform recognizes current environment
+  PASS: platform is valid enum
+  (detected: msys)
+
+Test 2: _msys_to_winpid handles current PID
+  PASS: numeric winpid (34744)
+
+Test 3: write + read pidfile round-trip
+  PASS: pidfile exists
+  PASS: msys_pid round-trips
+  PASS: cmd round-trips
+  PASS: missing pidfile -> {}
+
+Test 4: is_agent_alive tracks liveness
+  PASS: alive while running
+  PASS: dead after kill
+
+Test 5: is_agent_alive on missing pidfile
+  PASS: missing pidfile -> not alive
+
+Test 6: reap_agent on already-dead process cleans pidfile
+  PASS: reap exits 0
+  PASS: pidfile removed
+
+Test 7: reap_agent terminates a live process
+  PASS: reap_agent exits 0
+  PASS: process not alive
+  PASS: pidfile removed
+
+Test 8: reap_orphans cleans stale pidfiles only
+  PASS: no stale-orphans reaped
+  PASS: dead pidfile removed
+  PASS: live pidfile kept
+
+Test 9: reap_orphans safe on missing/empty dir
+  PASS: missing dir -> 0
+  PASS: empty dir -> 0
+
+Test 10: lib/spawn.sh contains the exec-replacement fix
+  PASS: exec prepended to claude invocation
+  PASS: runner-path uses eval "exec $cmd"
+  PASS: spawn writes pidfile
+
+Test 11: quantum-loop.sh trap uses reaper
+  PASS: cleanup_on_exit calls reap_agent
+  PASS: startup calls reap_orphans
+
+Test 13: _proc_start_epoch is per-process (not a constant)
+  PASS: distinct processes have distinct start epochs (15728164 vs 15729222)
+
+Test 14: cleanup_on_exit uses parallel reap pattern
+  PASS: cleanup_on_exit parallelizes reap_agent calls
+
+Test 15: timeout branch uses reap_agent on Git Bash
+  PASS: TIMED_OUT branch prefers reap_agent
+
+Test 12: CLI subcommands work
+  PASS: CLI platform output: msys
+
+=== Results: 28/28 passed, 0 failed ===
