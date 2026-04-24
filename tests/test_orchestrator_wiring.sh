@@ -197,6 +197,16 @@ check "build_reground_context invoked" "| build_reground_context"
 check "mark_grounded invoked" 'mark_grounded "$JSON_PATH"'
 check "reground block path stable" ".quantum-reground.md"
 
+# Test 10c: TraceCoder wired at Step 3A.3 quality-gate failure path (Phase 27 / P3.8)
+echo ""
+echo "Test 10c: lib/tracecoder.sh wired at Step 3A.3"
+check "tracecoder source line present" 'source "$REPO_ROOT/lib/tracecoder.sh"'
+check "TRACECODER_AVAILABLE fallback flag" "TRACECODER_AVAILABLE=true"
+check "observe primitive invoked" 'OBS=$(observe "${GATE_CMD'
+check "should_repair gate check" "| should_repair"
+check "build_analysis_context call" "| build_analysis_context"
+check "opaque-failure bypass documented" "opaque failure"
+
 # Test 11: classify_age doc comment fixed (Phase 21 consistency fix)
 echo ""
 echo "Test 11: lib/watchdog.sh doc comment corrected"
