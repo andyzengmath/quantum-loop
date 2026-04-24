@@ -219,6 +219,19 @@ check "clean-case trailer" "Dead-Code: clean"
 check "side-file path for progress attach" ".quantum-dead-code.\$STORY_ID.json"
 check "non-blocking by design documented" "non-blocking by design"
 
+# Test 10e: Intent-graph wired at Step 3A.5D advisory (Phase 32 / P3.6)
+echo ""
+echo "Test 10e: lib/intent-graph.sh wired at Step 3A.5D"
+check "intent-graph source line present" 'source "$REPO_ROOT/lib/intent-graph.sh"'
+check "INTENT_GRAPH_AVAILABLE fallback flag" "INTENT_GRAPH_AVAILABLE=true"
+check "3A.5D header present" "3A.5D: Intent-graph drift check"
+check "extract_story_intents invoked" "| extract_story_intents"
+check "extract_code_intents invoked" 'extract_code_intents "$f"'
+check "match_intents invoked" 'match_intents "$STORY_INTENTS"'
+check "intent trailer form" "Intent-Graph: jaccard="
+check "bidirectional drift documented" "bidirectional"
+check "side-file path" ".quantum-intent-graph.\$STORY_ID.json"
+
 # Test 11: classify_age doc comment fixed (Phase 21 consistency fix)
 echo ""
 echo "Test 11: lib/watchdog.sh doc comment corrected"
