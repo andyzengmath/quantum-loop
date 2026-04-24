@@ -1,0 +1,76 @@
+=== Phase 31 skeleton tests ===
+
+Test 1: TS signatures
+  PASS: TS: 6 entries
+  PASS: TS: function add
+  PASS: TS: function sub
+  PASS: TS: class Adder
+  PASS: TS: interface IAdder
+  PASS: TS: type Pair
+  PASS: TS: enum Color
+
+Test 2: Python signatures
+  PASS: PY: 5 entries
+  PASS: PY: function add
+  PASS: PY: async fetch_data
+  PASS: PY: class Adder
+  PASS: PY: 2 methods (__init__, add)
+
+Test 3: Go signatures
+  PASS: GO: 4 entries
+  PASS: GO: func Add
+  PASS: GO: method Sum
+  PASS: GO: struct Adder
+  PASS: GO: interface Summer
+
+Test 4: Rust signatures
+  PASS: RS: 5 entries
+  PASS: RS: pub fn add
+  PASS: RS: async fn fetch
+  PASS: RS: struct Adder
+  PASS: RS: trait Summer
+  PASS: RS: enum Color
+
+Test 5: empty / missing file handling
+  PASS: missing file -> []
+  PASS: empty file -> []
+
+Test 6: unknown extension
+  PASS: unknown ext -> []
+  PASS: unknown ext + LANG=ts picks up foo
+
+Test 7: skeleton_text output shape
+  PASS: function sig present
+  PASS: trailing { stripped from output
+
+Test 8: skeleton_diff basic matching
+  PASS: added count=1
+  PASS: added name=mul
+  PASS: removed count=1
+  PASS: removed name=sub
+  PASS: changed count=1
+  PASS: changed name=add
+
+Test 9: body-only change → no skeleton drift
+  PASS: body-only: 0 added
+  PASS: body-only: 0 removed
+  PASS: body-only: 0 changed
+
+Test 10: Python rename detected as remove+add
+  PASS: py rename: 1 added
+  PASS: py rename: 1 removed
+  PASS: py added=compute
+  PASS: py removed=calculate
+
+Test 11: return-type preserved in signature
+  PASS: return type 'string' preserved
+
+Test 12: CLI subcommands
+  PASS: CLI extract count=1
+  PASS: CLI text contains name
+  PASS: CLI diff added=1
+
+Test 13: call sites are not signatures
+  PASS: no false positives from call sites
+
+=== Results: 47/47 passed, 0 failed ===

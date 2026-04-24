@@ -51,6 +51,10 @@ source "$REPO_ROOT/lib/dead-code.sh" 2>/dev/null || DEAD_CODE_AVAILABLE=false
 INTENT_GRAPH_AVAILABLE=true
 source "$REPO_ROOT/lib/intent-graph.sh" 2>/dev/null || INTENT_GRAPH_AVAILABLE=false
 
+# Source skeleton module (Phase 31 / P3.1 wiring, graceful fallback)
+SKELETON_AVAILABLE=true
+source "$REPO_ROOT/lib/skeleton.sh" 2>/dev/null || SKELETON_AVAILABLE=false
+
 # Run pre-flight checks (idempotent within 1 hour)
 if [[ "$INIT_GUARD_AVAILABLE" != "false" ]]; then
   run_preflight "$REPO_ROOT" "$JSON_PATH"
@@ -198,6 +202,27 @@ For the highest-priority eligible story:
    Tasks:   3 (T-004, T-005, T-006)
    Attempt: 1 of 3
    ```
+5. **Skeleton preview (Phase 31 / P3.1 wiring).** If `lib/skeleton.sh` is available and the story's tasks declare `filePaths`, emit the current API-surface skeleton of those files and stash it for the implementer prompt. The implementer sees both what's there now and (via 3A.5E) any drift it caused:
+   ```bash
+   if [[ "$SKELETON_AVAILABLE" != "false" ]]; then
+     TARGET_FILES=$(jq -r --arg sid "$STORY_ID" \
+       '.stories[] | select(.id==$sid) | .tasks[].filePaths // [] | .[]' "$JSON_PATH" \
+       | sort -u)
+     : > "$REPO_ROOT/.quantum-skeleton-pre.$STORY_ID.md"
+     for f in $TARGET_FILES; do
+       [[ -f "$f" ]] || continue  # new file — no pre-skeleton
+       {
+         printf "### %s\n\n\`\`\`\n" "$f"
+         skeleton_text "$f"
+         printf "\n\`\`\`\n\n"
+       } >> "$REPO_ROOT/.quantum-skeleton-pre.$STORY_ID.md"
+     done
+     # Empty file (all-new targets) is fine — the post-task 3A.5E step
+     # still runs and reports added signatures relative to an empty base.
+   fi
+   ```
+
+   The pre-skeleton is advisory context, not a contract. The implementer can add/modify/remove signatures freely; 3A.5E reports whatever happened.
 
 ### 3A.2: Implement Tasks
 Follow the implementer agent protocol for each task in order:
@@ -414,6 +439,51 @@ Why the (verb, object) graph beats keyword-set overlap:
 - Graph says "story: `delete|tokens`, code: `filter|tokens`" → surfaces the verb mismatch. Same object doesn't make the actions equivalent.
 
 The check is **bidirectional**: unmatched_story catches missing features; unmatched_code catches over-building (scope creep). Each story gets both numbers on the trailer so reviewers can see which direction drifted.
+
+### 3A.5E: Skeleton drift check (Phase 31 / P3.1 wiring)
+
+Pair to the 3A.1 pre-skeleton preview. For each file the story modified, compute `skeleton_diff` between BASE_SHA and HEAD and surface added / removed / changed signatures. Advisory — never blocks, always records a trailer.
+
+Unlike the dead-code (3A.5C) and intent-graph (3A.5D) checks which operate on raw text, this check operates on **parsed API surface**: a body-only change shows 0 drift, a signature change shows up as `changed`, and a new function shows up as `added`. That makes the trailer tight and reviewer-meaningful.
+
+```bash
+# Phase 31 wiring: skeleton drift check. One diff per changed file.
+if [[ "$SKELETON_AVAILABLE" != "false" ]]; then
+  SKEL_ADDED=0; SKEL_REMOVED=0; SKEL_CHANGED=0
+  : > "$REPO_ROOT/.quantum-skeleton-diff.$STORY_ID.json"
+  DIFF_AGG='[]'
+
+  for f in $(git diff --name-only "$BASE_SHA" "HEAD"); do
+    # Only files the skeleton lib supports
+    case "$f" in
+      *.ts|*.tsx|*.js|*.jsx|*.mjs|*.py|*.go|*.rs) : ;;
+      *) continue ;;
+    esac
+    # Materialize BASE and HEAD versions side by side for diff
+    PRE_TMP=$(mktemp --suffix=".$(basename "$f")")
+    POST_TMP=$(mktemp --suffix=".$(basename "$f")")
+    git show "$BASE_SHA:$f" > "$PRE_TMP" 2>/dev/null || : > "$PRE_TMP"
+    [[ -f "$f" ]] && cp "$f" "$POST_TMP" || : > "$POST_TMP"
+    D=$(skeleton_diff "$PRE_TMP" "$POST_TMP")
+    rm -f "$PRE_TMP" "$POST_TMP"
+    ADD_N=$(jq '.added   | length' <<< "$D")
+    REM_N=$(jq '.removed | length' <<< "$D")
+    CHG_N=$(jq '.changed | length' <<< "$D")
+    SKEL_ADDED=$((SKEL_ADDED + ADD_N))
+    SKEL_REMOVED=$((SKEL_REMOVED + REM_N))
+    SKEL_CHANGED=$((SKEL_CHANGED + CHG_N))
+    DIFF_AGG=$(jq -c --arg f "$f" --argjson d "$D" \
+      '. + [{file: $f, diff: $d}]' <<< "$DIFF_AGG")
+  done
+
+  printf '%s' "$DIFF_AGG" > "$REPO_ROOT/.quantum-skeleton-diff.$STORY_ID.json"
+  SKELETON_TRAILER="Skeleton: added=$SKEL_ADDED | removed=$SKEL_REMOVED | changed=$SKEL_CHANGED"
+else
+  SKELETON_TRAILER="Skeleton: skipped | lib/skeleton.sh absent"
+fi
+```
+
+Why a parsed-surface view matters here: a reviewer looking at a 300-line diff usually wants to know what the **shape** change is — "did this story add a new public function? did it change an exported signature?" The `added/removed/changed` counts answer those questions in one line. The JSON side-file holds the full detail (name, kind, before/after signatures) for deeper review.
 
 ### 3A.6: On Success
 ```bash
