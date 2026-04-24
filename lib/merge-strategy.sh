@@ -25,6 +25,14 @@ source "$MERGE_STRATEGY_LIB_DIR/dep-manifest.sh" 2>/dev/null || DEP_MANIFEST_AVA
 MERGE_SEMANTIC_AVAILABLE=true
 source "$MERGE_STRATEGY_LIB_DIR/merge-semantic.sh" 2>/dev/null || MERGE_SEMANTIC_AVAILABLE=false
 
+# Phase 38 / P3.2 wiring: conflict-grade for per-hunk severity routing.
+# Grade 1 whitespace / 2 rename/comment -> auto-git
+# Grade 3 small-body-edit                -> diff3 (three-way)
+# Grade 4 moderate-overlap                -> llm-merge (semantic)
+# Grade 5 structural reorg                -> escalate (operator)
+CONFLICT_GRADE_AVAILABLE=true
+source "$MERGE_STRATEGY_LIB_DIR/conflict-grade.sh" 2>/dev/null || CONFLICT_GRADE_AVAILABLE=false
+
 # get_merge_context(json_path)
 # Reads quantum.json and extracts merge-related context into a temp file.
 # Extracts: materializedContracts, progress[].filesChanged, mergeStrategy.rules, defaultAction.
@@ -505,6 +513,24 @@ classify_and_merge() {
   while IFS= read -r file; do
     [[ -z "$file" ]] && continue
     total_conflicts=$((total_conflicts + 1))
+
+    # Phase 38 / P3.2 wiring: per-hunk severity grading BEFORE category
+    # classification. Grade 5 (structural reorganization) is unsafe to
+    # auto-resolve regardless of file kind — short-circuit to escalation.
+    # Lower grades proceed through the normal category flow.
+    if [[ "$CONFLICT_GRADE_AVAILABLE" != "false" ]]; then
+      local cg_report cg_max
+      cg_report=$(cd "$repo_root" && grade_file "$file" 2>/dev/null || printf '{"max_grade":0,"hunks":[]}')
+      cg_max=$(printf '%s' "$cg_report" | jq -r '.max_grade // 0')
+      printf "[CONFLICT-GRADE] %s max_grade=%s (%s)\n" \
+        "$file" "$cg_max" "$(routing_recommendation "$cg_max" 2>/dev/null || printf 'unknown')" >&2
+      if (( cg_max >= 5 )); then
+        printf "[CONFLICT-GRADE] %s grade 5 (structural) — escalating without category attempt\n" "$file" >&2
+        escalated=true
+        escalated_files="${escalated_files}${file}\n"
+        continue
+      fi
+    fi
 
     # Classify the conflict
     local classification
