@@ -201,6 +201,42 @@ You WILL be tempted to take shortcuts. Every one of these will cause failures in
 | Skip reading codebasePatterns | You'll repeat mistakes previous iterations already solved |
 | Add patterns that aren't genuinely reusable | Noise in codebasePatterns misleads future iterations |
 
+## Platform Notes (Git Bash / MSYS / bash 4 gotchas)
+
+Surfaced during pipeline dogfood runs on Git Bash. Apply when authoring
+tests or shell helpers.
+
+**Heredoc line endings on Git Bash:** files written via bash heredoc on
+Git Bash/MSYS land with CRLF endings. `awk $0` captures the trailing
+`\r`; `read -r sig` strips `\n` but not `\r`. When matching or comparing,
+either strip `\r` defensively (`s="${s%$'\r'}"` or `tr -d '\r'`) or
+write fixtures with `printf` instead of heredocs.
+
+**Subshell exit-code capture:** inside `$(cmd 2>&1)` and under
+`set -uo pipefail`, a command that exits non-zero does NOT abort the
+assignment, but the subsequent `rc=$?` captures `$?` of whatever ran
+most recently — if you interpose another command, you lose the original
+exit code. Reliable pattern for tests:
+
+```bash
+out=$(cd "$TMP" && bash script.sh --flag 2>&1 || true)
+rc=$(cd "$TMP" && bash script.sh --flag >/dev/null 2>&1 ; echo $?)
+```
+
+Two invocations — one captures stdout with `|| true`, one captures exit
+code via explicit `; echo $?`. Inelegant but robust across Git Bash /
+MSYS and under strict shell flags.
+
+**bash 4.3+ features:** `local -n` namerefs require bash 4.3+. The
+quantum-loop repo assumes bash 4+ throughout (macOS default 3.2 is
+unsupported). If adding a helper that uses `local -n`, document it in
+the function comment so future readers aren't surprised.
+
+**Lexicographic vs numeric sort on `phase-*` dirs:** plain `sort` puts
+`phase-9` AFTER `phase-43` (because `'9' > '4'`). Use `sort -V` for
+version-style numeric sort anywhere you're finding the "latest" of a
+set of numbered siblings.
+
 ## Signal Reference
 
 | Signal | Meaning |

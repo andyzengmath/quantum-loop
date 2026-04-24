@@ -56,7 +56,7 @@ Treat `brainstorm.decided` as binding (already agreed — do not re-litigate), `
 
 ## Step 2: Ask Clarifying Questions
 
-Ask 5-8 clarifying questions. Format each with LETTERED OPTIONS so the user can respond with shorthand like "1A, 2C, 3B, 4D, 5A".
+Ask **2-8 clarifying questions** — count adaptive to remaining ambiguity (see Question Rules below). Format each with LETTERED OPTIONS so the user can respond with shorthand like "1A, 2C, 3B, 4D, 5A".
 
 Focus questions on areas where the design doc (if any) is ambiguous or incomplete:
 
@@ -86,12 +86,16 @@ Focus questions on areas where the design doc (if any) is ambiguous or incomplet
 ```
 
 ### Question Rules
-- Minimum 5 questions, maximum 8
+- **Question count is adaptive to remaining ambiguity, not a hard minimum.**
+  - If there is **no design doc** and the feature is non-trivial: ask **5-8** questions.
+  - If a **design doc exists** and answers most of Phase 1's concerns: ask only what the design doc leaves ambiguous — typically **2-4** questions. Padding beyond that produces release-ops / non-goal-confirmation questions that don't belong in a PRD.
+  - Absolute floor: **ask at least 2** questions so the user has a chance to correct course before the PRD is saved. Absolute ceiling: **8**.
 - Every question MUST have lettered options (A, B, C, D)
-- At least one question must probe NON-GOALS (what it should NOT do)
-- At least one question must probe ERROR SCENARIOS
+- At least one question MUST probe NON-GOALS (what it should NOT do)
+- At least one question MUST probe ERROR SCENARIOS
 - Do NOT ask implementation questions (framework choice, library selection)
 - If a design doc exists, do NOT re-ask questions already answered there
+- **Count-quality test:** before each question, ask yourself "is this question answered in the design doc, or would its answer materially change the PRD?" If neither, don't ask it — shallow padding is worse than fewer questions.
 
 ## Step 3: Generate the PRD
 
@@ -190,7 +194,7 @@ Every criterion must answer: "How would a machine verify this?"
 
 | Excuse | Reality |
 |--------|---------|
-| "Fewer than 5 questions is enough" | Shallow questions produce ambiguous specs. Ask at least 5. |
+| "I'll pad questions to hit 5" | Padding past real ambiguity produces release-ops / non-goal-confirmation questions that don't belong in a PRD. If the design doc answers most of Phase 1, ask only what remains genuinely open — 2-4 is fine. The floor is 2, not 5. |
 | "This story is slightly too big but it's fine" | Too-big stories fail during autonomous execution. Split ruthlessly. |
 | "The acceptance criteria are obvious" | Obvious to you is ambiguous to an AI agent. Be explicit. |
 | "Non-goals aren't needed for this feature" | Unbounded scope is the root of scope creep. Always define boundaries. |
@@ -200,7 +204,7 @@ Every criterion must answer: "How would a machine verify this?"
 ## Pre-Save Checklist
 
 Before saving the PRD, verify:
-- [ ] Asked at least 5 clarifying questions with lettered options
+- [ ] Asked 2-8 clarifying questions with lettered options (count adapted to remaining ambiguity — see Question Rules)
 - [ ] Incorporated user's answers into the PRD
 - [ ] Every user story fits in one context window
 - [ ] Every acceptance criterion is machine-verifiable
