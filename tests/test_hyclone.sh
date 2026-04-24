@@ -161,9 +161,41 @@ else
   echo "  FAIL: CLI fp length [${#cli_fp}]"; FAIL=$((FAIL + 1))
 fi
 
-# Test 12: empty input -> empty output
+# Test 12: strings containing comment markers are preserved
+# (The aggressive whitespace-strip post-process collapses spaces adjacent
+# to non-word chars even inside strings — acceptable for clone-detection
+# since "a b" and "a  b" should map to the same fingerprint.)
 echo ""
-echo "Test 12: empty input handling"
+echo "Test 12: comment markers inside string literals not treated as comments"
+# URL in double-quoted string
+n=$(alpha_normalize 'let url = "http://example.com" // real comment')
+assert "URL preserved, trailing double-slash stripped" 'let _v0="http://example.com"' "$n"
+# Regex-like in single-quoted string
+n=$(alpha_normalize "let re = '/foo/bar/' # trailing")
+assert "regex preserved, trailing hash stripped" "let _v0='/foo/bar/'" "$n"
+# Block-comment start inside string should NOT enter block-comment state
+# (spaces adjacent to punctuation collapse — that's the aggressive strip,
+# not the comment bug we're fixing; the important check is the content
+# after */ survives.)
+n=$(alpha_normalize 'let s = "/* not a comment */"')
+assert "block markers in string do not consume rest" 'let _v0="/*not a comment*/"' "$n"
+# Escaped quote inside string does not end string
+n=$(alpha_normalize 'let s = "he said \"hi\" // nope"')
+assert "escaped quotes do not terminate string" 'let _v0="he said\"hi\"//nope"' "$n"
+# Two snippets with same logic but different URL strings should produce
+# different fingerprints (the URLs themselves differ post-strip).
+f1=$(fingerprint 'fetch("http://a.com/api")')
+f2=$(fingerprint 'fetch("http://b.net/api")')
+TOTAL=$((TOTAL + 1))
+if [[ "$f1" != "$f2" ]]; then
+  echo "  PASS: different URLs -> different fingerprints (Stage-2 would catch)"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: different URLs collided"; FAIL=$((FAIL + 1))
+fi
+
+# Test 13: empty input -> empty output
+echo ""
+echo "Test 13: empty input handling"
 n=$(alpha_normalize "")
 assert "empty normalize -> empty" "" "$n"
 out=$(find_clones "[]")

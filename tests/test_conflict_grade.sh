@@ -187,6 +187,19 @@ assert "grade 3 → diff3"     "diff3"     "$(routing_recommendation 3)"
 assert "grade 4 → llm-merge" "llm-merge" "$(routing_recommendation 4)"
 assert "grade 5 → escalate"  "escalate"  "$(routing_recommendation 5)"
 
+# Test 12a: `//` and `/*` inside string literals preserved by _strip_comments
+echo ""
+echo "Test 12a: string literals not truncated at // or /*"
+# URL in string is NOT a comment — both sides identical → grade 2 (code identical post-strip)
+g=$(grade_hunk_text 'let url = "http://example.com"' 'let url = "http://example.com"')
+assert "identical URL lines → grade 1 (whitespace equiv)" "1" "$g"
+# Genuine comment change on line with URL string
+g=$(grade_hunk_text 'let url = "http://example.com" // old' 'let url = "http://example.com" // new')
+assert "URL preserved, comment-only change → grade 2" "2" "$g"
+# Different URLs → single-word rename → grade 2 (not higher)
+g=$(grade_hunk_text 'let url = "http://a.com/api"' 'let url = "http://b.net/api"')
+assert "URL content changed (single-token) → grade 2" "2" "$g"
+
 # Test 12: CLI subcommands
 echo ""
 echo "Test 12: CLI subcommands"
