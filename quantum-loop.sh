@@ -157,15 +157,107 @@ _audit_readme_conflicts() {
   fi
 }
 
+# _audit_orphan_worktrees
+# Counts .claude/worktrees/agent-* directories. Target QL_AUDIT_ORPHAN_MAX
+# (default 0). Drill = first 3 basenames.
+_audit_orphan_worktrees() {
+  local max="${QL_AUDIT_ORPHAN_MAX:-0}"
+  local -a names=()
+  local d
+  while IFS= read -r d; do
+    [[ -z "$d" ]] && continue
+    [[ -d "$d" ]] || continue
+    names+=("$(basename "$d")")
+  done < <({ ls -d .claude/worktrees/agent-* 2>/dev/null ; } || true)
+  local n="${#names[@]}"
+  if (( n <= max )); then
+    printf 'orphan-worktrees|%d|%d|OK|\n' "$n" "$max"
+  else
+    local drill
+    drill=$(_audit_drill_join names)
+    printf 'orphan-worktrees|%d|%d|FAIL|%s\n' "$n" "$max" "$drill"
+  fi
+}
+
+# _audit_cpc_files
+# Counts CPC-variant files (legacy *-CPC-*.json / *-CPC-*.md / etc).
+# Target QL_AUDIT_CPC_MAX (default 0). Drill = first 3 paths.
+_audit_cpc_files() {
+  local max="${QL_AUDIT_CPC_MAX:-0}"
+  local -a names=()
+  local f
+  while IFS= read -r f; do
+    [[ -z "$f" ]] && continue
+    names+=("$f")
+  done < <({ find . -maxdepth 3 -name '*-CPC-*' -not -path './.git/*' 2>/dev/null ; } || true)
+  local n="${#names[@]}"
+  if (( n <= max )); then
+    printf 'cpc-files|%d|%d|OK|\n' "$n" "$max"
+  else
+    local drill
+    drill=$(_audit_drill_join names)
+    printf 'cpc-files|%d|%d|FAIL|%s\n' "$n" "$max" "$drill"
+  fi
+}
+
+# _audit_test_suites
+# Inspects the most-recent .omc/phase-*-evidence/ dir for evidence logs
+# matching `=== Results: <P>/<T> passed, <F> failed ===`. Sums P/T/F.
+# OK iff F == 0. When no evidence dir exists, emits unknown/FAIL per FR-10.
+_audit_test_suites() {
+  local -a dirs=()
+  local d
+  while IFS= read -r d; do
+    [[ -z "$d" || ! -d "$d" ]] && continue
+    dirs+=("$d")
+  done < <({ ls -d .omc/phase-*-evidence 2>/dev/null ; } || true)
+  if (( ${#dirs[@]} == 0 )); then
+    printf 'test-suites|unknown|green|FAIL|no evidence logs found — run tests first\n'
+    return 0
+  fi
+  # Pick latest (lexicographic sort, highest phase number wins)
+  local latest
+  latest=$(printf '%s\n' "${dirs[@]}" | sort | tail -1)
+  local sum_p=0 sum_t=0 sum_f=0
+  local -a failing=()
+  local log line p t f
+  for log in "$latest"/*.log; do
+    [[ -f "$log" ]] || continue
+    line=$({ grep -E '^=== (Final )?Results: [0-9]+/[0-9]+ passed' "$log" 2>/dev/null ; } || true)
+    [[ -z "$line" ]] && continue
+    if [[ "$line" =~ ([0-9]+)/([0-9]+)\ passed(,\ ([0-9]+)\ failed)? ]]; then
+      p="${BASH_REMATCH[1]}"
+      t="${BASH_REMATCH[2]}"
+      f="${BASH_REMATCH[4]:-0}"
+      sum_p=$((sum_p + p))
+      sum_t=$((sum_t + t))
+      sum_f=$((sum_f + f))
+      if (( f > 0 )); then
+        failing+=("$(basename "$log" .log)")
+      fi
+    fi
+  done
+  if (( sum_f == 0 )); then
+    printf 'test-suites|%d/%d passed|green|OK|\n' "$sum_p" "$sum_t"
+  else
+    local drill
+    drill=$(_audit_drill_join failing)
+    printf 'test-suites|%d/%d passed|green|FAIL|%s\n' "$sum_p" "$sum_t" "$drill"
+  fi
+}
+
 # do_audit
-# Driver for --audit. Calls all metric helpers in canonical order, renders
+# Driver for --audit. Calls all 6 metric helpers in canonical order, renders
 # each row via _audit_format_row, returns 0 if all OK else 1.
 do_audit() {
   printf "=== Quantum-loop audit ===\n"
   local -a ROWS=()
   ROWS+=("$(_audit_branches_local)")
   ROWS+=("$(_audit_branches_remote)")
+  ROWS+=("$(_audit_orphan_worktrees)")
   ROWS+=("$(_audit_readme_conflicts)")
+  ROWS+=("$(_audit_cpc_files)")
+  ROWS+=("$(_audit_test_suites)")
   local any_fail=0 ok_count=0 total=0
   local row
   for row in "${ROWS[@]}"; do
