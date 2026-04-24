@@ -399,16 +399,87 @@ out=$(cd "$TMP" && bash "$REPO_ROOT/quantum-loop.sh" --audit 2>&1 || true)
 rc=$(cd "$TMP" && bash "$REPO_ROOT/quantum-loop.sh" --audit >/dev/null 2>&1 ; echo $?)
 TOTAL=$((TOTAL + 1))
 fail_count=$(printf '%s' "$out" | grep -cE 'FAIL$')
-if [[ "$rc" -eq 1 ]] && (( fail_count >= 4 )) \
+if [[ "$rc" -eq 1 ]] && (( fail_count == 5 )) \
    && printf '%s' "$out" | grep -q 'branches-local.*FAIL' \
    && printf '%s' "$out" | grep -q 'cpc-files.*FAIL' \
    && printf '%s' "$out" | grep -q 'orphan-worktrees.*FAIL' \
+   && printf '%s' "$out" | grep -q 'readme-conflicts.*FAIL' \
    && printf '%s' "$out" | grep -q 'test-suites.*FAIL'; then
-  echo "  PASS: full-flow all-fail (rc=$rc, fail_count=$fail_count)"; PASS=$((PASS + 1))
+  echo "  PASS: full-flow all-fail (rc=$rc, fail_count=5, all 5 metrics FAIL)"; PASS=$((PASS + 1))
 else
   echo "  FAIL: full-flow all-fail (rc=$rc, fail_count=$fail_count)"; FAIL=$((FAIL + 1))
   printf '%s\n' "$out" | sed 's/^/    /' | head -10
 fi
+rm -rf "$TMP"
+
+# --- Review-followup tests (PR #56 improvement + bug fix) ------------------
+
+# Test 25: QL_AUDIT_TEST_GLOB validation rejects shell metacharacters
+echo ""
+echo "Test 25: QL_AUDIT_TEST_GLOB validation"
+TMP=$(setup_audit_repo)
+mkdir -p "$TMP/.omc/phase-99-evidence"
+printf '=== Results: 1/1 passed, 0 failed ===\n' > "$TMP/.omc/phase-99-evidence/test_x.log"
+out=$(cd "$TMP" && QL_AUDIT_TEST_GLOB='; rm -rf /' bash "$REPO_ROOT/quantum-loop.sh" --audit 2>&1 || true)
+rc=$(cd "$TMP" && QL_AUDIT_TEST_GLOB='; rm -rf /' bash "$REPO_ROOT/quantum-loop.sh" --audit >/dev/null 2>&1 ; echo $?)
+TOTAL=$((TOTAL + 1))
+# Validation must fire BEFORE header is printed (clean-exit, no half-audit)
+if [[ "$rc" -eq 2 ]] \
+   && printf '%s' "$out" | grep -q 'invalid QL_AUDIT_TEST_GLOB' \
+   && ! printf '%s' "$out" | grep -q '=== Quantum-loop audit ==='; then
+  echo "  PASS: invalid TEST_GLOB rejected clean (no half-audit frame)"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: TEST_GLOB validation (rc=$rc)"; FAIL=$((FAIL + 1))
+  printf '%s\n' "$out" | head -5 | sed 's/^/    /'
+fi
+rm -rf "$TMP"
+
+# Test 26: QL_AUDIT_TEST_GLOB filter narrows which logs are considered
+echo ""
+echo "Test 26: QL_AUDIT_TEST_GLOB filter"
+TMP=$(setup_audit_repo)
+mkdir -p "$TMP/.omc/phase-99-evidence"
+# Two logs: one with failures, one all-green. Default "*" considers both.
+printf '=== Results: 1/1 passed, 0 failed ===\n' > "$TMP/.omc/phase-99-evidence/test_good.log"
+printf '=== Results: 3/5 passed, 2 failed ===\n' > "$TMP/.omc/phase-99-evidence/test_bad.log"
+# Filter to test_good only → OK, exit 0 (on test-suites alone)
+out_filter=$(cd "$TMP" && QL_AUDIT_TEST_GLOB='test_good' _audit_test_suites)
+# Default filter → includes test_bad → FAIL
+out_default=$(cd "$TMP" && _audit_test_suites)
+TOTAL=$((TOTAL + 1))
+case "$out_filter" in
+  test-suites\|1/1\ passed\|green\|OK\|*) pass_filter=1 ;;
+  *) pass_filter=0 ;;
+esac
+case "$out_default" in
+  test-suites\|4/6\ passed\|green\|FAIL\|*) pass_default=1 ;;
+  *) pass_default=0 ;;
+esac
+if [[ "$pass_filter" -eq 1 && "$pass_default" -eq 1 ]]; then
+  echo "  PASS: TEST_GLOB filter isolates logs correctly"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: filter=[$out_filter] default=[$out_default]"; FAIL=$((FAIL + 1))
+fi
+rm -rf "$TMP"
+
+# Test 27: Numeric sort picks phase-43 over phase-9 (regression guard)
+echo ""
+echo "Test 27: phase-dir sort is numeric, not lexicographic"
+TMP=$(setup_audit_repo)
+# Seed phase-9 with FAILING results and phase-43 with PASSING results.
+# Lexicographic sort picks phase-9 (bug); numeric sort picks phase-43 (fixed).
+# Correct behavior: audit reads phase-43 → OK.
+mkdir -p "$TMP/.omc/phase-9-evidence" "$TMP/.omc/phase-43-evidence"
+printf '=== Results: 0/1 passed, 1 failed ===\n' > "$TMP/.omc/phase-9-evidence/test_z.log"
+printf '=== Results: 5/5 passed, 0 failed ===\n' > "$TMP/.omc/phase-43-evidence/test_z.log"
+out=$(cd "$TMP" && _audit_test_suites)
+case "$out" in
+  test-suites\|5/5\ passed\|green\|OK\|*)
+    echo "  PASS: numeric sort picks phase-43 (not phase-9)"; PASS=$((PASS + 1));;
+  *)
+    echo "  FAIL: phase-sort regression — got [$out]"; FAIL=$((FAIL + 1));;
+esac
+TOTAL=$((TOTAL + 1))
 rm -rf "$TMP"
 
 echo ""

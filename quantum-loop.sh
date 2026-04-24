@@ -70,8 +70,10 @@ _audit_format_row() {
 # _audit_drill_join NAMES_VAR_REF  (bash-4 nameref pattern)
 # Given an array of offending names, emit at most the first 3 joined with
 # ", " plus "(+N more)" when there's a tail. Empty input → empty string.
+# Requires bash 4.3+ (uses `local -n` nameref). All audit code paths are
+# bash-4-only; older bashes (e.g., macOS default 3.2) are unsupported.
 _audit_drill_join() {
-  local -n _arr="$1"  # nameref
+  local -n _arr="$1"  # nameref (bash 4.3+)
   local n="${#_arr[@]}"
   if (( n == 0 )); then printf ""; return 0; fi
   local head_count=3
@@ -201,11 +203,28 @@ _audit_cpc_files() {
   fi
 }
 
+# _audit_validate_env
+# Validate env-var inputs to the audit before any output is emitted.
+# Per PRD FR-11: QL_AUDIT_TEST_GLOB must match ^[A-Za-z0-9._/*-]+$. On
+# mismatch print error + exit 2. Called from the pre-arg-loop audit
+# shortcut so invalid input never produces a half-rendered audit frame.
+_audit_validate_env() {
+  local test_glob="${QL_AUDIT_TEST_GLOB:-*}"
+  if [[ ! "$test_glob" =~ ^[A-Za-z0-9._/*-]+$ ]]; then
+    printf "Error: invalid QL_AUDIT_TEST_GLOB (must match [A-Za-z0-9._/*-]+)\n" >&2
+    exit 2
+  fi
+}
+
 # _audit_test_suites
 # Inspects the most-recent .omc/phase-*-evidence/ dir for evidence logs
 # matching `=== Results: <P>/<T> passed, <F> failed ===`. Sums P/T/F.
 # OK iff F == 0. When no evidence dir exists, emits unknown/FAIL per FR-10.
+#
+# Filtered by QL_AUDIT_TEST_GLOB (default "*", validated by
+# _audit_validate_env before this helper runs).
 _audit_test_suites() {
+  local test_glob="${QL_AUDIT_TEST_GLOB:-*}"
   local -a dirs=()
   local d
   while IFS= read -r d; do
@@ -216,13 +235,16 @@ _audit_test_suites() {
     printf 'test-suites|unknown|green|FAIL|no evidence logs found — run tests first\n'
     return 0
   fi
-  # Pick latest (lexicographic sort, highest phase number wins)
+  # Pick latest by NUMERIC phase number. Plain `sort` is lexicographic so
+  # phase-9 sorts after phase-43 (wrong). `sort -V` handles version-style
+  # numeric-aware sorting and is available on GNU + BSD + Git Bash.
   local latest
-  latest=$(printf '%s\n' "${dirs[@]}" | sort | tail -1)
+  latest=$(printf '%s\n' "${dirs[@]}" | sort -V | tail -1)
   local sum_p=0 sum_t=0 sum_f=0
   local -a failing=()
   local log line p t f
-  for log in "$latest"/*.log; do
+  # shellcheck disable=SC2231  # intentional glob expansion of validated TEST_GLOB
+  for log in "$latest"/${test_glob}.log; do
     [[ -f "$log" ]] || continue
     line=$({ grep -E '^=== (Final )?Results: [0-9]+/[0-9]+ passed' "$log" 2>/dev/null ; } || true)
     [[ -z "$line" ]] && continue
@@ -288,6 +310,7 @@ if [[ " $* " == *" --audit "* ]]; then
     printf "Error: --audit is exclusive and takes no other arguments\n" >&2
     exit 2
   fi
+  _audit_validate_env
   do_audit
   exit $?
 fi
