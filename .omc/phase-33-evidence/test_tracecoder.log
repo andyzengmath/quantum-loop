@@ -1,0 +1,58 @@
+=== Phase 27 TraceCoder tests ===
+
+Test 1: observe a passing command
+  PASS: exit=0
+  PASS: name=greeting
+  PASS: tail contains hello
+
+Test 2: observe a failing command
+  PASS: exit=1
+
+Test 3: observe merges stderr
+  PASS: both streams in tail
+
+Test 4: extract tsc-style markers
+  PASS: 1 marker parsed
+  PASS: file=src/app.ts
+  PASS: line=42
+  PASS: message captured
+
+Test 5: extract python traceback
+  PASS: 1 marker parsed
+  PASS: python file
+  PASS: python line
+
+Test 6: extract node stack
+  PASS: node stack parsed
+  PASS: node file
+  PASS: node line
+
+Test 7: multiple markers + URL noise filtering
+  PASS: 2 real markers (URL filtered)
+
+Test 8: empty tail
+  PASS: empty tail -> []
+
+Test 9: build_analysis_context shape
+  PASS: header present
+  PASS: exit code visible
+  PASS: tail section present
+
+Test 10: context includes markers
+  PASS: marker rendered in context
+
+Test 11: should_repair semantics
+  PASS: failure + markers -> 0
+  PASS: pass -> no repair (1)
+  PASS: opaque failure -> no repair (1)
+
+Test 12: tail truncates to TRACECODER_TAIL_LINES
+  PASS: tail is 10 lines
+  PASS: tail starts at line_191
+
+Test 13: CLI subcommands
+  PASS: CLI observe exit=0
+  PASS: CLI markers count=1
+  PASS: CLI should-repair exits 0
+
+=== Results: 29/29 passed, 0 failed ===

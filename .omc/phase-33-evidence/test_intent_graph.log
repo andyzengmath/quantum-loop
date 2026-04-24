@@ -1,0 +1,65 @@
+=== Phase 32 intent-graph tests ===
+
+Test 1: function name decomposition
+  PASS: camelCase: getUserById
+  PASS: snake_case: create_order
+  PASS: mixed: fetch_data_v2
+  PASS: single: validate
+
+Test 2: verb detection
+  PASS: create is verb
+  PASS: delete is verb
+  PASS: hamburger not a verb (PASS=7)
+
+Test 3: extract intents from story description
+  PASS: extracted 6 intents (>=5 expected)
+  PASS: 'delete tokens' captured
+  PASS: 'create sessions' captured
+
+Test 4: source tagging
+  PASS: title source tagged
+  PASS: description source tagged
+  PASS: ac source tagged
+  PASS: task source tagged
+
+Test 5: extract code intents from TS
+  PASS: 3 verb-led functions found
+  PASS: verbs = create,delete,get
+
+Test 6: extract code intents from Python
+  PASS: 3 verb-led (xyz excluded)
+
+Test 7: dir walk across extensions
+  PASS: 3 intents across TS+PY+GO
+
+Test 8: match full overlap
+  PASS: matched count=1
+  PASS: unmatched_story=0
+  PASS: unmatched_code=0
+  PASS: jaccard=1
+
+Test 9: partial overlap - story says delete, code says filter
+  PASS: matched (create session)
+  PASS: unmatched_story verb=delete
+  PASS: unmatched_code verb=filter
+
+Test 10: object token order normalized
+  PASS: token-order-insensitive match
+
+Test 11: empty inputs
+  PASS: empty: matched=0
+  PASS: empty: jaccard=0
+  PASS: empty code: unmatched_story=1
+
+Test 12: end-to-end story→code match
+  PASS: end-to-end matched 2 intent(s)
+
+Test 13: CLI subcommands
+  PASS: CLI story count>=1
+  PASS: CLI code count=1
+  PASS: CLI match jaccard=1
+
+Test 14: non-action function name
+  PASS: no intents (no verb prefix)
+
+=== Results: 34/34 passed, 0 failed ===
