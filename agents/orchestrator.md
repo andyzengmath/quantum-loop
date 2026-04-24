@@ -501,9 +501,18 @@ Why a parsed-surface view matters here: a reviewer looking at a 300-line diff us
 
 ### 3A.6: On Success
 ```bash
+# Assemble commit message with advisory trailers from 3A.5B/C/D/E.
+# Trailers persist the per-story check results in git log so they
+# survive context loss and are queryable via `git log --grep`.
+COMMIT_MSG="feat: <Story ID> - <Story Title>"
+[[ -n "${DESLOP_TRAILER:-}" ]]    && COMMIT_MSG+=$'\n\n'"$DESLOP_TRAILER"
+[[ -n "${DEAD_CODE_TRAILER:-}" ]] && COMMIT_MSG+=$'\n'"$DEAD_CODE_TRAILER"
+[[ -n "${INTENT_TRAILER:-}" ]]    && COMMIT_MSG+=$'\n'"$INTENT_TRAILER"
+[[ -n "${SKELETON_TRAILER:-}" ]]  && COMMIT_MSG+=$'\n'"$SKELETON_TRAILER"
+
 # Scope git add to specific files to prevent index.lock contention on main branch
 git add quantum.json <changed_files>
-git commit -m "feat: <Story ID> - <Story Title>"
+git commit -m "$COMMIT_MSG"
 # Validate commit trailer protocol (Phase 17 wiring, P2.7). Non-blocking
 # warning if the implementer's commit message is missing required trailers:
 git log -1 --format=%B HEAD | bash "$REPO_ROOT/lib/commit-trailers.sh" validate \

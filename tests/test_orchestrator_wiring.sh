@@ -289,6 +289,16 @@ check "uses WAVE_BASE_SHA diff"  'git diff --name-only "$WAVE_BASE_SHA" HEAD'
 check "persists for deep-review"  ".quantum-hyclone-wave.json"
 check "advisory not blocking documented" "advisory"
 
+# Test 10j: 3A.6 commit appends advisory trailers from 3A.5B/C/D/E
+echo ""
+echo "Test 10j: 3A.6 commit consumes advisory trailer vars"
+check "COMMIT_MSG bootstrap" 'COMMIT_MSG="feat: <Story ID> - <Story Title>"'
+check "DESLOP_TRAILER appended" '${DESLOP_TRAILER:-}'
+check "DEAD_CODE_TRAILER appended" '${DEAD_CODE_TRAILER:-}'
+check "INTENT_TRAILER appended" '${INTENT_TRAILER:-}'
+check "SKELETON_TRAILER appended" '${SKELETON_TRAILER:-}'
+check "git commit uses COMMIT_MSG" 'git commit -m "$COMMIT_MSG"'
+
 # Test 11: classify_age doc comment fixed (Phase 21 consistency fix)
 echo ""
 echo "Test 11: lib/watchdog.sh doc comment corrected"
