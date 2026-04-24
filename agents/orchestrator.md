@@ -39,6 +39,10 @@ source "$REPO_ROOT/lib/resilience.sh" 2>/dev/null || RESILIENCE_AVAILABLE=false
 REGROUND_AVAILABLE=true
 source "$REPO_ROOT/lib/reground.sh" 2>/dev/null || REGROUND_AVAILABLE=false
 
+# Source tracecoder module (Phase 27 / P3.8 wiring, graceful fallback)
+TRACECODER_AVAILABLE=true
+source "$REPO_ROOT/lib/tracecoder.sh" 2>/dev/null || TRACECODER_AVAILABLE=false
+
 # Run pre-flight checks (idempotent within 1 hour)
 if [[ "$INIT_GUARD_AVAILABLE" != "false" ]]; then
   run_preflight "$REPO_ROOT" "$JSON_PATH"
@@ -203,12 +207,57 @@ After each task: update `task.status` to `"passed"` or `"failed"` in quantum.jso
 On task failure: stop, proceed to error handling (Step 3A.7).
 
 ### 3A.3: Quality Checks
-After all tasks pass, run:
+After all tasks pass, run the three quality gates — each wrapped in the tracecoder `observe` primitive so the failure path has structured evidence to reason over:
 1. Typecheck (tsc --noEmit, pyright, mypy, etc.)
 2. Lint (eslint, ruff, etc.)
 3. Full test suite (npm test, pytest, etc.)
 
-If any check fails: ONE focused fix attempt, re-run. If still fails -> mark story failed.
+On failure, follow the Observe-Analyze-Repair loop (Phase 27 / P3.8 wiring) instead of a blind retry:
+
+```bash
+# Phase 27 wiring: tracecoder-guided quality-gate repair loop.
+# Benefit over a single-pass verify: the repair step reasons on parsed
+# error markers (file:line extraction), not raw log bytes; and an
+# opaque failure (non-zero exit, no recognizable markers) bypasses the
+# low-signal loop entirely — better to fail the story fast than burn a
+# retry on a signal the LLM can't ground.
+if [[ "$TRACECODER_AVAILABLE" != "false" ]]; then
+  for gate in typecheck lint test; do
+    # Observe: run the gate and capture exit/duration/tail as JSON
+    OBS=$(observe "${GATE_CMD[$gate]}" "$gate")
+    EXIT=$(jq -r '.exit' <<< "$OBS")
+    if (( EXIT == 0 )); then continue; fi
+
+    # Should we even try to repair? Only if exit!=0 AND >=1 marker parsed
+    if ! printf '%s' "$OBS" | should_repair; then
+      echo "[TRACECODER] $gate failed opaquely (no parsable markers) — marking failed, no repair loop" >&2
+      mark_story_failed "$STORY_ID" "$gate" "opaque failure: $(jq -r '.tail' <<< "$OBS" | head -1)"
+      break
+    fi
+
+    # Analyze: build the LLM-ready context (markers + tail)
+    CTX=$(printf '%s' "$OBS" | build_analysis_context)
+
+    # Repair: ONE focused fix informed by the context block, then re-observe
+    apply_focused_fix "$CTX"
+    OBS2=$(observe "${GATE_CMD[$gate]}" "$gate-retry")
+    if (( $(jq -r '.exit' <<< "$OBS2") != 0 )); then
+      mark_story_failed "$STORY_ID" "$gate" "repair attempt did not resolve: $(jq -r '.tail' <<< "$OBS2" | head -1)"
+      break
+    fi
+  done
+else
+  # Graceful fallback when lib/tracecoder.sh isn't installed: legacy
+  # single-pass "one focused fix attempt" path.
+  # If any check fails: ONE focused fix attempt, re-run. If still fails -> mark story failed.
+  :
+fi
+```
+
+Why this shape:
+- **Structured evidence beats raw logs.** `extract_error_markers` turns a log tail into `[{file, line, message}]` so the focused-fix step reasons at the right granularity.
+- **Opaque failures exit fast.** A segfault or a runner crash with no `file:line:` marker gives the repair step nothing to ground on — waste a retry and you're no closer. Better to surface the story as failed and let the retry-reset path try a cleaner spawn.
+- **One retry budget.** Still at most one repair attempt per gate. The budget isn't the change; the analysis quality is.
 
 ### 3A.4: Integration Wiring Check
 Before running reviews, verify the story's new code is actually connected:
