@@ -7,6 +7,17 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.5.1] - 2026-04-24
+
+### Added
+
+- **`quantum-loop.sh --audit`** (#56) — read-only repo-hygiene check that prints the six IDEA_REPORT §6 measurement metrics with drill-down on failures. Exit 0 all-OK, exit 1 any off-target, exit 2 misuse. Env-tunable thresholds via `QL_AUDIT_BRANCH_MAX` / `QL_AUDIT_ORPHAN_MAX` / `QL_AUDIT_CONFLICT_MAX` / `QL_AUDIT_CPC_MAX`.
+- **`docs/plans/2026-04-24-audit-flag-design.md`** + **`tasks/prd-audit-flag.md`** (#57) — pipeline artifacts from dogfooding `/ql-brainstorm` + `/ql-spec` on the audit feature. Preserves the IDEA_REPORT §6 → design → PRD → shipped-feature traceback.
+
+### Dogfood milestone
+
+First real pipeline self-use. The `/ql-brainstorm` → `/ql-spec` → `/ql-plan` → `/ql-execute` cycle drove a complete 4-story feature end-to-end. Findings captured in #56 PR body for follow-up skill refinements (question-count rigidity in ql-spec, placeholder-drift across stories, file-conflict serialization heuristics).
+
 ## [0.5.0] - 2026-04-24
 
 ### Added — P3 academic-wedge libraries (10 libs)
