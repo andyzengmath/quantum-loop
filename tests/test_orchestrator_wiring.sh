@@ -245,6 +245,19 @@ check "skeleton_diff invoked" 'skeleton_diff "$PRE_TMP" "$POST_TMP"'
 check "trailer form has added/removed/changed" "Skeleton: added="
 check "post-task side-file" ".quantum-skeleton-diff.\$STORY_ID.json"
 
+# Test 10g: Trajectory wired into monitor loop (Phase 24 / P3.5)
+echo ""
+echo "Test 10g: lib/trajectory.sh wired in Step 3B.3"
+check "trajectory source line present" 'source "$REPO_ROOT/lib/trajectory.sh"'
+check "TRAJECTORY_AVAILABLE fallback flag" "TRAJECTORY_AVAILABLE=true"
+check "Trajectory tick header" "Trajectory tick"
+check "parse_trajectory invoked" 'parse_trajectory "$LOG"'
+check "should_early_kill gate" "| should_early_kill"
+check "classify_trajectory for log category" "| classify_trajectory"
+check "agent log path convention documented" ".ql-wt/\$sid/agent.log"
+check "reap_agent integration (Phase 20)" "reap_agent"
+check "failureLog phase=trajectory-\$cls" '"trajectory-" + $cls'
+
 # Test 11: classify_age doc comment fixed (Phase 21 consistency fix)
 echo ""
 echo "Test 11: lib/watchdog.sh doc comment corrected"
