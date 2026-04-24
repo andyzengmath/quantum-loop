@@ -186,6 +186,17 @@ else
 fi
 rm -rf "$TEST_TMPDIR" /tmp/rbc-stderr
 
+# Test 10b: Re-grounding wired at Step 1C (Phase 28 / P3.9 wiring)
+echo ""
+echo "Test 10b: lib/reground.sh wired at Step 1C"
+check "reground source line present" 'source "$REPO_ROOT/lib/reground.sh"'
+check "REGROUND_AVAILABLE fallback flag" "REGROUND_AVAILABLE=true"
+check "Step 1C header present" "Step 1C: Periodic Re-grounding"
+check "should_reground invoked" "| should_reground"
+check "build_reground_context invoked" "| build_reground_context"
+check "mark_grounded invoked" 'mark_grounded "$JSON_PATH"'
+check "reground block path stable" ".quantum-reground.md"
+
 # Test 11: classify_age doc comment fixed (Phase 21 consistency fix)
 echo ""
 echo "Test 11: lib/watchdog.sh doc comment corrected"

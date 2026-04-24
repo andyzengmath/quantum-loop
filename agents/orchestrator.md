@@ -35,6 +35,10 @@ source "$REPO_ROOT/lib/init-guard.sh" 2>/dev/null || INIT_GUARD_AVAILABLE=false
 RESILIENCE_AVAILABLE=true
 source "$REPO_ROOT/lib/resilience.sh" 2>/dev/null || RESILIENCE_AVAILABLE=false
 
+# Source re-grounding module (Phase 28 / P3.9 wiring, graceful fallback)
+REGROUND_AVAILABLE=true
+source "$REPO_ROOT/lib/reground.sh" 2>/dev/null || REGROUND_AVAILABLE=false
+
 # Run pre-flight checks (idempotent within 1 hour)
 if [[ "$INIT_GUARD_AVAILABLE" != "false" ]]; then
   run_preflight "$REPO_ROOT" "$JSON_PATH"
@@ -83,6 +87,38 @@ fi
 ```
 
 `detect_resumable_work` (from `lib/resilience.sh`) inspects the stale story's worktree branch for WIP commits. If it finds commits that contain completed task work, it returns `resumable:<completed_task_ids>`. The orchestrator can then pass this information to the re-spawned agent, allowing it to skip already-completed tasks rather than starting from scratch. If no WIP commits are found or the worktree has been cleaned up, it returns `none` and the story starts fresh.
+
+## Step 1C: Periodic Re-grounding (Phase 28 / P3.9 wiring)
+
+After stale-detection and before the DAG query, check whether enough iterations have elapsed since the last re-grounding. If so, emit a re-grounding block that will be prepended to the next implementer/subagent prompt to mitigate PRD drift over long sessions.
+
+```bash
+# Phase 28 wiring: re-grounding gate. Guards against PRD drift after
+# many story iterations. No-op when the library is not installed.
+if [[ "$REGROUND_AVAILABLE" != "false" ]]; then
+  if cat "$JSON_PATH" | should_reground; then
+    echo "[REGROUND] iteration gate triggered — emitting re-grounding context"
+    REGROUND_BLOCK=$(cat "$JSON_PATH" | build_reground_context)
+    # Stash the block for 3A.1 / 3B.2 to prepend to the implementer prompt.
+    # Path is stable within this orchestrator iteration.
+    printf '%s' "$REGROUND_BLOCK" > "$REPO_ROOT/.quantum-reground.md"
+    mark_grounded "$JSON_PATH"
+  else
+    # No-op: delta below REGROUND_INTERVAL. Clear any stale file from
+    # a prior iteration so 3A.1/3B.2 don't re-inject outdated context.
+    rm -f "$REPO_ROOT/.quantum-reground.md"
+  fi
+fi
+```
+
+Tunables (all env-overrideable, defaults applied at source time):
+- `REGROUND_INTERVAL=5` — re-ground every N stories
+- `REGROUND_PRD_HEAD_LINES=20` — PRD excerpt length in the block
+- `REGROUND_NEXT_STORIES=3` — upcoming-stories preview count
+
+The block lives in `.quantum-reground.md` during this iteration. Sequential mode (Step 3A.1) reads it and prepends to the implementer prompt. Parallel mode (Step 3B.2) reads it and prepends to each subagent prompt. The file is cleared on the next iteration when `should_reground` returns false, preventing repeated re-grounding across consecutive iterations.
+
+If `lib/reground.sh` is not present (older installations), `REGROUND_AVAILABLE=false` and this step is skipped — execution continues normally.
 
 ## Step 2: Query DAG
 
