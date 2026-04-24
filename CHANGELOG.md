@@ -7,6 +7,58 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.5.0] - 2026-04-24
+
+### Added — P3 academic-wedge libraries (10 libs)
+
+All ten wedges from `idea-stage/IDEA_REPORT.md` §P3 landed with a consistent contract pattern (no shell flags at source time, CLI block enables strict mode, env-var tunables, readonly arrays guarded against re-source).
+
+- **`lib/constitution.sh`** (P3.11, arXiv:2602.02584) — regex-based invariants on generated code: hardcoded-secret scan, SQL-injection pattern, input-validation presence, immutable-schema rule.
+- **`lib/deep-review.sh` `far_filter`** (P3.3/P3.4, arXiv:2505.17928 + arXiv:2604.03196) — KBI→FAR reviewer split with agreement boost, confidence cutoff, known-false-positive regex suppression.
+- **`lib/trajectory.sh`** (P3.5, arXiv:2511.00197) — tool-shape thrashing detection: `parse_trajectory` / `classify_trajectory` (productive | searching | thrashing | stuck) / `should_early_kill`.
+- **`lib/hyclone.sh`** (P3.7, arXiv:2508.01357) — Stage-1 semantic-clone fingerprint: alpha-normalize + sha256 + `find_clones` grouping.
+- **`lib/conflict-grade.sh`** (P3.2, ConGra arXiv:2409.14121) — per-hunk conflict severity grading 1-5 + routing to `auto-git | diff3 | llm-merge | escalate`.
+- **`lib/tracecoder.sh`** (P3.8, arXiv:2602.06875) — Observe-Analyze-Repair primitives: `observe` / `extract_error_markers` / `build_analysis_context` / `should_repair`.
+- **`lib/reground.sh`** (P3.9, arXiv:2603.00492) — session-level drift mitigation: re-inject PRD + progress + iron-law reminder every N stories.
+- **`lib/skeleton.sh`** (P3.1 SSAT, arXiv:2303.06689) — signature-level API surface: `extract_skeleton` / `skeleton_text` / `skeleton_diff` across TS/JS/Python/Go/Rust.
+- **`lib/intent-graph.sh`** (P3.6, arXiv:2604.11209) — formal semantic-intent extraction: `(verb, object)` triples from stories + code with bidirectional drift reporting.
+- **`lib/dead-code.sh`** (P3.10, arXiv:2604.07291) — regex-based unused-import + unused-private-helper detection across TS/JS/Python/Go/Rust.
+
+### Added — Orchestrator wirings (8 integration points)
+
+Every new lib wired into the orchestrator via grep-assertion-covered integration points. `test_orchestrator_wiring.sh` grew from 40 → 106 assertions, none can silently unwire a lib.
+
+- **Step 1C** (reground) — periodic re-grounding, gate on `REGROUND_INTERVAL` stories.
+- **Step 3A.1 sub-5** (skeleton) — pre-task API-surface preview.
+- **Step 3A.3** (tracecoder) — Observe-Analyze-Repair wrapper on typecheck/lint/test gates.
+- **Step 3A.5C** (dead-code) — post-generation advisory unused-import/private scan.
+- **Step 3A.5D** (intent-graph) — post-generation advisory verb-object drift check.
+- **Step 3A.5E** (skeleton) — post-task skeleton-diff drift report.
+- **Step 3A.6** (trailers) — advisory trailers appended to commit message for durability in `git log`.
+- **Step 3B.3** (trajectory) — monitor-loop tick alongside watchdog; kill path via `reap_agent`.
+- **Step 3C.NEG0** (hyclone) — wave-boundary cross-story clone detection.
+- **`lib/merge-strategy.sh`** (conflict-grade) — grade 5 short-circuits to escalation; grades 1-4 logged alongside category routing.
+
+### Fixed
+
+- **String-unsafe comment stripper** in `lib/hyclone.sh` and `lib/conflict-grade.sh` — awk passes now track string state so `//`, `/*`, `#` inside a string literal are preserved verbatim (e.g., `"http://x"`, `"/regex/"`, `"/* not a comment */"`).
+- **Trajectory wiring log-path mismatch** — orchestrator now reads `.ql-wt/$sid/.ql-agent-output.txt` (spawn.sh convention) instead of the non-existent `.ql-wt/$sid/agent.log`.
+- **TraceCoder wiring pseudocode** — removed undefined `GATE_CMD[$gate]` / `mark_story_failed` / `apply_focused_fix` identifiers; replaced with prose agent-action comments matching the pattern used elsewhere (watchdog mark-failed, etc.).
+- **test_typecheck_gate 12 failures** — added `TYPECHECK_EXTRA_ALLOWED_PREFIXES` env var to extend the security allowlist for test fixtures without weakening the runtime gate.
+- **Advisory trailers dead code** — Steps 3A.5B/C/D/E each set a trailer variable but none were appended to the 3A.6 commit. `git log` grep workflow was unusable. Now each trailer is guarded-appended to `COMMIT_MSG` before commit.
+
+### Measurement targets (per IDEA_REPORT §6)
+
+| Target | Goal | Achieved |
+|--------|------|----------|
+| CPC variant files | 0 | ✓ 0 |
+| README conflict markers | 0 | ✓ 0 |
+| Orphan `.claude/worktrees/agent-*` | 0 | ✓ 0 |
+| Remote branch count | ≤10 | ✓ 1 (master) |
+| Local branch count | ≤10 | ✓ 1 (master) |
+| Archive tags preserved | — | 49 |
+| Master test suites green | 100% | ✓ 54/54 (~1,400 tests) |
+
 ## [0.4.1] - 2026-04-01
 
 ### Added
