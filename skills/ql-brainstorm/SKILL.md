@@ -7,6 +7,36 @@ description: "Part of the quantum-loop autonomous development pipeline (brainsto
 
 You are conducting a structured design exploration. Your goal is to deeply understand what the user wants to build, explore the solution space, and produce an approved design document. You must NEVER start implementing.
 
+## Phase 0: Phase-skip check (Phase 18 / P2.4)
+
+Before asking any question, check whether a prior `/ql-brainstorm` run already covered this exact input:
+
+```bash
+# Inputs that define "same brainstorm": verbatim user intent + any existing design doc
+INTENT_TEXT=$(jq -r '.userIntent.text // ""' quantum.json 2>/dev/null)
+DESIGN=$(ls docs/plans/*-design.md 2>/dev/null | tail -1)  # most recent if multiple
+ARGS=()
+[[ -n "$INTENT_TEXT" ]] && ARGS+=("inline:$INTENT_TEXT")
+[[ -n "$DESIGN" ]]      && ARGS+=("$DESIGN")
+
+if bash lib/phase-skip.sh skip brainstorm . "${ARGS[@]}"; then
+  echo "[SKIP] brainstorm is up-to-date — inputs unchanged since last run."
+  echo "Re-reading .handoffs/brainstorm.md for downstream context."
+  bash lib/handoff.sh read brainstorm | jq '.'
+  # Return control to caller. No re-questioning, no design regeneration.
+  exit 0
+fi
+```
+
+If skip returns non-zero (no record, or any input changed), proceed to Phase 1. After the design is approved and Phase 4c writes the handoff, also record the fingerprint:
+
+```bash
+FP=$(jq -cn --arg ip "inline://$INTENT_TEXT" --arg ih "$(bash lib/phase-skip.sh inline "$INTENT_TEXT" | tr -d '\n')" \
+            --arg dp "$DESIGN" --arg dh "$(bash lib/phase-skip.sh hash "$DESIGN" | tr -d '\n')" \
+  '{artifacts: [{path: $ip, sha256: $ih}, {path: $dp, sha256: $dh}]}')
+bash lib/phase-skip.sh record brainstorm "$FP" . >/dev/null
+```
+
 ## Phase 1: Understand the Problem
 
 Read existing project files for context:

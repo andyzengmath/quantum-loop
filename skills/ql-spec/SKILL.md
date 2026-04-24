@@ -7,6 +7,35 @@ description: "Part of the quantum-loop autonomous development pipeline (brainsto
 
 You are generating a formal Product Requirements Document (PRD). This document will be consumed by `/quantum-loop:plan` to produce machine-readable tasks for autonomous execution. Write for junior developers or AI agents -- be explicit, unambiguous, and verifiable.
 
+## Phase 0: Phase-skip check (Phase 18 / P2.4)
+
+Before asking any clarifying question, check whether a prior `/ql-spec` run already converted the same design + brainstorm handoff into a PRD:
+
+```bash
+DESIGN=$(ls docs/plans/*-design.md 2>/dev/null | tail -1)
+BS_HANDOFF=".handoffs/brainstorm.md"
+ARGS=()
+[[ -n "$DESIGN" ]]         && ARGS+=("$DESIGN")
+[[ -f "$BS_HANDOFF" ]]     && ARGS+=("$BS_HANDOFF")
+
+if bash lib/phase-skip.sh skip spec . "${ARGS[@]}"; then
+  echo "[SKIP] spec is up-to-date — design + brainstorm handoff unchanged."
+  bash lib/handoff.sh read spec | jq '.'
+  exit 0
+fi
+```
+
+After saving the PRD and writing `.handoffs/spec.md`, record the fingerprint so the next identical invocation can skip:
+
+```bash
+PRD=$(ls -t tasks/prd-*.md | head -1)
+DESIGN_H=$(bash lib/phase-skip.sh hash "$DESIGN")
+BS_H=$(bash lib/phase-skip.sh hash "$BS_HANDOFF")
+FP=$(jq -cn --arg dp "$DESIGN" --arg dh "$DESIGN_H" --arg bp "$BS_HANDOFF" --arg bh "$BS_H" \
+  '{artifacts: [{path: $dp, sha256: $dh}, {path: $bp, sha256: $bh}]}')
+bash lib/phase-skip.sh record spec "$FP" . >/dev/null
+```
+
 ## Prerequisite: read prior-stage handoffs (Phase 15 / P2.3)
 
 Before doing anything else, ingest every prior-stage handoff so decisions, rejected alternatives, and risks carry forward even across context compaction:
