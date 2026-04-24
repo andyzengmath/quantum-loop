@@ -1,0 +1,196 @@
+=== Test 1: detect_language — TypeScript (tsconfig.json) ===
+  PASS: TypeScript detected via tsconfig.json
+=== Test 2: detect_language — Python (pyproject.toml) ===
+  PASS: Python detected via pyproject.toml
+=== Test 3: detect_language — Python (setup.py) ===
+  PASS: Python detected via setup.py
+=== Test 4: detect_language — Go (go.mod) ===
+  PASS: Go detected via go.mod
+=== Test 5: detect_language — Unknown (no config files) ===
+  PASS: Unknown when no config files
+=== Test 6: detect_language — Multiple config files (first match wins: typescript) ===
+  PASS: TypeScript wins when multiple config files present
+=== Test 7: detect_language — Python + Go (python wins over go) ===
+  PASS: Python wins over Go in priority
+=== Test 8: detect_language — Both pyproject.toml and setup.py ===
+  PASS: Python detected when both pyproject.toml and setup.py
+=== Test 9: detect_language — Empty string repo_root ===
+  PASS: Unknown for empty repo_root
+=== Test 10: detect_language — Nonexistent directory ===
+  PASS: Unknown for nonexistent directory
+
+--- infer_shared_types_dir() tests ---
+=== Test 11: infer_shared_types_dir — finds src/shared/types/ (highest priority) ===
+  PASS: src/shared/types/ found first (highest priority)
+=== Test 12: infer_shared_types_dir — finds src/types/ when src/shared/types/ missing ===
+  PASS: src/types/ found when src/shared/types/ absent
+=== Test 13: infer_shared_types_dir — finds src/interfaces/ ===
+  PASS: src/interfaces/ found
+=== Test 14: infer_shared_types_dir — finds types/ (project root) ===
+  PASS: types/ found at project root
+=== Test 15: infer_shared_types_dir — finds shared/ ===
+  PASS: shared/ found
+=== Test 16: infer_shared_types_dir — TypeScript fallback default ===
+  PASS: TypeScript default: src/shared/types
+=== Test 17: infer_shared_types_dir — Python fallback default ===
+  PASS: Python default: src/shared
+=== Test 18: infer_shared_types_dir — Go fallback default ===
+  PASS: Go default: internal/shared
+=== Test 19: infer_shared_types_dir — Unknown language fallback default ===
+  PASS: Unknown language default: src/shared/types
+=== Test 20: infer_shared_types_dir — does NOT create directories ===
+  PASS: Returns default path for TypeScript
+  PASS: Directory was NOT created (idempotent)
+=== Test 21: infer_shared_types_dir — empty repo_root ===
+  PASS: Empty repo_root defaults to src/shared/types
+=== Test 22: infer_shared_types_dir — nonexistent repo_root ===
+  PASS: Nonexistent repo_root defaults to Python default
+=== Test 23: infer_shared_types_dir — empty language string ===
+  PASS: Empty language defaults to src/shared/types
+=== Test 24: infer_shared_types_dir — priority order: src/shared/types > types > shared ===
+  PASS: src/shared/types/ wins regardless of language
+
+--- generate_definition_file() tests ---
+=== Test 25: generate_definition_file — writes definition verbatim when present ===
+  PASS: Definition written verbatim to definitionFile
+=== Test 26: generate_definition_file — generates TS interface from shape ===
+[MATERIALIZE] Wrote TaskStatus to src/types/TaskStatus.ts
+src/types/TaskStatus.ts  PASS: Generated TS interface from shape
+=== Test 27: generate_definition_file — generates Python Protocol from shape ===
+[MATERIALIZE] Wrote TaskStatus to src/shared/task_status.py
+src/shared/task_status.py  PASS: Generated Python Protocol from shape
+=== Test 28: generate_definition_file — generates Go interface from shape ===
+[MATERIALIZE] Wrote TaskStatus to internal/shared/taskstatus.go
+internal/shared/taskstatus.go  PASS: Generated Go interface from shape
+=== Test 29: generate_definition_file — skips when neither definition nor shape ===
+  PASS: File not created when neither definition nor shape
+=== Test 30: generate_definition_file — idempotent skip when file exists with same content ===
+  PASS: Idempotent: file with same content not modified
+=== Test 31: generate_definition_file — does NOT overwrite file with different content ===
+  PASS: File with different content NOT overwritten
+  PASS: [MATERIALIZE] SKIP logged for different content
+=== Test 32: generate_definition_file — creates parent directories ===
+[MATERIALIZE] Wrote Foo to deep/nested/dir/types/Foo.ts
+deep/nested/dir/types/Foo.ts  PASS: Parent directories created with mkdir -p
+=== Test 33: generate_definition_file — empty type_name ===
+  PASS: Empty type_name handled gracefully
+=== Test 34: generate_definition_file — empty JSON ===
+  PASS: Empty JSON handled with warning
+=== Test 35: generate_definition_file — TS shape with readonly properties ===
+[MATERIALIZE] Wrote ReadOnly to src/types/ReadOnly.ts
+src/types/ReadOnly.ts  PASS: Readonly property generated correctly in TS
+
+--- materialize_contracts() tests ---
+=== Test 36: materialize_contracts — materializes multi-consumer types ===
+  PASS: Both multi-consumer type files created
+=== Test 37: materialize_contracts — skips single-consumer types ===
+  PASS: Single-consumer type NOT materialized
+=== Test 38: materialize_contracts — skips types without consumers ===
+  PASS: Type without consumers NOT materialized
+=== Test 39: materialize_contracts — creates git commit ===
+Priority
+  PASS: Git commit created with correct message
+=== Test 40: materialize_contracts — updates execution.materializedContracts ===
+Priority
+  PASS: execution.materializedContracts updated
+=== Test 41: materialize_contracts — prints materialized names to stdout ===
+  PASS: Materialized names printed to stdout
+=== Test 42: materialize_contracts — reads discoveredContracts ===
+  PASS: Discovered contract materialized
+=== Test 43: materialize_contracts — no-op when no multi-consumer contracts ===
+  PASS: No git commit when nothing to materialize
+=== Test 44: materialize_contracts — empty json_path ===
+  PASS: Empty json_path returns error
+=== Test 45: materialize_contracts — nonexistent quantum.json ===
+  PASS: Nonexistent json_path returns error
+
+--- Additional edge-case tests (US-020) ---
+=== Test 46: materialize_contracts — mix of multi-consumer and single-consumer types ===
+  PASS: Multi-consumer materialized, single-consumer skipped
+=== Test 47: materialize_contracts — empty contracts object (no-op) ===
+  PASS: Empty contracts object is no-op (no commit, returns 0)
+=== Test 48: generate_definition_file — shape but no definition for Python ===
+[MATERIALIZE] Wrote Event to src/shared/event.py
+src/shared/event.py  PASS: Python Protocol class generated from shape (no definition)
+=== Test 49: generate_definition_file — shape but no definition for Go ===
+[MATERIALIZE] Wrote Event to internal/shared/event.go
+internal/shared/event.go  PASS: Go interface generated from shape (no definition)
+=== Test 50: Idempotent re-run — same content, file already exists -> skipped ===
+  PASS: Idempotent re-run skipped with SKIP message (same content)
+=== Test 51: Different content already exists -> NOT overwritten, warning logged ===
+  PASS: File with different content NOT overwritten
+  PASS: Warning logged for different content
+=== Test 52: discoveredContracts included alongside shared_types ===
+  PASS: Both shared_types and discoveredContracts materialized
+  PASS: Both names (Priority, Metric) printed to stdout
+=== Test 53: Git commit message format matches 'chore: materialize contracts for Wave N' ===
+Alpha
+  PASS: Commit message exactly matches 'chore: materialize contracts for Wave 5'
+=== Test 54: Git commit message for Wave 1 ===
+Beta
+  PASS: Commit message matches 'chore: materialize contracts for Wave 1'
+=== Test 55: infer_shared_types_dir — priority order: src/types > src/interfaces > types > shared ===
+  PASS: src/types wins when src/shared/types absent
+=== Test 56: infer_shared_types_dir — src/interfaces > types > shared ===
+  PASS: src/interfaces wins when src/shared/types and src/types absent
+=== Test 57: infer_shared_types_dir — types > shared ===
+  PASS: types wins when higher priority dirs absent
+=== Test 58: materialize_contracts — empty shared_types with no discoveredContracts ===
+  PASS: Empty shared_types object is no-op
+=== Test 59: generate_definition_file — Python shape with methods generates def ===
+[MATERIALIZE] Wrote Calculator to src/shared/calculator.py
+src/shared/calculator.py  PASS: Python method with params generated correctly
+=== Test 60: generate_definition_file — Go shape with params in methods ===
+[MATERIALIZE] Wrote Calc to internal/shared/calc.go
+internal/shared/calc.go  PASS: Go method with params generated correctly
+=== Test 61: materialize_contracts — discoveredContracts with single consumer skipped ===
+  PASS: Discovered contract with single consumer NOT materialized
+=== Test 62: materialize_contracts — empty repo_root returns error ===
+  PASS: Empty repo_root returns error
+=== Test 63: materialize_contracts — wave_num defaults to 1 when omitted ===
+Gamma
+  PASS: wave_num defaults to 1 when omitted
+=== Test 64: generate_definition_file — TS shape with methods that have params ===
+[MATERIALIZE] Wrote Service to src/types/Service.ts
+src/types/Service.ts  PASS: TS method with multiple params generated correctly
+=== Test 65: generate_definition_file — Python shape with no properties and no methods ===
+[MATERIALIZE] Wrote Marker to src/shared/marker.py
+src/shared/marker.py  PASS: Empty Python Protocol has ... placeholder
+=== Test 66: materialize_contracts — materializedContracts accumulates across calls ===
+TypeA
+  PASS: materializedContracts accumulates (ExistingType + TypeA)
+=== Test 67: generate_definition_file — infer fallback when definitionFile missing ===
+[MATERIALIZE] Inferred definitionFile for InferredWidget: src/shared/types/inferred-widget.ts
+[MATERIALIZE] Wrote InferredWidget to src/shared/types/inferred-widget.ts
+src/shared/types/inferred-widget.ts  PASS: Inferred definitionFile fallback wrote to correct path with correct content
+=== Test 68: generate_definition_file — infer fallback with existing src/types dir ===
+[MATERIALIZE] Inferred definitionFile for AppStatus: src/types/app-status.ts
+[MATERIALIZE] Wrote AppStatus to src/types/app-status.ts
+src/types/app-status.ts  PASS: Inferred fallback uses existing src/types dir
+=== Test 69: generate_definition_file — infer fallback for Python ===
+[MATERIALIZE] Inferred definitionFile for UserConfig: src/shared/user-config.py
+[MATERIALIZE] Wrote UserConfig to src/shared/user-config.py
+src/shared/user-config.py  PASS: Inferred fallback for Python writes to src/shared/user-config.py
+=== Test 70: generate_definition_file — path traversal with ../../../etc/passwd rejected ===
+  PASS: Path traversal definitionFile rejected (returns error)
+  PASS: Traversal file not written
+=== Test 71: generate_definition_file — normal path accepted ===
+  PASS: Normal definitionFile accepted and written
+
+--- US-006/US-014: fileConflicts-based materialization tests ---
+=== Test 72: materialize_contracts — single-consumer type IN fileConflicts is materialized ===
+  PASS: Single-consumer type in fileConflicts WAS materialized
+=== Test 73: materialize_contracts — fileConflicts materialization logs '(file-conflict prevention)' ===
+  PASS: Log contains '(file-conflict prevention)'
+=== Test 74: materialize_contracts — multi-consumer type logs '(multi-consumer)' ===
+  PASS: Multi-consumer type logs '(multi-consumer)'
+=== Test 75: materialize_contracts — single-consumer NOT in fileConflicts still skipped ===
+  PASS: Single-consumer type NOT in fileConflicts still skipped
+=== Test 76: materialize_contracts — mix of multi-consumer, fileConflict, and plain single ===
+  PASS: Mix of multi-consumer, fileConflict, and plain single handled correctly
+=== Test 77: materialize_contracts — no fileConflicts key in quantum.json (backward compat) ===
+  PASS: No fileConflicts key — single-consumer still skipped (backward compat)
+=== Test 78: materialize_contracts — empty fileConflicts array (backward compat) ===
+  PASS: Empty fileConflicts array — single-consumer still skipped
+
+=== Results: 83/83 passed, 0 failed ===

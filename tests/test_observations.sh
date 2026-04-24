@@ -49,15 +49,26 @@ assert_file_exists() {
 }
 
 setup() {
-  TMPDIR=$(mktemp -d)
-  cd "$TMPDIR" || exit 1
+  TEST_TMPDIR=$(mktemp -d) || { echo "FATAL: mktemp -d failed; refusing to run in repo root" >&2; exit 2; }
+  # Phase 6 hardening: if cd fails we MUST NOT proceed; earlier versions would
+  # silently continue in the repo root and leak stub post-mortem files into
+  # docs/post-mortems/ of the live repo. Fail-fast instead.
+  cd "$TEST_TMPDIR" || { echo "FATAL: cd to $TEST_TMPDIR failed" >&2; rm -rf "$TEST_TMPDIR"; exit 2; }
+  # Verify we are NOT inside REPO_ROOT before any git operation
+  local canon_cwd canon_repo
+  canon_cwd=$(cd "$PWD" && pwd -P)
+  canon_repo=$(cd "$REPO_ROOT" && pwd -P)
+  if [[ "$canon_cwd" == "$canon_repo"* ]] && [[ "$canon_cwd" != "$TEST_TMPDIR"* ]]; then
+    echo "FATAL: setup landed inside REPO_ROOT ($canon_cwd); refusing to run" >&2
+    exit 2
+  fi
   git init -q
   git commit --allow-empty -m "init" -q
 }
 
 teardown() {
   cd "$REPO_ROOT" || exit 1
-  rm -rf "$TMPDIR"
+  rm -rf "$TEST_TMPDIR"
 }
 
 echo "=== Observations Tests ==="

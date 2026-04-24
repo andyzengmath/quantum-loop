@@ -60,12 +60,12 @@ assert_file_not_exists() {
 }
 
 # Setup temp directory
-TMPDIR=$(mktemp -d)
-trap 'rm -rf "$TMPDIR"' EXIT
+TEST_TMPDIR=$(mktemp -d)
+trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
 # =========================================================================
 echo "=== Test 1: write_quantum_json writes via tmp then renames ==="
-QJSON="$TMPDIR/quantum.json"
+QJSON="$TEST_TMPDIR/quantum.json"
 echo '{"stories":[]}' > "$QJSON"
 CONTENT='{"stories":[{"id":"US-001"}]}'
 write_quantum_json "$QJSON" "$CONTENT"
@@ -78,7 +78,7 @@ assert_eq "Content written correctly" "US-001" "$ACTUAL"
 
 # =========================================================================
 echo "=== Test 2: cleanup_stale_tmp removes leftover .tmp ==="
-QJSON="$TMPDIR/quantum2.json"
+QJSON="$TEST_TMPDIR/quantum2.json"
 echo '{"stories":[]}' > "$QJSON"
 echo '{"stale":"data"}' > "${QJSON}.tmp"
 cleanup_stale_tmp "$QJSON"
@@ -87,7 +87,7 @@ assert_file_exists "Original quantum.json untouched" "$QJSON"
 
 # =========================================================================
 echo "=== Test 3: cleanup_stale_tmp is no-op when no .tmp exists ==="
-QJSON="$TMPDIR/quantum3.json"
+QJSON="$TEST_TMPDIR/quantum3.json"
 echo '{"stories":[]}' > "$QJSON"
 cleanup_stale_tmp "$QJSON"
 EXIT_CODE=$?
@@ -95,7 +95,7 @@ assert_eq "cleanup exits 0 when no tmp" "0" "$EXIT_CODE"
 
 # =========================================================================
 echo "=== Test 4: update_execution_field adds execution metadata ==="
-QJSON="$TMPDIR/quantum4.json"
+QJSON="$TEST_TMPDIR/quantum4.json"
 echo '{"stories":[],"progress":[]}' > "$QJSON"
 update_execution_field "$QJSON" "parallel" "4" "1"
 ACTUAL_MODE=$(jq -r '.execution.mode' "$QJSON")
@@ -109,7 +109,7 @@ assert_eq "activeWorktrees starts empty" "0" "$ACTUAL_WT"
 
 # =========================================================================
 echo "=== Test 5: set_story_worktree sets worktree path on story ==="
-QJSON="$TMPDIR/quantum5.json"
+QJSON="$TEST_TMPDIR/quantum5.json"
 cat > "$QJSON" << 'JSONEOF'
 {"stories":[{"id":"US-001","status":"pending"},{"id":"US-002","status":"pending"}],"execution":{"activeWorktrees":[]}}
 JSONEOF
@@ -129,7 +129,7 @@ assert_eq "activeWorktrees is empty" "0" "$ACTUAL_ACTIVE"
 
 # =========================================================================
 echo "=== Test 7: write_quantum_json validates JSON ==="
-QJSON="$TMPDIR/quantum7.json"
+QJSON="$TEST_TMPDIR/quantum7.json"
 echo '{"stories":[]}' > "$QJSON"
 write_quantum_json "$QJSON" "not valid json" 2>/dev/null
 EXIT_CODE=$?

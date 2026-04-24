@@ -7,6 +7,19 @@
   "designPath": "docs/plans/2026-02-16-task-priority-design.md",
   "createdAt": "2026-02-16T10:00:00Z",
   "updatedAt": "2026-02-16T10:00:00Z",
+  "_comment_userIntent": "Immutable snapshot of the user's verbatim first-message text that started this pipeline. Written ONCE by /ql-brainstorm and never updated. Serves as the ground-truth anchor for /ql-intent-check drift detection. Subsequent clarifications go into userClarifications (append-only).",
+  "userIntent": {
+    "text": "Build a task priority system where tasks can be marked high/medium/low and sorted by priority in the UI. Must support existing tasks with a sensible default.",
+    "timestamp": "2026-02-16T10:00:00Z",
+    "source_message_id": null
+  },
+  "userClarifications": [],
+  "_comment_intentDrift": "Output from /ql-intent-check, keyed by feature-id. Contains per-run drift-audit results. See skills/ql-intent-check/SKILL.md for schema.",
+  "intentDrift": {},
+  "_comment_reviews": "Output from /ql-deep-review, keyed by feature-id. Contains whole-feature multi-perspective review aggregation (risk-score + tier + reviewers + findings + verdict). See skills/ql-deep-review/SKILL.md for schema.",
+  "reviews": {},
+  "_comment_deslop": "Output from /ql-deslop, keyed by story-id. Each entry contains per-pass results (pass_1 dead-code, pass_2 duplication, etc.) with scope_files, findings, edits_applied, regression_check, commit sha. See skills/ql-deslop/SKILL.md for schema.",
+  "deslop": {},
   "stories": [
     {
       "id": "US-001",

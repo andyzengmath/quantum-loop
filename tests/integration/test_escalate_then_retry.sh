@@ -73,12 +73,12 @@ assert_not_contains() {
 # =========================================================================
 # Setup
 # =========================================================================
-TMPDIR=$(mktemp -d)
+TEST_TMPDIR=$(mktemp -d)
 ORIG_DIR=$(pwd)
 
 cleanup() {
   cd "$ORIG_DIR"
-  rm -rf "$TMPDIR"
+  rm -rf "$TEST_TMPDIR"
 }
 
 trap cleanup EXIT
@@ -115,7 +115,7 @@ echo ""
 
 # =========================================================================
 echo "--- Step 1: Set up repo with main branch + src/config.ts ---"
-REPO="$TMPDIR/repo"
+REPO="$TEST_TMPDIR/repo"
 mkdir -p "$REPO/src"
 cd "$REPO" || exit 1
 git init --initial-branch=main . >/dev/null 2>&1

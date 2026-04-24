@@ -7,6 +7,34 @@ description: "Part of the quantum-loop autonomous development pipeline (brainsto
 
 You are converting a Product Requirements Document (PRD) into a machine-readable `quantum.json` file that will drive autonomous execution. Every decision you make here determines whether the execution loop succeeds or fails.
 
+## Prerequisite: read prior-stage handoffs (Phase 15 / P2.3)
+
+Before reading the PRD, ingest every prior-stage handoff so decisions, rejected alternatives, and risks carry forward across context compaction:
+
+```bash
+bash lib/handoff.sh all | jq '.'
+bash lib/handoff.sh read brainstorm | jq '.'
+bash lib/handoff.sh read spec | jq '.'
+```
+
+Treat `spec.decided` as binding (these are the ACs you MUST plan for), `spec.rejected` as closed (don't re-introduce), `spec.remaining` as explicit gaps you should surface to the user before finalizing the DAG, and the union of `brainstorm.risks ∪ spec.risks` as mandatory inputs to every story's risk consideration.
+
+At the end of `/ql-plan`, write `.handoffs/plan.md`:
+
+```bash
+bash lib/handoff.sh write plan "$(cat <<'JSON'
+{
+  "decided":   ["<each DAG + wave decision>", "<contract materialization picks>"],
+  "rejected":  ["<each alternative story split / ordering considered>"],
+  "risks":     ["<carried from upstream + any new planning risks>"],
+  "files":     ["quantum.json"],
+  "remaining": ["<any AC you could not resolve into a concrete story>"],
+  "notes":     "<notes on parallelism, file-conflict sets, contract choices>"
+}
+JSON
+)"
+```
+
 ## Step 1: Read the PRD
 
 1. Look for the most recent PRD in `tasks/prd-*.md`

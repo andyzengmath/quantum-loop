@@ -1,6 +1,0 @@
-{
-  "name": "quantum-loop",
-  "version": "0.4.1",
-  "description": "Universal CLI orchestrator with multi-runner support. Autonomous spec-driven development with dependency DAG, parallel worktree execution, two-stage review gates, and modular merge hardening",
-  "homepage": "https://github.com/andyzengmath/quantum-loop"
-}

@@ -1,0 +1,90 @@
+=== Test 1: detect_environment returns no long_path/onedrive for short normal path ===
+  PASS: short normal path no long_path
+  PASS: short normal path no onedrive
+  PASS: short normal path no tmpdir issue
+=== Test 2: detect_environment detects long path (>150 chars) ===
+  PASS: long path detected
+=== Test 3: detect_environment detects OneDrive path (case insensitive) ===
+  PASS: OneDrive detected
+=== Test 4: detect_environment detects onedrive lowercase ===
+  PASS: onedrive lowercase detected
+=== Test 5: detect_environment detects ONEDRIVE uppercase ===
+  PASS: ONEDRIVE uppercase detected
+=== Test 6: detect_environment pipe-delimited with multiple codes ===
+  PASS: long_path in combined
+  PASS: onedrive in combined
+  PASS: pipe delimiter present in combined result
+=== Test 7: detect_environment detects Windows via uname/MSYSTEM ===
+  PASS: windows detected on Windows
+=== Test 8: detect_environment tmpdir writability check ===
+  PASS: writable tmpdir not flagged
+=== Test 9: detect_environment with empty path ===
+  PASS: empty path no long_path
+=== Test 10: detect_environment with exactly 150 chars ===
+  PASS: exactly 150 chars not flagged
+=== Test 11: detect_environment with 151 chars triggers long_path ===
+  PASS: 151 chars triggers long_path
+=== Test 12: warn_long_path with OneDrive path logs OneDrive warning ===
+  PASS: OneDrive warning logged
+  PASS: OneDrive warning mentions OneDrive
+  PASS: OneDrive warning has WARN
+=== Test 13: warn_long_path with non-OneDrive path logs generic warning ===
+  PASS: generic warning logged
+  PASS: generic warning has WARN
+  PASS: generic warning has char count
+=== Test 14: warn_long_path includes path length in message ===
+  PASS: path length in message
+=== Test 15: prune_stale_refs on a clean repo ===
+  PASS: prune_stale_refs exits 0 on clean repo
+  PASS: prune log has prefix
+=== Test 16: prune_stale_refs returns count on stdout ===
+  PASS: prune_stale_refs returns numeric count: 0
+=== Test 17: prune_stale_refs with stale worktree reference ===
+  PASS: prune with stale exits 0
+=== Test 18: prune_stale_refs with empty repo_root ===
+  PASS: prune with empty repo_root fails
+=== Test 19: cleanup_orphan_dirs removes clean orphan directory ===
+  PASS: cleanup_orphan_dirs exits 0
+  PASS: clean orphan removed
+=== Test 20: cleanup_orphan_dirs preserves dirty orphan (uncommitted changes) ===
+  PASS: cleanup_orphan_dirs with dirty exits 0
+  PASS: dirty orphan preserved
+=== Test 21: cleanup_orphan_dirs returns cleaned count ===
+  PASS: cleanup returns count of 2
+  PASS: clean1 removed
+  PASS: clean2 removed
+=== Test 22: cleanup_orphan_dirs with no .ql-wt dir ===
+  PASS: cleanup with no .ql-wt exits 0
+  PASS: cleanup with no .ql-wt returns 0
+=== Test 23: cleanup_orphan_dirs with empty repo_root ===
+  PASS: cleanup with empty repo_root fails
+=== Test 24: cleanup_orphan_dirs preserves real worktree ===
+  PASS: cleanup returns 1 (only orphan)
+  PASS: real worktree preserved
+  PASS: clean orphan removed
+=== Test 25: run_preflight writes execution.initGuard to quantum.json ===
+  PASS: run_preflight exits 0
+  PASS: initGuard field exists
+  PASS: ranAt exists in initGuard
+  PASS: warnings field exists
+  PASS: prunedWorktrees field exists
+  PASS: cleanedOrphans field exists
+=== Test 26: run_preflight is idempotent within 1 hour ===
+  PASS: run_preflight idempotent exits 0
+  PASS: idempotent run mentions skip
+=== Test 27: run_preflight runs again if ranAt is old ===
+  PASS: run_preflight re-runs after old ranAt
+  PASS: re-run does not skip
+=== Test 28: run_preflight sets forceSequential when tmpdir not writable ===
+  PASS: forceSequential is True when tmpdir not writable
+=== Test 29: run_preflight does NOT set forceSequential when tmpdir writable ===
+  PASS: forceSequential is False when tmpdir writable
+=== Test 30: run_preflight with empty repo_root ===
+  PASS: run_preflight with empty repo_root fails
+=== Test 31: run_preflight with empty json_path ===
+  PASS: run_preflight with empty json_path fails
+=== Test 32: run_preflight preserves existing execution fields ===
+  PASS: existing execution.mode preserved
+  PASS: existing execution.maxParallel preserved
+
+=== Results: 56/56 passed, 0 failed ===

@@ -37,15 +37,15 @@ assert_match() {
 }
 
 setup() {
-  TMPDIR=$(mktemp -d)
-  cd "$TMPDIR" || exit 1
+  TEST_TMPDIR=$(mktemp -d)
+  cd "$TEST_TMPDIR" || exit 1
   git init -q
   git commit --allow-empty -m "init" -q
 }
 
 teardown() {
   cd "$REPO_ROOT" || exit 1
-  rm -rf "$TMPDIR"
+  rm -rf "$TEST_TMPDIR"
 }
 
 echo "=== startedAt Tests ==="

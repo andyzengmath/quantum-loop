@@ -1,0 +1,22 @@
+=== Test 1: No conflict merge returns 0 ===
+  PASS: No conflict merge returns 0
+  PASS: Merged file exists on feature branch
+=== Test 2: Conflicting branches returns 1 with conflict files on stdout ===
+  PASS: Conflicting merge returns 1
+  PASS: Output includes conflict file name
+=== Test 3: After failed merge, working tree is clean ===
+  PASS: Working tree clean after conflict abort
+=== Test 4: Output format includes CONFLICT: prefix on file names ===
+  PASS: Returns 1 on conflict
+  PASS: Output has CONFLICT: prefix
+=== Test 5: Multiple files conflicting simultaneously ===
+  PASS: Multiple conflict merge returns 1
+  PASS: Output lists alpha.txt
+  PASS: Output lists beta.txt
+  PASS: Output lists gamma.txt
+  PASS: Working tree clean after multi-conflict abort
+=== Test 6: Merge with unrelated changes (different files) succeeds ===
+  PASS: Unrelated changes merge returns 0
+  PASS: Both files present after merge
+
+=== Results: 14/14 passed, 0 failed ===

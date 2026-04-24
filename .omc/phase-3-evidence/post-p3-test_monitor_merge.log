@@ -1,0 +1,28 @@
+=== Test 1: detect_signal finds STORY_PASSED ===
+  PASS: Detects STORY_PASSED
+=== Test 2: detect_signal finds STORY_FAILED ===
+  PASS: Detects STORY_FAILED
+=== Test 3: detect_signal returns empty for no signal ===
+  PASS: No signal returns empty
+=== Test 4: detect_signal returns empty for nonexistent file ===
+  PASS: Nonexistent file returns empty
+=== Test 5: check_agent_status detects completed process with PASSED ===
+  PASS: Completed agent returns STORY_PASSED
+=== Test 6: check_agent_status returns RUNNING for active process ===
+  PASS: Running agent returns RUNNING
+=== Test 7: check_agent_status detects crash (no signal, process done) ===
+  PASS: Crashed agent returns CRASH
+=== Test 8: merge_worktree_branch merges commits into feature branch ===
+  PASS: merge_worktree_branch exits 0
+  PASS: Merged file exists on feature branch
+=== Test 9: merge_worktree_branch detects merge conflict ===
+CONFLICT: conflict.txt
+  PASS: merge_worktree_branch returns 1 on conflict
+  PASS: Working tree clean after conflict abort
+=== Test 10: Input validation ===
+  PASS: detect_signal empty file returns empty
+  PASS: check_agent_status empty PID returns error
+  PASS: merge_worktree_branch empty repo returns error
+  PASS: merge_worktree_branch empty branch returns error
+
+=== Results: 15/15 passed, 0 failed ===

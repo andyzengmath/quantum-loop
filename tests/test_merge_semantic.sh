@@ -61,12 +61,12 @@ assert_not_contains() {
 }
 
 # Setup temp directory
-TMPDIR=$(mktemp -d)
+TEST_TMPDIR=$(mktemp -d)
 ORIG_DIR=$(pwd)
 
 cleanup() {
   cd "$ORIG_DIR" || true
-  rm -rf "$TMPDIR"
+  rm -rf "$TEST_TMPDIR"
 }
 trap cleanup EXIT
 
@@ -196,10 +196,10 @@ assert_eq ".json file returns 0" "0" "$?"
 echo "=== T-003: semantic_merge with diff3 fallback ==="
 
 # Create test files for clean 3-way merge (non-adjacent changes for diff3)
-BASE_FILE="$TMPDIR/base.txt"
-OURS_FILE="$TMPDIR/ours.txt"
-THEIRS_FILE="$TMPDIR/theirs.txt"
-OUTPUT_FILE="$TMPDIR/output.txt"
+BASE_FILE="$TEST_TMPDIR/base.txt"
+OURS_FILE="$TEST_TMPDIR/ours.txt"
+THEIRS_FILE="$TEST_TMPDIR/theirs.txt"
+OUTPUT_FILE="$TEST_TMPDIR/output.txt"
 
 cat > "$BASE_FILE" << 'EOF'
 line1
@@ -250,10 +250,10 @@ assert_eq "theirs file unchanged" "$EXPECTED_THEIRS" "$THEIRS_HASH_BEFORE"
 
 # --- Test 23: Conflicting merge returns 1 (same line changed both sides) ---
 echo "--- Test 23: Conflicting merge returns 1 ---"
-CONFLICT_BASE="$TMPDIR/cbase.txt"
-CONFLICT_OURS="$TMPDIR/cours.txt"
-CONFLICT_THEIRS="$TMPDIR/ctheirs.txt"
-CONFLICT_OUTPUT="$TMPDIR/coutput.txt"
+CONFLICT_BASE="$TEST_TMPDIR/cbase.txt"
+CONFLICT_OURS="$TEST_TMPDIR/cours.txt"
+CONFLICT_THEIRS="$TEST_TMPDIR/ctheirs.txt"
+CONFLICT_OUTPUT="$TEST_TMPDIR/coutput.txt"
 
 cat > "$CONFLICT_BASE" << 'EOF'
 line1
@@ -278,17 +278,17 @@ assert_eq "conflicting merge returns 1" "1" "$?"
 
 # --- Test 24: Missing base file returns 1 ---
 echo "--- Test 24: Missing base file returns 1 ---"
-semantic_merge "$TMPDIR/nonexistent.txt" "$OURS_FILE" "$THEIRS_FILE" "$OUTPUT_FILE" 2>/dev/null
+semantic_merge "$TEST_TMPDIR/nonexistent.txt" "$OURS_FILE" "$THEIRS_FILE" "$OUTPUT_FILE" 2>/dev/null
 assert_eq "missing base returns 1" "1" "$?"
 
 # --- Test 25: Missing ours file returns 1 ---
 echo "--- Test 25: Missing ours file returns 1 ---"
-semantic_merge "$BASE_FILE" "$TMPDIR/nonexistent.txt" "$THEIRS_FILE" "$OUTPUT_FILE" 2>/dev/null
+semantic_merge "$BASE_FILE" "$TEST_TMPDIR/nonexistent.txt" "$THEIRS_FILE" "$OUTPUT_FILE" 2>/dev/null
 assert_eq "missing ours returns 1" "1" "$?"
 
 # --- Test 26: Missing theirs file returns 1 ---
 echo "--- Test 26: Missing theirs file returns 1 ---"
-semantic_merge "$BASE_FILE" "$OURS_FILE" "$TMPDIR/nonexistent.txt" "$OUTPUT_FILE" 2>/dev/null
+semantic_merge "$BASE_FILE" "$OURS_FILE" "$TEST_TMPDIR/nonexistent.txt" "$OUTPUT_FILE" 2>/dev/null
 assert_eq "missing theirs returns 1" "1" "$?"
 
 # --- Test 27: Empty args returns 1 ---
@@ -298,12 +298,12 @@ assert_eq "empty args returns 1" "1" "$?"
 
 # --- Test 28: Identical files (no changes) merge cleanly ---
 echo "--- Test 28: Identical files merge cleanly ---"
-SAME_FILE="$TMPDIR/same.txt"
-SAME_OUT="$TMPDIR/same_out.txt"
+SAME_FILE="$TEST_TMPDIR/same.txt"
+SAME_OUT="$TEST_TMPDIR/same_out.txt"
 echo "same content" > "$SAME_FILE"
-cp "$SAME_FILE" "$TMPDIR/same2.txt"
-cp "$SAME_FILE" "$TMPDIR/same3.txt"
-semantic_merge "$SAME_FILE" "$TMPDIR/same2.txt" "$TMPDIR/same3.txt" "$SAME_OUT" 2>/dev/null
+cp "$SAME_FILE" "$TEST_TMPDIR/same2.txt"
+cp "$SAME_FILE" "$TEST_TMPDIR/same3.txt"
+semantic_merge "$SAME_FILE" "$TEST_TMPDIR/same2.txt" "$TEST_TMPDIR/same3.txt" "$SAME_OUT" 2>/dev/null
 assert_eq "identical files return 0" "0" "$?"
 SAME_CONTENT=$(cat "$SAME_OUT")
 assert_eq "identical merge content" "same content" "$SAME_CONTENT"
@@ -315,10 +315,10 @@ echo "=== T-004: TypeScript AST merge via ts-morph ==="
 
 if [[ "$TSMORPH_AVAILABLE" == "true" ]]; then
   # Test with actual ts-morph: non-overlapping top-level declarations
-  TS_BASE="$TMPDIR/base.ts"
-  TS_OURS="$TMPDIR/ours.ts"
-  TS_THEIRS="$TMPDIR/theirs.ts"
-  TS_OUTPUT="$TMPDIR/output.ts"
+  TS_BASE="$TEST_TMPDIR/base.ts"
+  TS_OURS="$TEST_TMPDIR/ours.ts"
+  TS_THEIRS="$TEST_TMPDIR/theirs.ts"
+  TS_OUTPUT="$TEST_TMPDIR/output.ts"
 
   cat > "$TS_BASE" << 'TSEOF'
 export function hello(): string {
@@ -357,10 +357,10 @@ TSEOF
 
   # --- Test 30: ts-morph conflicting same-name declaration returns 1 ---
   echo "--- Test 30: ts-morph conflicting same-name returns 1 ---"
-  TS_CONFLICT_BASE="$TMPDIR/cbase.ts"
-  TS_CONFLICT_OURS="$TMPDIR/cours.ts"
-  TS_CONFLICT_THEIRS="$TMPDIR/ctheirs.ts"
-  TS_CONFLICT_OUTPUT="$TMPDIR/coutput.ts"
+  TS_CONFLICT_BASE="$TEST_TMPDIR/cbase.ts"
+  TS_CONFLICT_OURS="$TEST_TMPDIR/cours.ts"
+  TS_CONFLICT_THEIRS="$TEST_TMPDIR/ctheirs.ts"
+  TS_CONFLICT_OUTPUT="$TEST_TMPDIR/coutput.ts"
 
   cat > "$TS_CONFLICT_BASE" << 'TSEOF'
 export function greet(): string {
@@ -388,10 +388,10 @@ else
   echo "SKIP: ts-morph not available, testing .ts falls back to diff3"
   # --- Test 29: .ts files fall back to diff3 when ts-morph unavailable ---
   echo "--- Test 29: .ts files fall back to diff3 ---"
-  TS_BASE="$TMPDIR/base.ts"
-  TS_OURS="$TMPDIR/ours.ts"
-  TS_THEIRS="$TMPDIR/theirs.ts"
-  TS_OUTPUT="$TMPDIR/output.ts"
+  TS_BASE="$TEST_TMPDIR/base.ts"
+  TS_OURS="$TEST_TMPDIR/ours.ts"
+  TS_THEIRS="$TEST_TMPDIR/theirs.ts"
+  TS_OUTPUT="$TEST_TMPDIR/output.ts"
 
   cat > "$TS_BASE" << 'TSEOF'
 const a = 1;
@@ -431,10 +431,10 @@ echo "=== T-005: Python CST merge via libcst ==="
 
 if [[ "$LIBCST_AVAILABLE" == "true" ]]; then
   # Test with actual libcst: non-overlapping top-level statements
-  PY_BASE="$TMPDIR/base.py"
-  PY_OURS="$TMPDIR/ours.py"
-  PY_THEIRS="$TMPDIR/theirs.py"
-  PY_OUTPUT="$TMPDIR/output.py"
+  PY_BASE="$TEST_TMPDIR/base.py"
+  PY_OURS="$TEST_TMPDIR/ours.py"
+  PY_THEIRS="$TEST_TMPDIR/theirs.py"
+  PY_OUTPUT="$TEST_TMPDIR/output.py"
 
   cat > "$PY_BASE" << 'PYEOF'
 def hello():
@@ -468,10 +468,10 @@ PYEOF
 
   # --- Test 32: libcst conflicting same-name returns 1 ---
   echo "--- Test 32: libcst conflicting same-name returns 1 ---"
-  PY_CONFLICT_BASE="$TMPDIR/cbase.py"
-  PY_CONFLICT_OURS="$TMPDIR/cours.py"
-  PY_CONFLICT_THEIRS="$TMPDIR/ctheirs.py"
-  PY_CONFLICT_OUTPUT="$TMPDIR/coutput.py"
+  PY_CONFLICT_BASE="$TEST_TMPDIR/cbase.py"
+  PY_CONFLICT_OURS="$TEST_TMPDIR/cours.py"
+  PY_CONFLICT_THEIRS="$TEST_TMPDIR/ctheirs.py"
+  PY_CONFLICT_OUTPUT="$TEST_TMPDIR/coutput.py"
 
   cat > "$PY_CONFLICT_BASE" << 'PYEOF'
 def greet():
@@ -495,10 +495,10 @@ else
   echo "SKIP: libcst not available, testing .py falls back to diff3"
   # --- Test 31: .py files fall back to diff3 when libcst unavailable ---
   echo "--- Test 31: .py files fall back to diff3 ---"
-  PY_BASE="$TMPDIR/base.py"
-  PY_OURS="$TMPDIR/ours.py"
-  PY_THEIRS="$TMPDIR/theirs.py"
-  PY_OUTPUT="$TMPDIR/output.py"
+  PY_BASE="$TEST_TMPDIR/base.py"
+  PY_OURS="$TEST_TMPDIR/ours.py"
+  PY_THEIRS="$TEST_TMPDIR/theirs.py"
+  PY_OUTPUT="$TEST_TMPDIR/output.py"
 
   cat > "$PY_BASE" << 'PYEOF'
 a = 1

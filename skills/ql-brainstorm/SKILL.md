@@ -88,8 +88,52 @@ Use kebab-case for the topic. The document should include:
 - A "Next Steps" section pointing to `/quantum-loop:spec` for formal PRD creation
 - Date and any open questions noted during brainstorming
 
+### Phase 4b: Snapshot user intent (required for ql-intent-check)
+
+If `quantum.json` exists (the user is extending an in-progress pipeline), and it does NOT already contain a `userIntent` field, write the user's **verbatim first-message text** into `quantum.json.userIntent` as an immutable snapshot. If `quantum.json` does not yet exist, capture the verbatim text into the design doc's front-matter so `/quantum-loop:spec` can propagate it.
+
+Required shape (see `skills/ql-intent-check/SKILL.md` §"Immutable intent snapshot"):
+
+```json
+{
+  "userIntent": {
+    "text": "<verbatim first-message text>",
+    "timestamp": "<ISO 8601 at write time>",
+    "source_message_id": null
+  },
+  "userClarifications": []
+}
+```
+
+**Write rules**:
+- The `text` MUST be the exact verbatim text the user wrote in their first brainstorm turn — no paraphrasing, no summary.
+- If `userIntent.text` is already populated, DO NOT overwrite. This field is immutable.
+- Use `lib/json-atomic.sh` helpers (`write_quantum_json`) to avoid partial-write races.
+
 Inform the user:
-> "Design saved to `docs/plans/YYYY-MM-DD-<topic>-design.md`. When you're ready to create a formal spec, run `/quantum-loop:spec`."
+> "Design saved to `docs/plans/YYYY-MM-DD-<topic>-design.md`. User intent snapshot stored in quantum.json. When you're ready to create a formal spec, run `/quantum-loop:spec`."
+
+### Phase 4c: Write stage handoff (Phase 15 / P2.3)
+
+Before exiting, write a stage-handoff document at `.handoffs/brainstorm.md` so downstream skills (`/ql-spec`, `/ql-plan`, `/ql-execute`, reviewers) can read it even after this session's context is compacted.
+
+Use `lib/handoff.sh`:
+
+```bash
+bash lib/handoff.sh write brainstorm "$(cat <<'JSON'
+{
+  "decided":   ["<each approved-section decision, verbatim>"],
+  "rejected":  ["<each alternative considered and NOT chosen, with reason>"],
+  "risks":     ["<each risk surfaced during brainstorm>"],
+  "files":     ["docs/plans/YYYY-MM-DD-<topic>-design.md"],
+  "remaining": ["<any open question left for /ql-spec to resolve>"],
+  "notes":     "<free-form tail: unanswered questions, follow-ups>"
+}
+JSON
+)"
+```
+
+Every downstream skill opens with `bash lib/handoff.sh all | jq '.'` — so any decision you record here is durable even across session boundaries.
 
 ## Anti-Rationalization Guards
 

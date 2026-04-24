@@ -1,0 +1,23 @@
+=== Test 1: DEFAULT_AGENT_TIMEOUT is defined ===
+  PASS: DEFAULT_AGENT_TIMEOUT is 900
+=== Test 2: check_agent_timeout returns false for recent start ===
+  PASS: Recent start is not timed out
+=== Test 3: check_agent_timeout returns true for old start ===
+  PASS: Old start is timed out
+=== Test 4: check_agent_timeout with custom timeout ===
+  PASS: 5 seconds ago with 3s timeout is timed out
+  PASS: 5 seconds ago with 10s timeout is not timed out
+=== Test 5: kill_agent_process kills a running process ===
+  PASS: Process running before kill
+  PASS: kill_agent_process exits 0
+  FAIL: Process still running after kill
+=== Test 6: kill_agent_process is no-op for dead process ===
+  PASS: kill_agent_process on dead process exits 0
+=== Test 7: check_agent_timeout input validation ===
+  PASS: Empty start_time returns error
+  PASS: Empty timeout returns error
+=== Test 8: Other agents unaffected by one kill ===
+  PASS: Agent A still running after B killed
+  PASS: Agent C still running after B killed
+
+=== Results: 12/13 passed, 1 failed ===

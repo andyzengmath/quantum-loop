@@ -32,17 +32,17 @@ assert_eq() {
 # =========================================================================
 # Setup: create temporary directories for testing
 # =========================================================================
-TMPDIR=$(mktemp -d)
+TEST_TMPDIR=$(mktemp -d)
 
 cleanup() {
-  rm -rf "$TMPDIR"
+  rm -rf "$TEST_TMPDIR"
 }
 
 trap cleanup EXIT
 
 # =========================================================================
 echo "=== Test 1: detect_language — TypeScript (tsconfig.json) ==="
-TS_DIR="$TMPDIR/ts_project"
+TS_DIR="$TEST_TMPDIR/ts_project"
 mkdir -p "$TS_DIR"
 touch "$TS_DIR/tsconfig.json"
 RESULT=$(detect_language "$TS_DIR")
@@ -50,7 +50,7 @@ assert_eq "TypeScript detected via tsconfig.json" "typescript" "$RESULT"
 
 # =========================================================================
 echo "=== Test 2: detect_language — Python (pyproject.toml) ==="
-PY_DIR="$TMPDIR/py_project"
+PY_DIR="$TEST_TMPDIR/py_project"
 mkdir -p "$PY_DIR"
 touch "$PY_DIR/pyproject.toml"
 RESULT=$(detect_language "$PY_DIR")
@@ -58,7 +58,7 @@ assert_eq "Python detected via pyproject.toml" "python" "$RESULT"
 
 # =========================================================================
 echo "=== Test 3: detect_language — Python (setup.py) ==="
-PY2_DIR="$TMPDIR/py2_project"
+PY2_DIR="$TEST_TMPDIR/py2_project"
 mkdir -p "$PY2_DIR"
 touch "$PY2_DIR/setup.py"
 RESULT=$(detect_language "$PY2_DIR")
@@ -66,7 +66,7 @@ assert_eq "Python detected via setup.py" "python" "$RESULT"
 
 # =========================================================================
 echo "=== Test 4: detect_language — Go (go.mod) ==="
-GO_DIR="$TMPDIR/go_project"
+GO_DIR="$TEST_TMPDIR/go_project"
 mkdir -p "$GO_DIR"
 touch "$GO_DIR/go.mod"
 RESULT=$(detect_language "$GO_DIR")
@@ -74,14 +74,14 @@ assert_eq "Go detected via go.mod" "go" "$RESULT"
 
 # =========================================================================
 echo "=== Test 5: detect_language — Unknown (no config files) ==="
-EMPTY_DIR="$TMPDIR/empty_project"
+EMPTY_DIR="$TEST_TMPDIR/empty_project"
 mkdir -p "$EMPTY_DIR"
 RESULT=$(detect_language "$EMPTY_DIR")
 assert_eq "Unknown when no config files" "unknown" "$RESULT"
 
 # =========================================================================
 echo "=== Test 6: detect_language — Multiple config files (first match wins: typescript) ==="
-MULTI_DIR="$TMPDIR/multi_project"
+MULTI_DIR="$TEST_TMPDIR/multi_project"
 mkdir -p "$MULTI_DIR"
 touch "$MULTI_DIR/tsconfig.json"
 touch "$MULTI_DIR/pyproject.toml"
@@ -91,7 +91,7 @@ assert_eq "TypeScript wins when multiple config files present" "typescript" "$RE
 
 # =========================================================================
 echo "=== Test 7: detect_language — Python + Go (python wins over go) ==="
-PY_GO_DIR="$TMPDIR/py_go_project"
+PY_GO_DIR="$TEST_TMPDIR/py_go_project"
 mkdir -p "$PY_GO_DIR"
 touch "$PY_GO_DIR/pyproject.toml"
 touch "$PY_GO_DIR/go.mod"
@@ -100,7 +100,7 @@ assert_eq "Python wins over Go in priority" "python" "$RESULT"
 
 # =========================================================================
 echo "=== Test 8: detect_language — Both pyproject.toml and setup.py ==="
-PY_BOTH_DIR="$TMPDIR/py_both_project"
+PY_BOTH_DIR="$TEST_TMPDIR/py_both_project"
 mkdir -p "$PY_BOTH_DIR"
 touch "$PY_BOTH_DIR/pyproject.toml"
 touch "$PY_BOTH_DIR/setup.py"
@@ -114,7 +114,7 @@ assert_eq "Unknown for empty repo_root" "unknown" "$RESULT"
 
 # =========================================================================
 echo "=== Test 10: detect_language — Nonexistent directory ==="
-RESULT=$(detect_language "$TMPDIR/nonexistent_dir" 2>/dev/null)
+RESULT=$(detect_language "$TEST_TMPDIR/nonexistent_dir" 2>/dev/null)
 assert_eq "Unknown for nonexistent directory" "unknown" "$RESULT"
 
 # =========================================================================
@@ -126,7 +126,7 @@ echo "--- infer_shared_types_dir() tests ---"
 
 # =========================================================================
 echo "=== Test 11: infer_shared_types_dir — finds src/shared/types/ (highest priority) ==="
-INFER_DIR1="$TMPDIR/infer_project1"
+INFER_DIR1="$TEST_TMPDIR/infer_project1"
 mkdir -p "$INFER_DIR1/src/shared/types"
 mkdir -p "$INFER_DIR1/src/types"
 mkdir -p "$INFER_DIR1/types"
@@ -135,7 +135,7 @@ assert_eq "src/shared/types/ found first (highest priority)" "src/shared/types" 
 
 # =========================================================================
 echo "=== Test 12: infer_shared_types_dir — finds src/types/ when src/shared/types/ missing ==="
-INFER_DIR2="$TMPDIR/infer_project2"
+INFER_DIR2="$TEST_TMPDIR/infer_project2"
 mkdir -p "$INFER_DIR2/src/types"
 mkdir -p "$INFER_DIR2/types"
 RESULT=$(infer_shared_types_dir "$INFER_DIR2" "typescript")
@@ -143,56 +143,56 @@ assert_eq "src/types/ found when src/shared/types/ absent" "src/types" "$RESULT"
 
 # =========================================================================
 echo "=== Test 13: infer_shared_types_dir — finds src/interfaces/ ==="
-INFER_DIR3="$TMPDIR/infer_project3"
+INFER_DIR3="$TEST_TMPDIR/infer_project3"
 mkdir -p "$INFER_DIR3/src/interfaces"
 RESULT=$(infer_shared_types_dir "$INFER_DIR3" "typescript")
 assert_eq "src/interfaces/ found" "src/interfaces" "$RESULT"
 
 # =========================================================================
 echo "=== Test 14: infer_shared_types_dir — finds types/ (project root) ==="
-INFER_DIR4="$TMPDIR/infer_project4"
+INFER_DIR4="$TEST_TMPDIR/infer_project4"
 mkdir -p "$INFER_DIR4/types"
 RESULT=$(infer_shared_types_dir "$INFER_DIR4" "typescript")
 assert_eq "types/ found at project root" "types" "$RESULT"
 
 # =========================================================================
 echo "=== Test 15: infer_shared_types_dir — finds shared/ ==="
-INFER_DIR5="$TMPDIR/infer_project5"
+INFER_DIR5="$TEST_TMPDIR/infer_project5"
 mkdir -p "$INFER_DIR5/shared"
 RESULT=$(infer_shared_types_dir "$INFER_DIR5" "python")
 assert_eq "shared/ found" "shared" "$RESULT"
 
 # =========================================================================
 echo "=== Test 16: infer_shared_types_dir — TypeScript fallback default ==="
-INFER_DIR6="$TMPDIR/infer_project6"
+INFER_DIR6="$TEST_TMPDIR/infer_project6"
 mkdir -p "$INFER_DIR6"
 RESULT=$(infer_shared_types_dir "$INFER_DIR6" "typescript")
 assert_eq "TypeScript default: src/shared/types" "src/shared/types" "$RESULT"
 
 # =========================================================================
 echo "=== Test 17: infer_shared_types_dir — Python fallback default ==="
-INFER_DIR7="$TMPDIR/infer_project7"
+INFER_DIR7="$TEST_TMPDIR/infer_project7"
 mkdir -p "$INFER_DIR7"
 RESULT=$(infer_shared_types_dir "$INFER_DIR7" "python")
 assert_eq "Python default: src/shared" "src/shared" "$RESULT"
 
 # =========================================================================
 echo "=== Test 18: infer_shared_types_dir — Go fallback default ==="
-INFER_DIR8="$TMPDIR/infer_project8"
+INFER_DIR8="$TEST_TMPDIR/infer_project8"
 mkdir -p "$INFER_DIR8"
 RESULT=$(infer_shared_types_dir "$INFER_DIR8" "go")
 assert_eq "Go default: internal/shared" "internal/shared" "$RESULT"
 
 # =========================================================================
 echo "=== Test 19: infer_shared_types_dir — Unknown language fallback default ==="
-INFER_DIR9="$TMPDIR/infer_project9"
+INFER_DIR9="$TEST_TMPDIR/infer_project9"
 mkdir -p "$INFER_DIR9"
 RESULT=$(infer_shared_types_dir "$INFER_DIR9" "unknown")
 assert_eq "Unknown language default: src/shared/types" "src/shared/types" "$RESULT"
 
 # =========================================================================
 echo "=== Test 20: infer_shared_types_dir — does NOT create directories ==="
-INFER_DIR10="$TMPDIR/infer_no_create"
+INFER_DIR10="$TEST_TMPDIR/infer_no_create"
 mkdir -p "$INFER_DIR10"
 RESULT=$(infer_shared_types_dir "$INFER_DIR10" "typescript")
 # Verify the default path was returned
@@ -215,19 +215,19 @@ assert_eq "Empty repo_root defaults to src/shared/types" "src/shared/types" "$RE
 
 # =========================================================================
 echo "=== Test 22: infer_shared_types_dir — nonexistent repo_root ==="
-RESULT=$(infer_shared_types_dir "$TMPDIR/nonexistent_infer" "python" 2>/dev/null)
+RESULT=$(infer_shared_types_dir "$TEST_TMPDIR/nonexistent_infer" "python" 2>/dev/null)
 assert_eq "Nonexistent repo_root defaults to Python default" "src/shared" "$RESULT"
 
 # =========================================================================
 echo "=== Test 23: infer_shared_types_dir — empty language string ==="
-INFER_DIR11="$TMPDIR/infer_empty_lang"
+INFER_DIR11="$TEST_TMPDIR/infer_empty_lang"
 mkdir -p "$INFER_DIR11"
 RESULT=$(infer_shared_types_dir "$INFER_DIR11" "")
 assert_eq "Empty language defaults to src/shared/types" "src/shared/types" "$RESULT"
 
 # =========================================================================
 echo "=== Test 24: infer_shared_types_dir — priority order: src/shared/types > types > shared ==="
-INFER_DIR12="$TMPDIR/infer_priority"
+INFER_DIR12="$TEST_TMPDIR/infer_priority"
 mkdir -p "$INFER_DIR12/src/shared/types"
 mkdir -p "$INFER_DIR12/types"
 mkdir -p "$INFER_DIR12/shared"
@@ -243,7 +243,7 @@ echo "--- generate_definition_file() tests ---"
 
 # =========================================================================
 echo "=== Test 25: generate_definition_file — writes definition verbatim when present ==="
-GEN_DIR1="$TMPDIR/gen_def_verbatim"
+GEN_DIR1="$TEST_TMPDIR/gen_def_verbatim"
 mkdir -p "$GEN_DIR1"
 TYPE_JSON_1='{"definitionFile":"src/types/Priority.ts","definition":"export interface Priority {\n  label: string;\n  level: number;\n}","consumers":["US-002","US-003"]}'
 RESULT=$(generate_definition_file "Priority" "$TYPE_JSON_1" "typescript" "$GEN_DIR1" 2>&1)
@@ -261,7 +261,7 @@ fi
 
 # =========================================================================
 echo "=== Test 26: generate_definition_file — generates TS interface from shape ==="
-GEN_DIR2="$TMPDIR/gen_shape_ts"
+GEN_DIR2="$TEST_TMPDIR/gen_shape_ts"
 mkdir -p "$GEN_DIR2"
 TYPE_JSON_2='{"definitionFile":"src/types/TaskStatus.ts","shape":{"properties":[{"name":"value","type":"string"},{"name":"label","type":"string","readonly":true}],"methods":[{"name":"isComplete","params":[],"returns":"boolean"}]},"consumers":["US-002","US-003"]}'
 generate_definition_file "TaskStatus" "$TYPE_JSON_2" "typescript" "$GEN_DIR2" 2>&1
@@ -286,7 +286,7 @@ fi
 
 # =========================================================================
 echo "=== Test 27: generate_definition_file — generates Python Protocol from shape ==="
-GEN_DIR3="$TMPDIR/gen_shape_py"
+GEN_DIR3="$TEST_TMPDIR/gen_shape_py"
 mkdir -p "$GEN_DIR3"
 TYPE_JSON_3='{"definitionFile":"src/shared/task_status.py","shape":{"properties":[{"name":"value","type":"str"},{"name":"label","type":"str","readonly":true}],"methods":[]},"consumers":["US-002","US-003"]}'
 generate_definition_file "TaskStatus" "$TYPE_JSON_3" "python" "$GEN_DIR3" 2>&1
@@ -310,7 +310,7 @@ fi
 
 # =========================================================================
 echo "=== Test 28: generate_definition_file — generates Go interface from shape ==="
-GEN_DIR4="$TMPDIR/gen_shape_go"
+GEN_DIR4="$TEST_TMPDIR/gen_shape_go"
 mkdir -p "$GEN_DIR4"
 TYPE_JSON_4='{"definitionFile":"internal/shared/taskstatus.go","shape":{"properties":[],"methods":[{"name":"IsComplete","params":[],"returns":"bool"},{"name":"Label","params":[],"returns":"string"}]},"consumers":["US-002","US-003"]}'
 generate_definition_file "TaskStatus" "$TYPE_JSON_4" "go" "$GEN_DIR4" 2>&1
@@ -334,7 +334,7 @@ fi
 
 # =========================================================================
 echo "=== Test 29: generate_definition_file — skips when neither definition nor shape ==="
-GEN_DIR5="$TMPDIR/gen_neither"
+GEN_DIR5="$TEST_TMPDIR/gen_neither"
 mkdir -p "$GEN_DIR5"
 TYPE_JSON_5='{"definitionFile":"src/types/Empty.ts","consumers":["US-002","US-003"]}'
 RESULT=$(generate_definition_file "Empty" "$TYPE_JSON_5" "typescript" "$GEN_DIR5" 2>&1)
@@ -357,7 +357,7 @@ fi
 
 # =========================================================================
 echo "=== Test 30: generate_definition_file — idempotent skip when file exists with same content ==="
-GEN_DIR6="$TMPDIR/gen_idempotent"
+GEN_DIR6="$TEST_TMPDIR/gen_idempotent"
 mkdir -p "$GEN_DIR6/src/types"
 printf "export interface Priority {\n  label: string;\n  level: number;\n}" > "$GEN_DIR6/src/types/Priority.ts"
 TYPE_JSON_6='{"definitionFile":"src/types/Priority.ts","definition":"export interface Priority {\n  label: string;\n  level: number;\n}","consumers":["US-002","US-003"]}'
@@ -369,7 +369,7 @@ assert_eq "Idempotent: file with same content not modified" "$EXPECTED" "$CONTEN
 
 # =========================================================================
 echo "=== Test 31: generate_definition_file — does NOT overwrite file with different content ==="
-GEN_DIR7="$TMPDIR/gen_no_overwrite"
+GEN_DIR7="$TEST_TMPDIR/gen_no_overwrite"
 mkdir -p "$GEN_DIR7/src/types"
 printf "// existing different content\nexport type Priority = 'high' | 'low';\n" > "$GEN_DIR7/src/types/Priority.ts"
 ORIGINAL_CONTENT=$(cat "$GEN_DIR7/src/types/Priority.ts")
@@ -390,7 +390,7 @@ fi
 
 # =========================================================================
 echo "=== Test 32: generate_definition_file — creates parent directories ==="
-GEN_DIR8="$TMPDIR/gen_mkdir"
+GEN_DIR8="$TEST_TMPDIR/gen_mkdir"
 mkdir -p "$GEN_DIR8"
 # parent dir does NOT exist yet
 TYPE_JSON_8='{"definitionFile":"deep/nested/dir/types/Foo.ts","definition":"export interface Foo {}","consumers":["US-002","US-003"]}'
@@ -410,7 +410,7 @@ fi
 # =========================================================================
 
 echo "=== Test 33: generate_definition_file — empty type_name ==="
-GEN_DIR9="$TMPDIR/gen_empty_name"
+GEN_DIR9="$TEST_TMPDIR/gen_empty_name"
 mkdir -p "$GEN_DIR9"
 TYPE_JSON_9='{"definitionFile":"src/types/X.ts","definition":"export interface X {}","consumers":["US-002","US-003"]}'
 RESULT=$(generate_definition_file "" "$TYPE_JSON_9" "typescript" "$GEN_DIR9" 2>&1)
@@ -426,7 +426,7 @@ fi
 
 # =========================================================================
 echo "=== Test 34: generate_definition_file — empty JSON ==="
-GEN_DIR10="$TMPDIR/gen_empty_json"
+GEN_DIR10="$TEST_TMPDIR/gen_empty_json"
 mkdir -p "$GEN_DIR10"
 RESULT=$(generate_definition_file "Foo" "{}" "typescript" "$GEN_DIR10" 2>&1)
 # Should handle gracefully since no definitionFile
@@ -442,7 +442,7 @@ fi
 
 # =========================================================================
 echo "=== Test 35: generate_definition_file — TS shape with readonly properties ==="
-GEN_DIR11="$TMPDIR/gen_ts_readonly"
+GEN_DIR11="$TEST_TMPDIR/gen_ts_readonly"
 mkdir -p "$GEN_DIR11"
 TYPE_JSON_11='{"definitionFile":"src/types/ReadOnly.ts","shape":{"properties":[{"name":"id","type":"string","readonly":true},{"name":"count","type":"number"}],"methods":[]},"consumers":["US-002","US-003"]}'
 generate_definition_file "ReadOnly" "$TYPE_JSON_11" "typescript" "$GEN_DIR11" 2>&1
@@ -473,7 +473,7 @@ echo "--- materialize_contracts() tests ---"
 
 # =========================================================================
 echo "=== Test 36: materialize_contracts — materializes multi-consumer types ==="
-MC_DIR1="$TMPDIR/mc_multi"
+MC_DIR1="$TEST_TMPDIR/mc_multi"
 mkdir -p "$MC_DIR1"
 touch "$MC_DIR1/tsconfig.json"
 # Create a quantum.json with two multi-consumer types
@@ -518,7 +518,7 @@ fi
 
 # =========================================================================
 echo "=== Test 37: materialize_contracts — skips single-consumer types ==="
-MC_DIR2="$TMPDIR/mc_single"
+MC_DIR2="$TEST_TMPDIR/mc_single"
 mkdir -p "$MC_DIR2"
 touch "$MC_DIR2/tsconfig.json"
 cat > "$MC_DIR2/quantum.json" << 'QJSON'
@@ -551,7 +551,7 @@ fi
 
 # =========================================================================
 echo "=== Test 38: materialize_contracts — skips types without consumers ==="
-MC_DIR3="$TMPDIR/mc_no_consumers"
+MC_DIR3="$TEST_TMPDIR/mc_no_consumers"
 mkdir -p "$MC_DIR3"
 touch "$MC_DIR3/tsconfig.json"
 cat > "$MC_DIR3/quantum.json" << 'QJSON'
@@ -582,7 +582,7 @@ fi
 
 # =========================================================================
 echo "=== Test 39: materialize_contracts — creates git commit ==="
-MC_DIR4="$TMPDIR/mc_commit"
+MC_DIR4="$TEST_TMPDIR/mc_commit"
 mkdir -p "$MC_DIR4"
 touch "$MC_DIR4/tsconfig.json"
 cat > "$MC_DIR4/quantum.json" << 'QJSON'
@@ -617,7 +617,7 @@ fi
 
 # =========================================================================
 echo "=== Test 40: materialize_contracts — updates execution.materializedContracts ==="
-MC_DIR5="$TMPDIR/mc_exec_update"
+MC_DIR5="$TEST_TMPDIR/mc_exec_update"
 mkdir -p "$MC_DIR5"
 touch "$MC_DIR5/tsconfig.json"
 cat > "$MC_DIR5/quantum.json" << 'QJSON'
@@ -652,7 +652,7 @@ fi
 
 # =========================================================================
 echo "=== Test 41: materialize_contracts — prints materialized names to stdout ==="
-MC_DIR6="$TMPDIR/mc_stdout"
+MC_DIR6="$TEST_TMPDIR/mc_stdout"
 mkdir -p "$MC_DIR6"
 touch "$MC_DIR6/tsconfig.json"
 cat > "$MC_DIR6/quantum.json" << 'QJSON'
@@ -693,7 +693,7 @@ fi
 
 # =========================================================================
 echo "=== Test 42: materialize_contracts — reads discoveredContracts ==="
-MC_DIR7="$TMPDIR/mc_discovered"
+MC_DIR7="$TEST_TMPDIR/mc_discovered"
 mkdir -p "$MC_DIR7"
 touch "$MC_DIR7/tsconfig.json"
 cat > "$MC_DIR7/quantum.json" << 'QJSON'
@@ -729,7 +729,7 @@ fi
 
 # =========================================================================
 echo "=== Test 43: materialize_contracts — no-op when no multi-consumer contracts ==="
-MC_DIR8="$TMPDIR/mc_noop"
+MC_DIR8="$TEST_TMPDIR/mc_noop"
 mkdir -p "$MC_DIR8"
 touch "$MC_DIR8/tsconfig.json"
 cat > "$MC_DIR8/quantum.json" << 'QJSON'
@@ -777,7 +777,7 @@ fi
 
 # =========================================================================
 echo "=== Test 45: materialize_contracts — nonexistent quantum.json ==="
-RESULT=$(materialize_contracts "$TMPDIR/nonexistent/quantum.json" "$TMPDIR" 1 2>&1)
+RESULT=$(materialize_contracts "$TEST_TMPDIR/nonexistent/quantum.json" "$TEST_TMPDIR" 1 2>&1)
 RET=$?
 if [[ $RET -ne 0 ]]; then
   TOTAL=$((TOTAL + 1))
@@ -798,7 +798,7 @@ echo "--- Additional edge-case tests (US-020) ---"
 
 # =========================================================================
 echo "=== Test 46: materialize_contracts — mix of multi-consumer and single-consumer types ==="
-MC_MIX_DIR="$TMPDIR/mc_mix"
+MC_MIX_DIR="$TEST_TMPDIR/mc_mix"
 mkdir -p "$MC_MIX_DIR"
 touch "$MC_MIX_DIR/tsconfig.json"
 cat > "$MC_MIX_DIR/quantum.json" << 'QJSON'
@@ -869,7 +869,7 @@ fi
 
 # =========================================================================
 echo "=== Test 47: materialize_contracts — empty contracts object (no-op) ==="
-MC_EMPTY_DIR="$TMPDIR/mc_empty_contracts"
+MC_EMPTY_DIR="$TEST_TMPDIR/mc_empty_contracts"
 mkdir -p "$MC_EMPTY_DIR"
 touch "$MC_EMPTY_DIR/tsconfig.json"
 cat > "$MC_EMPTY_DIR/quantum.json" << 'QJSON'
@@ -895,7 +895,7 @@ fi
 
 # =========================================================================
 echo "=== Test 48: generate_definition_file — shape but no definition for Python ==="
-GEN_PY_SHAPE_DIR="$TMPDIR/gen_py_shape_only"
+GEN_PY_SHAPE_DIR="$TEST_TMPDIR/gen_py_shape_only"
 mkdir -p "$GEN_PY_SHAPE_DIR"
 TYPE_JSON_PY_SHAPE='{"definitionFile":"src/shared/event.py","shape":{"properties":[{"name":"name","type":"str"},{"name":"timestamp","type":"float"}],"methods":[{"name":"serialize","params":[{"name":"format","type":"str"}],"returns":"str"}]},"consumers":["US-002","US-003"]}'
 generate_definition_file "Event" "$TYPE_JSON_PY_SHAPE" "python" "$GEN_PY_SHAPE_DIR" 2>&1
@@ -917,7 +917,7 @@ fi
 
 # =========================================================================
 echo "=== Test 49: generate_definition_file — shape but no definition for Go ==="
-GEN_GO_SHAPE_DIR="$TMPDIR/gen_go_shape_only"
+GEN_GO_SHAPE_DIR="$TEST_TMPDIR/gen_go_shape_only"
 mkdir -p "$GEN_GO_SHAPE_DIR"
 TYPE_JSON_GO_SHAPE='{"definitionFile":"internal/shared/event.go","shape":{"properties":[],"methods":[{"name":"Serialize","params":[{"name":"format","type":"string"}],"returns":"string"},{"name":"Timestamp","params":[],"returns":"int64"}]},"consumers":["US-002","US-003"]}'
 generate_definition_file "Event" "$TYPE_JSON_GO_SHAPE" "go" "$GEN_GO_SHAPE_DIR" 2>&1
@@ -939,7 +939,7 @@ fi
 
 # =========================================================================
 echo "=== Test 50: Idempotent re-run — same content, file already exists -> skipped ==="
-IDEM_DIR="$TMPDIR/idempotent_rerun"
+IDEM_DIR="$TEST_TMPDIR/idempotent_rerun"
 mkdir -p "$IDEM_DIR/src/types"
 # Write file with known content first
 printf "export interface Widget { id: number; }" > "$IDEM_DIR/src/types/Widget.ts"
@@ -958,7 +958,7 @@ fi
 
 # =========================================================================
 echo "=== Test 51: Different content already exists -> NOT overwritten, warning logged ==="
-DIFF_DIR="$TMPDIR/diff_content_rerun"
+DIFF_DIR="$TEST_TMPDIR/diff_content_rerun"
 mkdir -p "$DIFF_DIR/src/types"
 # Write file with different content first
 printf "export interface Widget { id: string; name: string; }" > "$DIFF_DIR/src/types/Widget.ts"
@@ -986,7 +986,7 @@ fi
 
 # =========================================================================
 echo "=== Test 52: discoveredContracts included alongside shared_types ==="
-MC_BOTH_DIR="$TMPDIR/mc_both_sources"
+MC_BOTH_DIR="$TEST_TMPDIR/mc_both_sources"
 mkdir -p "$MC_BOTH_DIR"
 touch "$MC_BOTH_DIR/tsconfig.json"
 cat > "$MC_BOTH_DIR/quantum.json" << 'QJSON'
@@ -1048,7 +1048,7 @@ fi
 
 # =========================================================================
 echo "=== Test 53: Git commit message format matches 'chore: materialize contracts for Wave N' ==="
-MC_COMMIT_FMT="$TMPDIR/mc_commit_fmt"
+MC_COMMIT_FMT="$TEST_TMPDIR/mc_commit_fmt"
 mkdir -p "$MC_COMMIT_FMT"
 touch "$MC_COMMIT_FMT/tsconfig.json"
 cat > "$MC_COMMIT_FMT/quantum.json" << 'QJSON'
@@ -1083,7 +1083,7 @@ fi
 
 # =========================================================================
 echo "=== Test 54: Git commit message for Wave 1 ==="
-MC_COMMIT_W1="$TMPDIR/mc_commit_w1"
+MC_COMMIT_W1="$TEST_TMPDIR/mc_commit_w1"
 mkdir -p "$MC_COMMIT_W1"
 touch "$MC_COMMIT_W1/pyproject.toml"
 cat > "$MC_COMMIT_W1/quantum.json" << 'QJSON'
@@ -1118,7 +1118,7 @@ fi
 
 # =========================================================================
 echo "=== Test 55: infer_shared_types_dir — priority order: src/types > src/interfaces > types > shared ==="
-INFER_PRI_DIR="$TMPDIR/infer_priority2"
+INFER_PRI_DIR="$TEST_TMPDIR/infer_priority2"
 mkdir -p "$INFER_PRI_DIR/src/types"
 mkdir -p "$INFER_PRI_DIR/src/interfaces"
 mkdir -p "$INFER_PRI_DIR/types"
@@ -1129,7 +1129,7 @@ assert_eq "src/types wins when src/shared/types absent" "src/types" "$RESULT"
 
 # =========================================================================
 echo "=== Test 56: infer_shared_types_dir — src/interfaces > types > shared ==="
-INFER_PRI_DIR2="$TMPDIR/infer_priority3"
+INFER_PRI_DIR2="$TEST_TMPDIR/infer_priority3"
 mkdir -p "$INFER_PRI_DIR2/src/interfaces"
 mkdir -p "$INFER_PRI_DIR2/types"
 mkdir -p "$INFER_PRI_DIR2/shared"
@@ -1138,7 +1138,7 @@ assert_eq "src/interfaces wins when src/shared/types and src/types absent" "src/
 
 # =========================================================================
 echo "=== Test 57: infer_shared_types_dir — types > shared ==="
-INFER_PRI_DIR3="$TMPDIR/infer_priority4"
+INFER_PRI_DIR3="$TEST_TMPDIR/infer_priority4"
 mkdir -p "$INFER_PRI_DIR3/types"
 mkdir -p "$INFER_PRI_DIR3/shared"
 RESULT=$(infer_shared_types_dir "$INFER_PRI_DIR3" "python")
@@ -1146,7 +1146,7 @@ assert_eq "types wins when higher priority dirs absent" "types" "$RESULT"
 
 # =========================================================================
 echo "=== Test 58: materialize_contracts — empty shared_types with no discoveredContracts ==="
-MC_EMPTY_ST="$TMPDIR/mc_empty_st"
+MC_EMPTY_ST="$TEST_TMPDIR/mc_empty_st"
 mkdir -p "$MC_EMPTY_ST"
 touch "$MC_EMPTY_ST/tsconfig.json"
 cat > "$MC_EMPTY_ST/quantum.json" << 'QJSON'
@@ -1173,7 +1173,7 @@ fi
 
 # =========================================================================
 echo "=== Test 59: generate_definition_file — Python shape with methods generates def ==="
-GEN_PY_METHOD_DIR="$TMPDIR/gen_py_method"
+GEN_PY_METHOD_DIR="$TEST_TMPDIR/gen_py_method"
 mkdir -p "$GEN_PY_METHOD_DIR"
 TYPE_JSON_PY_METHOD='{"definitionFile":"src/shared/calculator.py","shape":{"properties":[],"methods":[{"name":"add","params":[{"name":"a","type":"int"},{"name":"b","type":"int"}],"returns":"int"}]},"consumers":["US-002","US-003"]}'
 generate_definition_file "Calculator" "$TYPE_JSON_PY_METHOD" "python" "$GEN_PY_METHOD_DIR" 2>&1
@@ -1195,7 +1195,7 @@ fi
 
 # =========================================================================
 echo "=== Test 60: generate_definition_file — Go shape with params in methods ==="
-GEN_GO_PARAM_DIR="$TMPDIR/gen_go_param"
+GEN_GO_PARAM_DIR="$TEST_TMPDIR/gen_go_param"
 mkdir -p "$GEN_GO_PARAM_DIR"
 TYPE_JSON_GO_PARAM='{"definitionFile":"internal/shared/calc.go","shape":{"properties":[],"methods":[{"name":"Add","params":[{"name":"a","type":"int"},{"name":"b","type":"int"}],"returns":"int"}]},"consumers":["US-002","US-003"]}'
 generate_definition_file "Calc" "$TYPE_JSON_GO_PARAM" "go" "$GEN_GO_PARAM_DIR" 2>&1
@@ -1217,7 +1217,7 @@ fi
 
 # =========================================================================
 echo "=== Test 61: materialize_contracts — discoveredContracts with single consumer skipped ==="
-MC_DISC_SINGLE="$TMPDIR/mc_disc_single"
+MC_DISC_SINGLE="$TEST_TMPDIR/mc_disc_single"
 mkdir -p "$MC_DISC_SINGLE"
 touch "$MC_DISC_SINGLE/tsconfig.json"
 cat > "$MC_DISC_SINGLE/quantum.json" << 'QJSON'
@@ -1252,7 +1252,7 @@ fi
 
 # =========================================================================
 echo "=== Test 62: materialize_contracts — empty repo_root returns error ==="
-MC_EMPTY_ROOT="$TMPDIR/mc_empty_root"
+MC_EMPTY_ROOT="$TEST_TMPDIR/mc_empty_root"
 mkdir -p "$MC_EMPTY_ROOT"
 cat > "$MC_EMPTY_ROOT/quantum.json" << 'QJSON'
 {
@@ -1273,7 +1273,7 @@ fi
 
 # =========================================================================
 echo "=== Test 63: materialize_contracts — wave_num defaults to 1 when omitted ==="
-MC_DEFAULT_WAVE="$TMPDIR/mc_default_wave"
+MC_DEFAULT_WAVE="$TEST_TMPDIR/mc_default_wave"
 mkdir -p "$MC_DEFAULT_WAVE"
 touch "$MC_DEFAULT_WAVE/tsconfig.json"
 cat > "$MC_DEFAULT_WAVE/quantum.json" << 'QJSON'
@@ -1308,7 +1308,7 @@ fi
 
 # =========================================================================
 echo "=== Test 64: generate_definition_file — TS shape with methods that have params ==="
-GEN_TS_METH_DIR="$TMPDIR/gen_ts_method_params"
+GEN_TS_METH_DIR="$TEST_TMPDIR/gen_ts_method_params"
 mkdir -p "$GEN_TS_METH_DIR"
 TYPE_JSON_TS_METH='{"definitionFile":"src/types/Service.ts","shape":{"properties":[],"methods":[{"name":"process","params":[{"name":"input","type":"string"},{"name":"count","type":"number"}],"returns":"Promise<void>"}]},"consumers":["US-002","US-003"]}'
 generate_definition_file "Service" "$TYPE_JSON_TS_METH" "typescript" "$GEN_TS_METH_DIR" 2>&1
@@ -1330,7 +1330,7 @@ fi
 
 # =========================================================================
 echo "=== Test 65: generate_definition_file — Python shape with no properties and no methods ==="
-GEN_PY_EMPTY_SHAPE="$TMPDIR/gen_py_empty_shape"
+GEN_PY_EMPTY_SHAPE="$TEST_TMPDIR/gen_py_empty_shape"
 mkdir -p "$GEN_PY_EMPTY_SHAPE"
 TYPE_JSON_PY_EMPTY_SHAPE='{"definitionFile":"src/shared/marker.py","shape":{"properties":[],"methods":[]},"consumers":["US-002","US-003"]}'
 generate_definition_file "Marker" "$TYPE_JSON_PY_EMPTY_SHAPE" "python" "$GEN_PY_EMPTY_SHAPE" 2>&1
@@ -1353,7 +1353,7 @@ fi
 
 # =========================================================================
 echo "=== Test 66: materialize_contracts — materializedContracts accumulates across calls ==="
-MC_ACCUM="$TMPDIR/mc_accumulate"
+MC_ACCUM="$TEST_TMPDIR/mc_accumulate"
 mkdir -p "$MC_ACCUM"
 touch "$MC_ACCUM/tsconfig.json"
 cat > "$MC_ACCUM/quantum.json" << 'QJSON'
@@ -1389,7 +1389,7 @@ fi
 
 # =========================================================================
 echo "=== Test 67: generate_definition_file — infer fallback when definitionFile missing ==="
-GEN_INFER_DIR="$TMPDIR/gen_infer_fallback"
+GEN_INFER_DIR="$TEST_TMPDIR/gen_infer_fallback"
 mkdir -p "$GEN_INFER_DIR"
 touch "$GEN_INFER_DIR/tsconfig.json"
 # Type entry with definition content but NO definitionFile
@@ -1420,7 +1420,7 @@ fi
 
 # =========================================================================
 echo "=== Test 68: generate_definition_file — infer fallback with existing src/types dir ==="
-GEN_INFER_DIR2="$TMPDIR/gen_infer_existing_dir"
+GEN_INFER_DIR2="$TEST_TMPDIR/gen_infer_existing_dir"
 mkdir -p "$GEN_INFER_DIR2/src/types"
 touch "$GEN_INFER_DIR2/tsconfig.json"
 TYPE_JSON_INFER2='{"definition":"export type Status = \"active\" | \"inactive\";","consumers":["US-002","US-003"]}'
@@ -1440,7 +1440,7 @@ fi
 
 # =========================================================================
 echo "=== Test 69: generate_definition_file — infer fallback for Python ==="
-GEN_INFER_PY="$TMPDIR/gen_infer_py"
+GEN_INFER_PY="$TEST_TMPDIR/gen_infer_py"
 mkdir -p "$GEN_INFER_PY"
 touch "$GEN_INFER_PY/pyproject.toml"
 TYPE_JSON_INFER_PY='{"definition":"class UserConfig:\n    pass","consumers":["US-002","US-003"]}'
@@ -1459,7 +1459,7 @@ fi
 
 # =========================================================================
 echo "=== Test 70: generate_definition_file — path traversal with ../../../etc/passwd rejected ==="
-GEN_TRAVERSAL_DIR="$TMPDIR/gen_traversal"
+GEN_TRAVERSAL_DIR="$TEST_TMPDIR/gen_traversal"
 mkdir -p "$GEN_TRAVERSAL_DIR"
 TYPE_JSON_TRAVERSAL='{"definitionFile":"../../../etc/passwd","definition":"malicious content","consumers":["US-002","US-003"]}'
 RESULT_TRAVERSAL=$(generate_definition_file "Evil" "$TYPE_JSON_TRAVERSAL" "typescript" "$GEN_TRAVERSAL_DIR" 2>&1)
@@ -1485,7 +1485,7 @@ fi
 
 # =========================================================================
 echo "=== Test 71: generate_definition_file — normal path accepted ==="
-GEN_NORMAL_DIR="$TMPDIR/gen_normal_path"
+GEN_NORMAL_DIR="$TEST_TMPDIR/gen_normal_path"
 mkdir -p "$GEN_NORMAL_DIR"
 TYPE_JSON_NORMAL='{"definitionFile":"src/types/Normal.ts","definition":"export interface Normal { ok: boolean; }","consumers":["US-002","US-003"]}'
 RESULT_NORMAL=$(generate_definition_file "Normal" "$TYPE_JSON_NORMAL" "typescript" "$GEN_NORMAL_DIR" 2>&1)
@@ -1509,7 +1509,7 @@ echo "--- US-006/US-014: fileConflicts-based materialization tests ---"
 
 # =========================================================================
 echo "=== Test 72: materialize_contracts — single-consumer type IN fileConflicts is materialized ==="
-MC_FC1="$TMPDIR/mc_fc_single_conflict"
+MC_FC1="$TEST_TMPDIR/mc_fc_single_conflict"
 mkdir -p "$MC_FC1"
 touch "$MC_FC1/tsconfig.json"
 cat > "$MC_FC1/quantum.json" << 'QJSON'
@@ -1561,7 +1561,7 @@ fi
 
 # =========================================================================
 echo "=== Test 74: materialize_contracts — multi-consumer type logs '(multi-consumer)' ==="
-MC_FC2="$TMPDIR/mc_fc_multi_log"
+MC_FC2="$TEST_TMPDIR/mc_fc_multi_log"
 mkdir -p "$MC_FC2"
 touch "$MC_FC2/tsconfig.json"
 cat > "$MC_FC2/quantum.json" << 'QJSON'
@@ -1594,7 +1594,7 @@ fi
 
 # =========================================================================
 echo "=== Test 75: materialize_contracts — single-consumer NOT in fileConflicts still skipped ==="
-MC_FC3="$TMPDIR/mc_fc_single_no_conflict"
+MC_FC3="$TEST_TMPDIR/mc_fc_single_no_conflict"
 mkdir -p "$MC_FC3"
 touch "$MC_FC3/tsconfig.json"
 cat > "$MC_FC3/quantum.json" << 'QJSON'
@@ -1632,7 +1632,7 @@ fi
 
 # =========================================================================
 echo "=== Test 76: materialize_contracts — mix of multi-consumer, fileConflict, and plain single ==="
-MC_FC4="$TMPDIR/mc_fc_mix"
+MC_FC4="$TEST_TMPDIR/mc_fc_mix"
 mkdir -p "$MC_FC4"
 touch "$MC_FC4/tsconfig.json"
 cat > "$MC_FC4/quantum.json" << 'QJSON'
@@ -1701,7 +1701,7 @@ fi
 
 # =========================================================================
 echo "=== Test 77: materialize_contracts — no fileConflicts key in quantum.json (backward compat) ==="
-MC_FC5="$TMPDIR/mc_fc_no_key"
+MC_FC5="$TEST_TMPDIR/mc_fc_no_key"
 mkdir -p "$MC_FC5"
 touch "$MC_FC5/tsconfig.json"
 cat > "$MC_FC5/quantum.json" << 'QJSON'
@@ -1733,7 +1733,7 @@ fi
 
 # =========================================================================
 echo "=== Test 78: materialize_contracts — empty fileConflicts array (backward compat) ==="
-MC_FC6="$TMPDIR/mc_fc_empty_array"
+MC_FC6="$TEST_TMPDIR/mc_fc_empty_array"
 mkdir -p "$MC_FC6"
 touch "$MC_FC6/tsconfig.json"
 cat > "$MC_FC6/quantum.json" << 'QJSON'

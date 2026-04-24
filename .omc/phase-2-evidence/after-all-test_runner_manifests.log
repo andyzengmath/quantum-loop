@@ -1,0 +1,29 @@
+Test: all_manifests_valid_json
+  PASS: aider is valid JSON
+  PASS: amp is valid JSON
+  PASS: claude is valid JSON
+  PASS: codex is valid JSON
+  PASS: copilot is valid JSON
+  PASS: cursor is valid JSON
+  PASS: gemini is valid JSON
+Test: all_manifests_have_required_fields
+  PASS: aider has required fields
+  PASS: amp has required fields
+  PASS: claude has required fields
+  PASS: codex has required fields
+  PASS: copilot has required fields
+  PASS: cursor has required fields
+  PASS: gemini has required fields
+Test: tier_assignments
+  PASS: claude tier
+  PASS: codex tier
+  PASS: copilot tier
+  PASS: cursor tier
+  PASS: gemini tier
+  PASS: amp tier
+  PASS: aider tier
+Test: hook_files_exist
+  PASS: codex-hooks.sh exists
+  PASS: copilot-hooks.sh exists
+
+=== Results: 23/23 passed, 0 failed ===

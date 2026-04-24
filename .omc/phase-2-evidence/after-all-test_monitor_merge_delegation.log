@@ -1,0 +1,46 @@
+=== Test D1: Delegation on clean merge (merge-strategy available + quantum.json exists) ===
+  PASS: Delegation clean merge returns 0
+  PASS: Delegated merge brought file
+=== Test D2: Fallback when MERGE_STRATEGY_AVAILABLE=false ===
+  PASS: Fallback merge returns 0
+  PASS: Fallback merge brought file
+=== Test D3: Fallback when quantum.json does not exist ===
+  PASS: No quantum.json fallback returns 0
+  PASS: No quantum.json fallback brought file
+=== Test D3b: Resolvable conflict returns 0 when delegated (key behavioral difference) ===
+  PASS: Resolvable conflict via delegation returns 0
+  PASS: No CONFLICT lines on resolved merge
+  PASS: Theirs strategy applied (worktree content wins)
+=== Test D4: Delegation on conflict with escalation returns 1 with CONFLICT lines ===
+  PASS: Delegated escalation returns 1
+  PASS: Escalation has CONFLICT line
+  PASS: Working tree clean after delegated conflict abort
+=== Test D5: Fallback conflict also returns 1 with CONFLICT lines ===
+  PASS: Fallback conflict returns 1
+  PASS: Fallback conflict has CONFLICT line
+  PASS: Working tree clean after fallback conflict abort
+=== Test R1: RESILIENCE_AVAILABLE variable is set after sourcing monitor.sh ===
+  PASS: RESILIENCE_AVAILABLE is set
+  PASS: RESILIENCE_AVAILABLE is true when resilience.sh exists
+=== Test R2: squash_and_merge delegation when RESILIENCE_AVAILABLE=true ===
+  PASS: squash_and_merge called when RESILIENCE_AVAILABLE=true
+  PASS: squash_and_merge delegation returns 0
+  PASS: squash_and_merge receives branch
+  PASS: squash_and_merge receives story_id
+  PASS: squash_and_merge receives json_path
+=== Test R3: story_title extracted from quantum.json ===
+  PASS: story title delegation returns 0
+  PASS: squash_and_merge receives story title
+=== Test R4: Fallback to classify_and_merge when RESILIENCE_AVAILABLE=false ===
+  PASS: Classify_and_merge fallback returns 0
+  PASS: classify_and_merge fallback brought file
+=== Test R5: Fallback to bare merge when both RESILIENCE and MERGE_STRATEGY false ===
+  PASS: Bare git merge fallback returns 0
+  PASS: Bare fallback brought file
+=== Test D6: Function signature unchanged (still repo_root, worktree_branch) ===
+  PASS: Empty repo_root still returns 1
+  PASS: Empty repo_root error message
+  PASS: Empty branch still returns 1
+  PASS: Empty branch error message
+
+=== Results: 32/32 passed, 0 failed ===

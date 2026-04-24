@@ -1,0 +1,55 @@
+Test: all_manifests_accepted
+  PASS: runner_load claude succeeds
+  PASS: runner_load codex succeeds
+  PASS: runner_load copilot succeeds
+  PASS: runner_load cursor succeeds
+  PASS: runner_load gemini succeeds
+  PASS: runner_load amp succeeds
+  PASS: runner_load aider succeeds
+Test: unknown_rejected
+  PASS: unknown runner rejected
+  PASS: lists available runners
+Test: default_is_claude
+  PASS: default runner is claude
+  PASS: default tier is guaranteed
+Test: banner_shows_runner
+  PASS: banner runner name
+  PASS: banner binary
+  PASS: banner tier
+Test: experimental_warning
+  PASS: copilot is experimental
+  PASS: experimental warning triggers for copilot
+Test: no_warning_noninteractive
+  PASS: experimental runner loads without blocking
+Test: claude_command_regression
+  PASS: has claude binary
+  PASS: has --print
+  PASS: has -p flag
+  PASS: has prompt
+  PASS: no preamble
+  PASS: no heuristic
+Test: codex_end_to_end
+  PASS: codex name
+  PASS: codex binary
+  PASS: codex tier
+  PASS: codex delivery
+  PASS: codex headless -q
+  PASS: codex approval-mode
+  PASS: codex preamble enabled
+  PASS: codex heuristic enabled
+  PASS: codex native instruction
+  PASS: codex fallback
+  PASS: codex cmd has binary
+  PASS: codex cmd has -q
+  PASS: codex cmd has approval-mode
+  PASS: codex cmd has preamble
+  PASS: codex cmd has prompt
+  PASS: codex cmd no -p flag
+  PASS: codex hook sandbox warning
+  PASS: codex AGENTS.md generated from CLAUDE.md
+  PASS: codex AGENTS.md has marker
+  PASS: codex AGENTS.md has original content
+  PASS: codex heuristic commit+tests → PASSED
+  PASS: codex heuristic confidence=high
+
+=== Results: 45/45 passed, 0 failed ===

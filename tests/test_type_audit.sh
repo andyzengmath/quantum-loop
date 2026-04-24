@@ -47,17 +47,17 @@ json_first_files_len() {
 # =========================================================================
 # Setup: create temporary directories for testing
 # =========================================================================
-TMPDIR=$(mktemp -d)
+TEST_TMPDIR=$(mktemp -d)
 
 cleanup() {
-  rm -rf "$TMPDIR"
+  rm -rf "$TEST_TMPDIR"
 }
 
 trap cleanup EXIT
 
 # =========================================================================
 echo "=== Test 1: TypeScript duplicate — two files define same interface ==="
-TS_DIR="$TMPDIR/ts_project"
+TS_DIR="$TEST_TMPDIR/ts_project"
 mkdir -p "$TS_DIR"
 touch "$TS_DIR/tsconfig.json"
 
@@ -85,7 +85,7 @@ assert_eq "TS duplicate has 2 files" "2" "$FIRST_FILES_LEN"
 
 # =========================================================================
 echo "=== Test 2: Python Protocol duplicate ==="
-PY_DIR="$TMPDIR/py_project"
+PY_DIR="$TEST_TMPDIR/py_project"
 mkdir -p "$PY_DIR"
 touch "$PY_DIR/pyproject.toml"
 
@@ -108,7 +108,7 @@ assert_eq "Python Protocol duplicate name is Bar" "Bar" "$FIRST_NAME"
 
 # =========================================================================
 echo "=== Test 3: Go interface duplicate ==="
-GO_DIR="$TMPDIR/go_project"
+GO_DIR="$TEST_TMPDIR/go_project"
 mkdir -p "$GO_DIR"
 touch "$GO_DIR/go.mod"
 
@@ -133,7 +133,7 @@ assert_eq "Go interface duplicate name is Handler" "Handler" "$FIRST_NAME"
 
 # =========================================================================
 echo "=== Test 4: No duplicates — each type defined once ==="
-NODUP_DIR="$TMPDIR/nodup_project"
+NODUP_DIR="$TEST_TMPDIR/nodup_project"
 mkdir -p "$NODUP_DIR"
 touch "$NODUP_DIR/tsconfig.json"
 
@@ -155,7 +155,7 @@ assert_eq "No duplicates returns empty array" "0" "$LEN"
 
 # =========================================================================
 echo "=== Test 5: Scoped to file list only — ignores files not in list ==="
-SCOPE_DIR="$TMPDIR/scope_project"
+SCOPE_DIR="$TEST_TMPDIR/scope_project"
 mkdir -p "$SCOPE_DIR"
 touch "$SCOPE_DIR/tsconfig.json"
 
@@ -183,7 +183,7 @@ assert_eq "Scoped scan ignores files not in list" "0" "$LEN"
 
 # =========================================================================
 echo "=== Test 6: Cross-file only — same name in same file not flagged ==="
-CROSS_DIR="$TMPDIR/cross_project"
+CROSS_DIR="$TEST_TMPDIR/cross_project"
 mkdir -p "$CROSS_DIR"
 touch "$CROSS_DIR/tsconfig.json"
 
@@ -202,7 +202,7 @@ assert_eq "Same-file duplicate not flagged (cross-file only)" "0" "$LEN"
 
 # =========================================================================
 echo "=== Test 7: Edge case — empty file list ==="
-EMPTY_DIR="$TMPDIR/empty_project"
+EMPTY_DIR="$TEST_TMPDIR/empty_project"
 mkdir -p "$EMPTY_DIR"
 touch "$EMPTY_DIR/tsconfig.json"
 RESULT=$(grep_duplicate_definitions "$EMPTY_DIR" "")
@@ -217,7 +217,7 @@ assert_eq "Empty repo root returns empty array" "0" "$LEN"
 
 # =========================================================================
 echo "=== Test 9: Edge case — Python BaseModel duplicate ==="
-BM_DIR="$TMPDIR/bm_project"
+BM_DIR="$TEST_TMPDIR/bm_project"
 mkdir -p "$BM_DIR"
 touch "$BM_DIR/pyproject.toml"
 
@@ -240,7 +240,7 @@ assert_eq "Python BaseModel duplicate name is Config" "Config" "$FIRST_NAME"
 
 # =========================================================================
 echo "=== Test 10: Edge case — nonexistent files in list ==="
-GHOST_DIR="$TMPDIR/ghost_project"
+GHOST_DIR="$TEST_TMPDIR/ghost_project"
 mkdir -p "$GHOST_DIR"
 touch "$GHOST_DIR/tsconfig.json"
 RESULT=$(grep_duplicate_definitions "$GHOST_DIR" "$GHOST_DIR/missing1.ts $GHOST_DIR/missing2.ts")
@@ -249,7 +249,7 @@ assert_eq "Nonexistent files return empty array" "0" "$LEN"
 
 # =========================================================================
 echo "=== Test 11: Edge case — Go struct duplicate ==="
-GO2_DIR="$TMPDIR/go2_project"
+GO2_DIR="$TEST_TMPDIR/go2_project"
 mkdir -p "$GO2_DIR"
 touch "$GO2_DIR/go.mod"
 
@@ -274,7 +274,7 @@ assert_eq "Go struct duplicate name is Config" "Config" "$FIRST_NAME"
 
 # =========================================================================
 echo "=== Test 12: Edge case — TS export type duplicate ==="
-TT_DIR="$TMPDIR/tt_project"
+TT_DIR="$TEST_TMPDIR/tt_project"
 mkdir -p "$TT_DIR"
 touch "$TT_DIR/tsconfig.json"
 
@@ -298,7 +298,7 @@ assert_eq "TS export type duplicate name is Result" "Result" "$FIRST_NAME"
 # =========================================================================
 
 echo "=== Test 13: audit_wave_types — no duplicates logs skip and returns 0 ==="
-AWN_DIR="$TMPDIR/aw_nodup"
+AWN_DIR="$TEST_TMPDIR/aw_nodup"
 mkdir -p "$AWN_DIR"
 touch "$AWN_DIR/tsconfig.json"
 
@@ -340,7 +340,7 @@ fi
 
 # =========================================================================
 echo "=== Test 14: audit_wave_types — duplicates returns count and logs ==="
-AWD_DIR="$TMPDIR/aw_dup"
+AWD_DIR="$TEST_TMPDIR/aw_dup"
 mkdir -p "$AWD_DIR"
 touch "$AWD_DIR/tsconfig.json"
 
@@ -384,7 +384,7 @@ fi
 
 # =========================================================================
 echo "=== Test 15: audit_wave_types — empty repo root returns 0 ==="
-EMPTY_QJ="$TMPDIR/empty_qj.json"
+EMPTY_QJ="$TEST_TMPDIR/empty_qj.json"
 echo '{"project":"test","contracts":{},"stories":[]}' > "$EMPTY_QJ"
 OUTPUT=$(audit_wave_types "$EMPTY_QJ" "" 1 2>&1)
 RET=$?
@@ -404,7 +404,7 @@ fi
 
 # =========================================================================
 echo "=== Test 17: audit_wave_types — checks contract shapes ==="
-AWC_DIR="$TMPDIR/aw_contract"
+AWC_DIR="$TEST_TMPDIR/aw_contract"
 mkdir -p "$AWC_DIR"
 touch "$AWC_DIR/tsconfig.json"
 
@@ -459,7 +459,7 @@ assert_eq "audit_wave_types with empty json_path returns 0" "0" "$RET"
 
 # =========================================================================
 echo "=== Test 19: audit_wave_types — nonexistent repo_root returns 0 ==="
-FAKE_QJ="$TMPDIR/fake_qj.json"
+FAKE_QJ="$TEST_TMPDIR/fake_qj.json"
 echo '{"project":"test","contracts":{},"stories":[]}' > "$FAKE_QJ"
 OUTPUT=$(audit_wave_types "$FAKE_QJ" "/nonexistent/path/12345" 1 2>&1)
 RET=$?
@@ -467,7 +467,7 @@ assert_eq "audit_wave_types with nonexistent repo_root returns 0" "0" "$RET"
 
 # =========================================================================
 echo "=== Test 20: audit_wave_types — multiple duplicates returns correct count ==="
-AWM_DIR="$TMPDIR/aw_multi"
+AWM_DIR="$TEST_TMPDIR/aw_multi"
 mkdir -p "$AWM_DIR"
 touch "$AWM_DIR/tsconfig.json"
 
@@ -521,7 +521,7 @@ fi
 # =========================================================================
 
 echo "=== Test 22: update_contracts_for_next_wave — adds entry to discoveredContracts ==="
-UC_DIR="$TMPDIR/uc_basic"
+UC_DIR="$TEST_TMPDIR/uc_basic"
 mkdir -p "$UC_DIR"
 cat > "$UC_DIR/quantum.json" <<'QEOF'
 {
@@ -562,7 +562,7 @@ assert_eq "sourceFiles has 2 entries" "2" "$SOURCE_COUNT"
 
 # =========================================================================
 echo "=== Test 23: update_contracts_for_next_wave — initializes discoveredContracts if absent ==="
-UC2_DIR="$TMPDIR/uc_init"
+UC2_DIR="$TEST_TMPDIR/uc_init"
 mkdir -p "$UC2_DIR"
 cat > "$UC2_DIR/quantum.json" <<'QEOF'
 {
@@ -587,7 +587,7 @@ assert_eq "Config.discoveredInWave is 3" "3" "$WAVE_NUM"
 
 # =========================================================================
 echo "=== Test 24: update_contracts_for_next_wave — preserves existing entries ==="
-UC3_DIR="$TMPDIR/uc_preserve"
+UC3_DIR="$TEST_TMPDIR/uc_preserve"
 mkdir -p "$UC3_DIR"
 cat > "$UC3_DIR/quantum.json" <<'QEOF'
 {
@@ -620,7 +620,7 @@ assert_eq "NewType added" "2" "$NEW_ENTRY"
 
 # =========================================================================
 echo "=== Test 25: update_contracts_for_next_wave — empty type_name returns error ==="
-UC4_DIR="$TMPDIR/uc_empty"
+UC4_DIR="$TEST_TMPDIR/uc_empty"
 mkdir -p "$UC4_DIR"
 cat > "$UC4_DIR/quantum.json" <<'QEOF'
 {"project":"test","execution":{}}
@@ -645,7 +645,7 @@ assert_eq "quantum.json remains valid JSON after update" "0" "$RET"
 
 # =========================================================================
 echo "=== Test 28: update_contracts_for_next_wave — no execution field initializes it ==="
-UC5_DIR="$TMPDIR/uc_no_exec"
+UC5_DIR="$TEST_TMPDIR/uc_no_exec"
 mkdir -p "$UC5_DIR"
 cat > "$UC5_DIR/quantum.json" <<'QEOF'
 {
@@ -667,7 +667,7 @@ assert_eq "Widget.discoveredInWave is 1" "1" "$WAVE_NUM"
 # =========================================================================
 
 echo "=== Test 29: Mixed language files — TS + Python in same scan ==="
-MIX_DIR="$TMPDIR/mix_project"
+MIX_DIR="$TEST_TMPDIR/mix_project"
 mkdir -p "$MIX_DIR"
 touch "$MIX_DIR/tsconfig.json"
 touch "$MIX_DIR/pyproject.toml"
@@ -706,7 +706,7 @@ assert_eq "Mixed TS+Python: duplicate has 3 files (2 TS + 1 Python)" "3" "$FIRST
 
 # =========================================================================
 echo "=== Test 30: Mixed language — TS + Python both define same name cross-file ==="
-MIX2_DIR="$TMPDIR/mix2_project"
+MIX2_DIR="$TEST_TMPDIR/mix2_project"
 mkdir -p "$MIX2_DIR"
 touch "$MIX2_DIR/tsconfig.json"
 touch "$MIX2_DIR/pyproject.toml"
@@ -737,7 +737,7 @@ assert_eq "Mixed TS+Python cross-lang duplicate has 2 files" "2" "$FIRST_FILES_L
 
 # =========================================================================
 echo "=== Test 31: Type name appears in 3+ files — single entry with all files ==="
-MULTI3_DIR="$TMPDIR/multi3_project"
+MULTI3_DIR="$TEST_TMPDIR/multi3_project"
 mkdir -p "$MULTI3_DIR"
 touch "$MULTI3_DIR/tsconfig.json"
 
@@ -771,7 +771,7 @@ assert_eq "3-file duplicate: files array has 3 entries" "3" "$FILES_COUNT"
 
 # =========================================================================
 echo "=== Test 32: Type name in 4 files — still one entry ==="
-MULTI4_DIR="$TMPDIR/multi4_project"
+MULTI4_DIR="$TEST_TMPDIR/multi4_project"
 mkdir -p "$MULTI4_DIR"
 touch "$MULTI4_DIR/go.mod"
 
@@ -808,7 +808,7 @@ assert_eq "4-file duplicate: files array has 4 entries" "4" "$FILES_COUNT"
 
 # =========================================================================
 echo "=== Test 33: Empty file list (whitespace-only string) returns empty array ==="
-WS_DIR="$TMPDIR/ws_project"
+WS_DIR="$TEST_TMPDIR/ws_project"
 mkdir -p "$WS_DIR"
 touch "$WS_DIR/tsconfig.json"
 RESULT=$(grep_duplicate_definitions "$WS_DIR" "   ")
@@ -817,7 +817,7 @@ assert_eq "Whitespace-only file list returns empty array" "0" "$LEN"
 
 # =========================================================================
 echo "=== Test 34: Files with syntax errors — grep still extracts type names ==="
-SYNERR_DIR="$TMPDIR/synerr_project"
+SYNERR_DIR="$TEST_TMPDIR/synerr_project"
 mkdir -p "$SYNERR_DIR"
 touch "$SYNERR_DIR/tsconfig.json"
 
@@ -850,7 +850,7 @@ assert_eq "Files with syntax errors: duplicate name is Broken" "Broken" "$FIRST_
 
 # =========================================================================
 echo "=== Test 35: Same-file duplicate with multiple type defs — not flagged ==="
-SAMEFILE_DIR="$TMPDIR/samefile_project"
+SAMEFILE_DIR="$TEST_TMPDIR/samefile_project"
 mkdir -p "$SAMEFILE_DIR"
 touch "$SAMEFILE_DIR/pyproject.toml"
 
@@ -869,7 +869,7 @@ assert_eq "Same-file Python duplicate not flagged (cross-file only)" "0" "$LEN"
 
 # =========================================================================
 echo "=== Test 36: Same-file TS class duplicate — not flagged as cross-file ==="
-SAMETS_DIR="$TMPDIR/samets_project"
+SAMETS_DIR="$TEST_TMPDIR/samets_project"
 mkdir -p "$SAMETS_DIR"
 touch "$SAMETS_DIR/tsconfig.json"
 
@@ -891,7 +891,7 @@ assert_eq "Same-file TS triple definition not flagged as cross-file" "0" "$LEN"
 
 # =========================================================================
 echo "=== Test 37: update_contracts_for_next_wave — appends to existing discoveredContracts, not replaces ==="
-UC_APPEND_DIR="$TMPDIR/uc_append"
+UC_APPEND_DIR="$TEST_TMPDIR/uc_append"
 mkdir -p "$UC_APPEND_DIR"
 cat > "$UC_APPEND_DIR/quantum.json" <<'QEOF'
 {
@@ -960,7 +960,7 @@ assert_eq "update_contracts_for_next_wave with nonexistent json_path returns 1" 
 
 # =========================================================================
 echo "=== Test 39: update_contracts_for_next_wave — wave_num defaults when omitted ==="
-UC_DEFWAVE_DIR="$TMPDIR/uc_defwave"
+UC_DEFWAVE_DIR="$TEST_TMPDIR/uc_defwave"
 mkdir -p "$UC_DEFWAVE_DIR"
 cat > "$UC_DEFWAVE_DIR/quantum.json" <<'QEOF'
 {
@@ -979,7 +979,7 @@ assert_eq "Default wave_num is 1 when empty string" "1" "$WAVE"
 
 # =========================================================================
 echo "=== Test 40: Mixed TS + Go files in same scan ==="
-MIXGO_DIR="$TMPDIR/mixgo_project"
+MIXGO_DIR="$TEST_TMPDIR/mixgo_project"
 mkdir -p "$MIXGO_DIR"
 touch "$MIXGO_DIR/tsconfig.json"
 touch "$MIXGO_DIR/go.mod"
@@ -1008,7 +1008,7 @@ assert_eq "Mixed TS+Go: duplicate has 2 files" "2" "$FIRST_FILES_LEN"
 
 # =========================================================================
 echo "=== Test 41: File with no type definitions — returns empty ==="
-NOTYPES_DIR="$TMPDIR/notypes_project"
+NOTYPES_DIR="$TEST_TMPDIR/notypes_project"
 mkdir -p "$NOTYPES_DIR"
 touch "$NOTYPES_DIR/tsconfig.json"
 
@@ -1031,7 +1031,7 @@ assert_eq "Files with no type definitions return empty array" "0" "$LEN"
 
 # =========================================================================
 echo "=== Test 42: Binary/unreadable content in file — grep handles gracefully ==="
-BINARY_DIR="$TMPDIR/binary_project"
+BINARY_DIR="$TEST_TMPDIR/binary_project"
 mkdir -p "$BINARY_DIR"
 touch "$BINARY_DIR/tsconfig.json"
 
@@ -1050,7 +1050,7 @@ assert_eq "Binary content does not crash grep_duplicate_definitions" "0" "$RET"
 
 # =========================================================================
 echo "=== Test 43: Python @dataclass duplicate detection ==="
-DC_DIR="$TMPDIR/dc_project"
+DC_DIR="$TEST_TMPDIR/dc_project"
 mkdir -p "$DC_DIR"
 touch "$DC_DIR/pyproject.toml"
 

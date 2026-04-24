@@ -1,0 +1,39 @@
+=== Phase 13 over-building hunter prompt tests ===
+
+Test 1: Step 5 header upgrade
+  PASS: Step 5 renamed to Over-building Audit
+  PASS: Mentions Superpowers v4 borrow
+  PASS: Acknowledges the missing-vs-extra asymmetry
+
+Test 2: Sub-checks 5a–5d all present
+  PASS: 5a Scope creep retained
+  PASS: 5b Non-goals cross-check
+  PASS: 5c Exported-symbol justification
+  PASS: 5d Single-caller abstraction
+
+Test 3: JSON output schema extensions
+  PASS: nonGoalsViolated array in schema
+  PASS: overBuilding array in schema
+  PASS: sample kind unjustified-export
+  PASS: sample kind single-caller-abstraction
+
+Test 4: Decision-rule updates
+  PASS: PASS requires nonGoalsViolated empty
+  PASS: PASS blocks HIGH overBuilding
+
+Test 5: Cross-skill references are correct
+  PASS: references ql-intent-check Rule 4
+  PASS: references ql-deep-review complementary scope
+  PASS: test-only exports exempted
+
+Test 6: Exception paths documented
+  PASS: consumedBy exemption
+  PASS: PRD-mandated refinement exemption
+  PASS: info finding when PRD has no §5
+
+Test 7: Severity levels on each detector
+  PASS: non-goal violation is CRITICAL
+  PASS: unjustified-export is HIGH
+  PASS: single-caller is MEDIUM
+
+=== Results: 22/22 passed, 0 failed ===

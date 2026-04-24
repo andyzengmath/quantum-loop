@@ -1,0 +1,53 @@
+=== Test 1: Basic eligible stories ===
+  PASS: US-002 is eligible
+  PASS: US-003 is eligible
+  PASS: US-004 is NOT eligible
+=== Test 2: in_progress exclusion ===
+  PASS: US-003 is eligible
+  PASS: US-002 (in_progress) is excluded
+=== Test 3: maxAttempts exclusion ===
+  PASS: US-003 (failed, retries remaining) is eligible
+  PASS: US-002 (maxAttempts reached) is excluded
+=== Test 4: COMPLETE detection ===
+  PASS: Returns COMPLETE when all passed
+=== Test 5: BLOCKED detection ===
+  PASS: Returns BLOCKED when stuck
+=== Test 6: Cycle detection ===
+  PASS: Cycle detected
+=== Test 7: No cycles ===
+  PASS: No cycles
+=== Test 8: All independent stories ===
+  PASS: US-001 eligible
+  PASS: US-002 eligible
+  PASS: US-003 eligible
+=== Test 9: filter_file_conflicts — filePaths overlap ===
+  PASS: US-001 included (highest priority)
+  PASS: US-002 excluded (shares src/b.ts with US-001)
+  PASS: US-003 included (no conflict)
+=== Test 10: filter_file_conflicts — fileConflicts entry ===
+  PASS: US-001 included
+  PASS: US-002 included (no conflict)
+  PASS: US-003 excluded (fileConflict with US-001)
+=== Test 11: filter_file_conflicts — empty filePaths ===
+  PASS: US-001 included (empty filePaths)
+  PASS: US-002 included (no tasks)
+=== Test 12: filter_file_conflicts — no conflicts ===
+  PASS: US-001 included
+  PASS: US-002 included
+  PASS: US-003 included
+=== Test 13: filter_file_conflicts — three-way conflict ===
+  PASS: US-001 included (highest priority)
+  PASS: US-002 excluded (conflict)
+  PASS: US-003 excluded (conflict)
+=== Test 14: filter_file_conflicts — null fileConflicts ===
+  PASS: US-001 with null fileConflicts
+  PASS: US-002 with null fileConflicts
+=== Test 15: filter_file_conflicts — transitive conflict chain ===
+  PASS: US-001 included (claims src/a.ts)
+  PASS: US-002 excluded (src/a.ts conflict with US-001)
+  PASS: US-003 included (src/b.ts unclaimed — US-002 was excluded)
+=== Test 16: filter_file_conflicts — similar-but-different paths ===
+  PASS: US-001 included
+  PASS: US-002 included (a.tsx != a.ts, exact match)
+
+=== Results: 35/35 passed, 0 failed ===

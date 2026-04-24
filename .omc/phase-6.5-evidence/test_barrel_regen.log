@@ -1,0 +1,124 @@
+=== T-025: TS/JS barrel regeneration and detect functions ===
+--- Test 1: TS barrel with Foo.ts, Bar.ts, Baz.ts produces 3 sorted exports ---
+  PASS: regenerate_barrel TS exits 0
+  PASS: TS barrel has exactly 3 export lines
+  PASS: TS barrel has Bar export
+  PASS: TS barrel has Baz export
+  PASS: TS barrel has Foo export
+--- Test 2: TS exports are sorted alphabetically ---
+  PASS: TS first sorted export is Bar
+  PASS: TS last sorted export is Foo
+--- Test 3: TS barrel excludes index.ts itself ---
+  PASS: TS barrel does not export index
+--- Test 4: detect_barrel_files finds nested barrel files ---
+  PASS: detect_barrel_files exits 0
+  PASS: finds nested TS index.ts
+  PASS: finds nested JS index.js
+  PASS: finds Python __init__.py
+  PASS: finds Rust mod.rs
+  PASS: Found at least 4 barrel files (got 4)
+--- Test 5: detect_barrel_files on empty dir returns empty ---
+  PASS: detect_barrel_files empty returns empty
+--- Test 6: should_regenerate returns 0 when barrel in conflict list ---
+  PASS: should_regenerate match returns 0
+--- Test 7: should_regenerate returns 1 when barrel NOT in conflict list ---
+  PASS: should_regenerate no-match returns 1
+--- Test 8: should_regenerate with empty conflict list returns 1 ---
+  PASS: should_regenerate empty conflict list returns 1
+--- Test 9: should_regenerate with empty barrel_path returns 1 ---
+  PASS: should_regenerate empty barrel path returns 1
+--- Test 10: JS barrel regeneration produces exports ---
+  PASS: JS barrel has api export
+  PASS: JS barrel has config export
+  PASS: JS barrel excludes index.js
+--- Test 11: regenerate_barrel logs timing and info ---
+  PASS: log has BARREL-REGEN tag
+  PASS: log has Regenerated
+  PASS: log has Completed in
+
+=== T-026: Python/Rust barrel regeneration ===
+--- Test 12: Python barrel with foo.py, bar.py produces sorted imports ---
+  PASS: regenerate_barrel Python exits 0
+  PASS: Python barrel has exactly 2 import lines
+  PASS: Python barrel has bar import
+  PASS: Python barrel has foo import
+--- Test 13: Python imports are sorted alphabetically ---
+  PASS: Python first sorted import is bar
+  PASS: Python last sorted import is foo
+--- Test 14: Python barrel excludes __init__.py itself ---
+  PASS: Python barrel does not import __init__
+--- Test 15: Python barrel skips __private.py files ---
+  PASS: Python barrel skips __private.py
+  PASS: Python barrel skips __hidden.py
+  PASS: Python barrel still has bar
+--- Test 16: Rust barrel with foo.rs, bar.rs produces sorted pub mod ---
+  PASS: regenerate_barrel Rust exits 0
+  PASS: Rust barrel has exactly 2 mod lines
+  PASS: Rust barrel has bar mod
+  PASS: Rust barrel has foo mod
+--- Test 17: Rust mods are sorted alphabetically ---
+  PASS: Rust first sorted mod is bar
+  PASS: Rust last sorted mod is foo
+--- Test 18: Rust barrel excludes mod.rs itself ---
+  PASS: Rust barrel does not include mod
+--- Test 19: Python barrel with 3 files still sorts correctly ---
+  PASS: Python 3-file barrel first import is admin
+--- Test 20: Rust barrel with 3 files still sorts correctly ---
+  PASS: Rust 3-file barrel first mod is api
+
+=== T-027: Edge cases: manual exports, non-pure, empty, idempotency ===
+--- Test 21: Manual preservation with '// manual' marker (TS) ---
+  PASS: Manual line preserved in TS barrel
+  PASS: Auto-gen export also present alongside manual
+--- Test 22: Manual preservation with '# manual' marker (Python) ---
+  PASS: Manual line preserved in Python barrel
+  PASS: Auto-gen import also present
+--- Test 23: Manual preservation with '// manual' marker (Rust) ---
+  PASS: Manual line preserved in Rust barrel
+  PASS: Auto-gen mod also present
+--- Test 24: Fallback preservation for non-matching export patterns ---
+  PASS: Non-matching export pattern preserved
+  PASS: Auto-gen export coexists with fallback
+--- Test 25: Non-pure barrel skip with log message (TS) ---
+  PASS: Non-pure TS barrel SKIP logged
+  PASS: Non-pure log mentions non-export logic
+  PASS: Non-pure TS barrel content unchanged
+--- Test 26: Non-pure barrel skip with log message (Python) ---
+  PASS: Non-pure Python barrel SKIP logged
+  PASS: Non-pure Python content preserved
+--- Test 27: Non-pure barrel skip with log message (Rust) ---
+  PASS: Non-pure Rust barrel SKIP logged
+  PASS: Non-pure Rust content preserved
+--- Test 28: Non-pure barrel returns exit code 0 ---
+  PASS: Non-pure barrel returns 0 (not error)
+--- Test 29: Empty directory produces '// No exports' comment (TS) ---
+  PASS: TS empty barrel has no-exports comment
+--- Test 30: Empty directory produces '# No exports' comment (Python) ---
+  PASS: Python empty barrel has no-exports comment
+--- Test 31: Empty directory produces '// No exports' comment (Rust) ---
+  PASS: Rust empty barrel has no-exports comment
+--- Test 32: Idempotency - TS two runs produce identical output ---
+  PASS: TS barrel idempotent: run 1 == run 2
+--- Test 33: Idempotency - Python two runs produce identical output ---
+  PASS: Python barrel idempotent: run 1 == run 2
+--- Test 34: Idempotency - Rust two runs produce identical output ---
+  PASS: Rust barrel idempotent: run 1 == run 2
+--- Test 35: Idempotency - JS two runs produce identical output ---
+  PASS: JS barrel idempotent: run 1 == run 2
+--- Test 36: Pure barrel is NOT skipped ---
+  PASS: Pure TS barrel is regenerated
+  PASS: Pure TS barrel was not skipped
+--- Test 37: BARREL_REGEN_LIB_DIR is set ---
+  PASS: BARREL_REGEN_LIB_DIR is set
+--- Test 38: regenerate_barrel with invalid language returns 1 ---
+  PASS: Invalid language returns 1
+--- Test 39: regenerate_barrel with missing file returns 1 ---
+  PASS: Missing file returns 1
+--- Test 40: regenerate_barrel with missing args returns 1 ---
+  PASS: Missing args returns 1
+--- Test 41: detect_barrel_files with missing arg returns 1 ---
+  PASS: detect_barrel_files missing arg returns 1
+--- Test 42: detect_barrel_files with nonexistent dir returns 1 ---
+  PASS: detect_barrel_files nonexistent dir returns 1
+
+=== Results: 75/75 passed, 0 failed ===

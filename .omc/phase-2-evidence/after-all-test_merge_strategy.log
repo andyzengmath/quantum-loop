@@ -1,0 +1,151 @@
+=== T-036: Test classify_conflict for all rule categories ===
+--- Test 1: dependency_manifest pattern match ---
+  PASS: package.json -> dependency_manifest:ours:install
+--- Test 2: dependency_manifest pattern (package-lock.json) ---
+  PASS: package-lock.json -> dependency_manifest:ours:install
+--- Test 3: dependency_manifest pattern (Cargo.toml) ---
+  PASS: Cargo.toml -> dependency_manifest:ours:install
+--- Test 4: dependency_manifest pattern (pyproject.toml) ---
+  PASS: pyproject.toml -> dependency_manifest:ours:install
+--- Test 5: dependency_manifest pattern (go.mod) ---
+  PASS: go.mod -> dependency_manifest:ours:install
+--- Test 6: barrel_export pattern match ---
+  PASS: src/parsers/index.ts -> barrel_export:regenerate:
+--- Test 7: barrel_export pattern (__init__.py) ---
+  PASS: src/models/__init__.py -> barrel_export:regenerate:
+--- Test 8: barrel_export pattern (mod.rs) ---
+  PASS: src/handlers/mod.rs -> barrel_export:regenerate:
+--- Test 9: barrel_export pattern (index.js) ---
+  PASS: lib/utils/index.js -> barrel_export:regenerate:
+--- Test 10: new_story_file (file not on HEAD) ---
+  PASS: new file not on HEAD -> new_story_file:theirs:
+--- Test 11: shared_infrastructure (file in filesChanged) ---
+  PASS: file in filesChanged (on HEAD) -> shared_infrastructure:ours:
+--- Test 12: contract_stub (file in materializedContracts) ---
+  PASS: file in materializedContracts -> contract_stub:theirs:
+--- Test 13: no match -> escalate ---
+  PASS: no match -> unknown:escalate:
+--- Test 14: rule ordering - first match wins ---
+  PASS: first match wins: package.json -> dependency_manifest (not new_story_file)
+--- Test 15: rule ordering with reordered rules ---
+  PASS: first rule wins when both match
+--- Test 16: empty rules -> defaultAction ---
+  PASS: empty rules -> unknown:escalate:
+--- Test 17: custom defaultAction ---
+  PASS: custom defaultAction -> unknown:ours:
+--- Test 18: basename matching for package.json ---
+  PASS: basename package.json matches
+--- Test 19: pattern + condition - pattern checked first ---
+  PASS: pattern matches before condition checked
+--- Test 20: multiple files in filesChanged ---
+  PASS: README.md in multi-file filesChanged -> shared_infrastructure:ours:
+--- Test 21: multiple files in materializedContracts ---
+  PASS: README.md in materializedContracts -> contract_stub:theirs:
+--- Test 22: classify_conflict error on empty file_path ---
+  PASS: empty file_path returns error
+--- Test 23: classify_conflict error on empty context_file ---
+  PASS: empty context_file returns error
+--- Test 24: classify_conflict error on nonexistent context_file ---
+  PASS: nonexistent context_file returns error
+
+=== T-036 Results: 24/24 passed, 0 failed ===
+
+=== T-037: Test classify_and_merge with git scenarios ===
+--- Test 25: Clean merge - no conflicts ---
+  PASS: clean merge returns 0
+  PASS: merge commit created (commit count: 3)
+  PASS: clean merge logs timing
+--- Test 26: All-resolved merge with ours strategy ---
+  PASS: all-resolved merge returns 0
+  PASS: merge log mentions MERGE-STRATEGY
+  PASS: package.json kept ours version
+  PASS: config.json kept ours version
+--- Test 27: Escalation on unknown file conflict ---
+  PASS: escalation returns 1
+  PASS: CONFLICT line in output
+  PASS: CONFLICT mentions file.txt
+  PASS: merge aborted - main content preserved
+--- Test 28: Fallback - no mergeStrategy -> all escalate ---
+  PASS: no mergeStrategy -> escalation returns 1
+  PASS: fallback escalates with CONFLICT
+--- Test 29: Error handling for missing arguments ---
+  PASS: missing branch returns 1
+  PASS: missing repo_root returns 1
+  PASS: missing json_path returns 1
+--- Test 30: Mixed - some resolved, one escalates ---
+  PASS: mixed conflicts with escalation returns 1
+  PASS: file.txt in CONFLICT output
+  PASS: merge aborted, main content preserved
+--- Test 31: get_merge_context reads correctly ---
+  PASS: get_merge_context returns 0
+  PASS: context has defaultAction
+  PASS: context has filesChanged
+  PASS: context has materializedContracts
+  PASS: context has rules
+--- Test 32: get_merge_context error on missing file ---
+  PASS: get_merge_context on missing file returns 1
+--- Test 33: get_merge_context error on empty path ---
+  PASS: get_merge_context on empty path returns 1
+--- Test 34: get_merge_context with no mergeStrategy ---
+  PASS: get_merge_context returns 0 even without mergeStrategy
+  PASS: defaultAction is escalate
+  PASS: rules is empty array
+=== T-001: quantum.json backup/restore and stash exclusion ===
+--- Test 35: quantum.json dirty content preserved when branch modifies it ---
+  PASS: quantum.json has orchestrator content after merge
+  PASS: quantum.json does NOT have feature branch content
+--- Test 36: backup file cleaned up after merge ---
+  PASS: quantum.json.merge-bak cleaned up
+--- Test 37: quantum.json restored after merge abort ---
+  PASS: escalation returns 1
+  PASS: quantum.json restored after abort
+  PASS: quantum.json does NOT have feature branch content after abort
+  PASS: backup cleaned up after abort
+
+=== T-001 Results so far: 60/60 passed, 0 failed ===
+
+=== T-002: Semantic merge delegation in resolve_conflict ===
+--- Test 38: MERGE_SEMANTIC_AVAILABLE variable exists ---
+  PASS: MERGE_SEMANTIC_AVAILABLE is defined
+--- Test 39: Semantic merge delegates for ours conflict ---
+  PASS: MERGE_SEMANTIC_AVAILABLE true with mock
+Auto-merging package.json
+CONFLICT (content): Merge conflict in package.json
+Automatic merge failed; fix conflicts and then commit the result.
+  PASS: package.json is in conflict state
+  PASS: resolve_conflict with semantic merge succeeds
+  PASS: semantic merge result used instead of ours
+--- Test 40: Fallback to ours when semantic merge fails ---
+Auto-merging package.json
+CONFLICT (content): Merge conflict in package.json
+Automatic merge failed; fix conflicts and then commit the result.
+  PASS: resolve_conflict falls through to ours on semantic failure
+  PASS: ours version used after semantic fallback
+  PASS: semantic result NOT present
+--- Test 41: Theirs action delegates to semantic merge ---
+Auto-merging package.json
+CONFLICT (content): Merge conflict in package.json
+Automatic merge failed; fix conflicts and then commit the result.
+  PASS: theirs with semantic merge succeeds
+  PASS: semantic merge result used for theirs case
+--- Test 42: No semantic merge when unavailable ---
+  PASS: MERGE_SEMANTIC_AVAILABLE false without module
+Auto-merging package.json
+CONFLICT (content): Merge conflict in package.json
+Automatic merge failed; fix conflicts and then commit the result.
+  PASS: ours without semantic merge succeeds
+  PASS: ours version used when semantic unavailable
+--- Test 43: can_semantic_merge returns 1 - skip semantic ---
+Auto-merging package.json
+CONFLICT (content): Merge conflict in package.json
+Automatic merge failed; fix conflicts and then commit the result.
+  PASS: ours when can_semantic_merge returns 1
+  PASS: ours version used when can_semantic_merge fails
+  PASS: semantic_merge not called
+
+=== T-002 Results so far: 76/76 passed, 0 failed ===
+
+
+==========================================
+=== Final Results: 76/76 passed, 0 failed ===
+==========================================

@@ -7,6 +7,88 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.4.1] - 2026-04-01
+
+### Added
+- **Multi-runner support** — universal runner adapter lets quantum-loop drive Claude, Codex, Copilot, Cursor, Gemini, Aider, Cline, Amp, Devin, Kiro, Goose, and OpenCode through a shared manifest contract. Design doc: `docs/plans/2026-04-01-multi-runner-support-design.md`.
+- **Runner JSON schema** (`schemas/runner.schema.json`) + validator (`schemas/validate.sh`) for manifest linting.
+- **Runner library** (`lib/runner.sh`) with load / ensure_instructions / command_builder / hook helpers. Manifests under `runners/*.json`.
+- **Signal protocol preamble** injected into non-Claude runners so they emit `<quantum>STORY_PASSED/FAILED/COMPLETE/BLOCKED</quantum>` markers in a shared format.
+- **Signal heuristic fallback** (`lib/signal-heuristics.sh`) — if no explicit `<quantum>` signal is present, infer from commit evidence, test results, and hedge-phrase filters.
+- **Instruction-file auto-copy** — replicates `CLAUDE.md` to each runner's convention (`AGENTS.md`, `GEMINI.md`, etc.).
+- **Runner manifests**: `claude.json` (guaranteed), `codex.json` (tested end-to-end), plus experimental manifests for `amp`, `aider`, `copilot`, `cursor`, `gemini`.
+- Sequential mode, PowerShell mode, and `templates/quantum-loop.sh` all wired to the runner framework.
+- 22-test signal-heuristic suite and an integration test-suite for Codex CLI dispatch.
+
+### Fixed
+- Sequential-mode status updates no longer lose state on runner switch.
+- Heuristic false-positive filter for ambiguous runner output.
+- Runner name + template argument validation hardened against injection.
+
+## [0.3.7] - 2026-03-30
+
+### Added
+- **Hardening-v2: init-guard + AST-aware merge + resilience** — design doc `docs/plans/2026-03-28-hardening-v2-design.md`.
+- **`lib/init-guard.sh`** — environment pre-flight: OneDrive / long-path detection, tmpdir writability check, orphan worktree prune.
+- **`lib/merge-semantic.sh`** — AST-aware 3-way merge (ts-morph for TypeScript, libcst for Python, diff3 fallback) routed via `lib/merge-strategy.sh`.
+- **`lib/resilience.sh`** — WIP commits per task, squash-on-merge at story boundary, crash recovery via `lastWipCommit` + `completedTasks` fields. Supersedes `lib/crash-recovery.sh` (to be removed).
+- **Stash exclusion for `quantum.json`** during merges to prevent schema corruption.
+- Integration tests covering init → merge flow, crash recovery with WIP commits, semantic merge conflict, quantum.json stash isolation.
+
+### Fixed
+- Stash-ordering race in `merge-strategy.sh`.
+- Trap cleanup on early abort paths in `resilience.sh`.
+- stderr redirect typo on ts-morph merge fallback path.
+
+## [0.3.6] - 2026-03-25
+
+### Added
+- **Modular Hardening (7 independent modules)** — design doc `docs/plans/2026-03-25-modular-hardening-design.md`.
+- **`lib/barrel-regen.sh`** — auto-regenerate barrel exports (`_barrel.ts` / `__init__.py` / etc.) post-merge so new story files become consumer-importable.
+- **`lib/dep-manifest.sh`** — detect dependency-manifest changes (npm / pip / go / cargo) and run appropriate install post-merge.
+- **`lib/known-failures.sh`** — baseline + delta tracking of test failures per wave. Alerts on **new** regressions, not pre-existing red.
+- **Worktree lifecycle** — `worktree.sh` extended with lifecycle-tracking functions; `execution.worktreeTracking` fields `{activeWorktrees, cleanedThisSession, maxWorktrees}`.
+- **Category-based merge strategy** (`lib/merge-strategy.sh`) — routes conflicts by file kind: `dependency_manifest → ours+install`, `barrel_export → regenerate`, `new_story_file → theirs`, `shared_infrastructure → ours`, `contract_stub → theirs`, default escalate.
+- **Interface cascade guard** extending the L5 type audit.
+- **`contractBreaking` flag + `fixes` field** in ql-plan for intentional breaking changes.
+- Unit tests for barrel-regen, dep-manifest, known-failures, worktree lifecycle, merge-strategy, plus integration tests for known-failures lifecycle and escalation retry.
+
+## [0.3.5] - 2026-03-24
+
+### Added
+- **DAG Intelligence — parallel specialist validators** — design doc `docs/plans/2026-03-24-dag-intelligence-design.md`.
+- **`dag-validator` coordinator agent** that spawns three specialists in parallel:
+  - **`bottleneck-analyzer`** — Kahn's-algorithm wave assignment; detects sequential bottlenecks.
+  - **`duplication-detector`** — Jaccard keyword pre-filter + LLM semantic check for overlapping stories.
+  - **`conflict-auditor`** — computes complete `fileConflicts` from `filePaths` intersections with severity classification.
+- **`storyType` field** on stories (feature / refactor / fix / test / docs / skeleton / integration).
+- **`dagValidation` block** + `severity` field in `quantum.json` schema.
+- `dag-validation.md` reference doc.
+- `ql-plan` integrates `dag-validator` invocation before plan confirmation; shows DAG Health Report.
+
+### Fixed
+- PR-review findings from soliton review (prompt hardening, context-window optimization).
+
+## [0.3.4] - 2026-03-18
+
+### Added
+- **Progressive Materialization (5-layer type-divergence defense)** — design doc `docs/plans/2026-03-18-worktree-isolation-fix-design.md`.
+- **`lib/materialize.sh`** — detects language; materializes real interface files for contracts consumed by ≥2 stories (threshold configurable). Smart-materialization threshold logic added in this release.
+- **`lib/type-audit.sh`** — grep-based duplicate-definition detection at wave boundary; spawns `type-auditor` agent on hits and feeds findings back into contracts.
+- **Post-merge typecheck gate** — auto-detects project typechecker (tsc, pyright, mypy, etc.) and reverts on failure.
+- **Auto-promotion of discovered contracts** — orchestrator promotes wave-end audited types into `materializedContracts`.
+- **`typecheckCommand` field** in `quantum.json` schema; new execution-metadata fields for materialization and audit tracking.
+- **Shared-types directory inference** + `contract-shapes` reference doc for `ql-plan`.
+- **Contract Effectiveness section** in orchestrator post-mortem output.
+- Extended `merge_worktree_branch()` with conflict classification.
+- Unit tests for `materialize.sh`, `type-audit.sh`, merge escalation, typecheck gate.
+
+### Fixed
+- Command-injection hardening in merged scripts.
+- Path-traversal checks in materialization paths.
+- Merge revert safety when a post-merge gate fails.
+- L5 audit feedback loop, error counting, Python pattern recognition.
+
 ## [0.3.3] - 2026-03-11
 
 ### Fixed

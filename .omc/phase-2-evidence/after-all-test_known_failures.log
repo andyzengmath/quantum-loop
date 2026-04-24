@@ -1,0 +1,136 @@
+=== Test T-014: detect_test_runner ===
+--- T-014a: detect jest from package.json ---
+  PASS: jest detected
+  PASS: jest command includes npx jest
+--- T-014b: detect vitest from package.json ---
+  PASS: vitest detected
+  PASS: vitest command includes npx vitest
+--- T-014c: detect pytest from pyproject.toml ---
+  PASS: pytest detected from pyproject.toml
+  PASS: pytest command
+--- T-014d: detect pytest from pytest.ini ---
+  PASS: pytest detected from pytest.ini
+--- T-014e: detect pytest from setup.cfg ---
+  PASS: pytest detected from setup.cfg
+--- T-014f: detect go test from go.mod ---
+  PASS: go detected
+  PASS: go test command
+--- T-014g: empty repo returns empty ---
+  PASS: empty repo returns empty
+--- T-014h: nonexistent directory returns empty ---
+  PASS: nonexistent dir returns empty
+--- T-014i: jest takes priority over vitest when both present ---
+  PASS: jest takes priority
+--- T-014j: package.json without test deps returns empty ---
+  PASS: package.json without test deps returns empty
+=== Test T-015: capture_baseline ===
+--- T-015a: capture_baseline with jest JSON output ---
+  PASS: jest baseline passCount
+  PASS: jest baseline failCount
+  PASS: jest baseline skipCount
+  PASS: jest current initialized from baseline
+  PASS: jest failing tests include test_b
+  PASS: jest failing tests include test_d
+  PASS: capture_baseline logs baseline
+--- T-015b: capture_baseline with pytest output ---
+  PASS: pytest baseline passCount
+  PASS: pytest baseline failCount
+  PASS: pytest baseline skipCount
+--- T-015c: capture_baseline with go test output ---
+  PASS: go baseline passCount
+  PASS: go baseline failCount
+  PASS: go baseline skipCount
+--- T-015d: capture_baseline with unparseable output falls back to regex ---
+  PASS: regex fallback passCount
+  PASS: regex fallback failCount
+--- T-015e: capture_baseline with no test runner returns gracefully ---
+  PASS: no runner: baseline is null
+=== Test T-016: capture_wave_snapshot ===
+--- T-016a: capture_wave_snapshot detects new failures ---
+  PASS: wave snapshot failCount
+  PASS: wave snapshot wave num
+  PASS: wave snapshot has new failure
+  PASS: wave snapshot keeps known failure
+  PASS: wave snapshot logs delta
+--- T-016b: capture_wave_snapshot detects resolved failures ---
+  PASS: resolved failure: failCount is 0
+  PASS: resolved failure: failingTests empty
+=== Test T-017: delta_check ===
+--- T-017a: delta_check with only known failures returns 0 ---
+  PASS: delta_check known failures returns 0
+  PASS: delta_check logs known failures
+--- T-017b: delta_check with new failure above threshold returns 1 ---
+  PASS: delta_check new failures returns 1
+  PASS: delta_check output includes new failure name
+--- T-017c: delta_check with new failure at threshold returns 0 ---
+  PASS: delta_check at flaky threshold returns 0
+  PASS: delta_check logs flaky threshold
+--- T-017d: delta_check logs timing ---
+  PASS: delta_check logs timing
+=== Test T-018: format_agent_context ===
+--- T-018a: format_agent_context with failing tests ---
+  PASS: format includes header
+  PASS: format includes test name
+  PASS: format includes wave info
+  PASS: format includes expected fix
+  PASS: format includes unknown fix
+  PASS: format includes not-your-fault
+  PASS: format includes new-failure warning
+--- T-018b: format_agent_context with no failing tests ---
+  PASS: format with no failures returns empty
+--- T-018c: format_agent_context with null knownFailures ---
+  PASS: format with null knownFailures returns empty
+--- T-018d: format_agent_context with missing knownFailures ---
+  PASS: format with missing knownFailures returns empty
+=== Test T-033: Additional detect_test_runner and capture_baseline ===
+--- T-033a: capture_baseline with clean suite (10 pass, 0 fail) ---
+  PASS: clean suite passCount
+  PASS: clean suite failCount
+  PASS: clean suite skipCount
+  PASS: clean suite failingTests empty
+  PASS: clean suite current passCount
+--- T-033b: capture_baseline with exactly 5 failures ---
+  PASS: 5 failures failCount
+  PASS: 5 failures failingTests has 5 entries
+  PASS: 5 fail includes test_b
+  PASS: 5 fail includes test_d
+  PASS: 5 fail includes test_f
+  PASS: 5 fail includes test_h
+  PASS: 5 fail includes test_j
+--- T-033c: capture_baseline with garbled output (both parses fail) ---
+  PASS: garbled output: baseline is null
+  PASS: garbled output logs tracking disabled or fallback
+=== Test T-034: Additional capture_wave_snapshot and delta_check ===
+--- T-034a: capture_wave_snapshot from 0 failures to 3 new failures ---
+  PASS: wave3 failCount is 3
+  PASS: wave3 failingTests has 3 entries
+  PASS: wave3 entries have failingSince=2
+--- T-034b: capture_wave_snapshot resolves 3 previous failures ---
+  PASS: resolve3 failCount is 0
+  PASS: resolve3 failingTests empty
+  PASS: resolve3 passCount is 5
+--- T-034c: capture_wave_snapshot with no change ---
+  PASS: nochange failCount stays 2
+  PASS: nochange failingTests still 2
+  PASS: nochange wave updated to 3
+--- T-034d: delta_check no regressions (baseline 5 failures, same 5) ---
+  PASS: delta_check 5 known failures returns 0
+  PASS: delta_check 5 known failures logged
+--- T-034e: delta_check with 0 failures (no regressions, clean run) ---
+  PASS: delta_check clean run returns 0
+  PASS: delta_check logs timing on clean
+=== Test T-035: Additional format_agent_context ===
+--- T-035a: format_agent_context with exactly 3 failures ---
+  PASS: fmt3 includes test_login
+  PASS: fmt3 includes test_create
+  PASS: fmt3 includes test_migrate
+  PASS: fmt3 includes US-007 fix
+  PASS: fmt3 includes US-009 fix
+  PASS: fmt3 includes Wave 1
+  PASS: fmt3 includes Wave 2
+  PASS: fmt3 includes Wave 3
+  PASS: fmt3 includes unknown for null fix
+--- T-035b: format_agent_context summary ---
+  (Summary included in final results below)
+
+=== Results: 90/90 passed, 0 failed ===

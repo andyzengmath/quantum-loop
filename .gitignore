@@ -32,3 +32,5 @@ desktop.ini
 *.swp
 *.swo
 *~
+.omc/state/
+.omc/project-memory.json

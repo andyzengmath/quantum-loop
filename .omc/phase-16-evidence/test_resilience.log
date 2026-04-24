@@ -1,0 +1,75 @@
+=== wip_commit tests ===
+--- Test: wip_commit with changed files creates commit ---
+  PASS: wip_commit with changes exits 0
+  PASS: commit message format
+  PASS: working directory is clean after commit
+--- Test: wip_commit with no changes and short duration returns 1 ---
+  PASS: wip_commit no changes short duration returns 1
+--- Test: wip_commit with no changes but long duration creates empty commit ---
+  PASS: wip_commit no changes long duration exits 0
+  PASS: empty commit created
+  PASS: empty commit message format
+--- Test: wip_commit logs RESILIENCE prefix ---
+  PASS: logs RESILIENCE prefix
+=== get_completed_tasks tests ===
+--- Test: returns task IDs from WIP commits ---
+  PASS: contains T-001
+  PASS: contains T-002
+--- Test: returns empty for no WIP commits ---
+  PASS: no tasks found returns empty
+--- Test: only returns tasks for specified story_id ---
+  PASS: contains T-001
+  PASS: contains T-002
+  PASS: does not contain US-002 tasks in output
+--- Test: returns unique task IDs ---
+  PASS: T-001 appears only once
+=== squash_and_merge tests ===
+--- Test: single commit uses --no-ff merge ---
+  PASS: single commit squash_and_merge exits 0
+  PASS: feature.txt exists on main
+--- Test: multiple commits uses squash merge ---
+  PASS: multi commit squash_and_merge exits 0
+  PASS: all files exist on main
+  PASS: squash commit message
+--- Test: squash_and_merge logs RESILIENCE ---
+  PASS: logs RESILIENCE prefix
+=== recover_orphaned_worktrees tests ===
+--- Test: removes orphaned worktree directories ---
+  PASS: recover_orphaned_worktrees exits 0
+  PASS: US-001 worktree dir removed
+  PASS: US-002 worktree dir removed
+--- Test: resets in_progress stories to pending ---
+  PASS: US-001 reset to pending
+  PASS: US-002 still passed
+  PASS: US-003 still pending
+--- Test: clears activeWorktrees array ---
+  PASS: activeWorktrees is empty
+--- Test: removes worktree field from recovered stories ---
+  PASS: US-001 worktree field removed
+--- Test: backward compat -- no-op when no execution field ---
+  PASS: no execution field exits 0
+--- Test: no-op when activeWorktrees is empty ---
+  PASS: empty activeWorktrees exits 0
+--- Test: input validation -- missing json_path ---
+  PASS: empty json_path returns error
+--- Test: input validation -- missing repo_root ---
+  PASS: empty repo_root returns error
+--- Test: handles worktree dirs that already disappeared ---
+  PASS: missing dir still exits 0
+  PASS: US-001 reset even if dir missing
+--- Test: warning message includes count ---
+  PASS: warning includes count
+  PASS: warning mentions orphaned
+=== detect_resumable_work tests ===
+--- Test: returns fresh when no worktree exists ---
+  PASS: no worktree returns fresh
+--- Test: returns fresh when worktree exists but no WIP commits ---
+  PASS: no WIP commits returns fresh
+--- Test: returns resumable with SHA and tasks when WIP commits exist ---
+  PASS: starts with resumable
+  PASS: contains T-001
+  PASS: contains T-002
+--- Test: detect_resumable_work logs RESILIENCE ---
+  PASS: logs RESILIENCE
+
+=== Results: 43/43 passed, 0 failed ===

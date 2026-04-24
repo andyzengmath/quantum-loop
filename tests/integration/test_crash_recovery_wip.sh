@@ -75,20 +75,20 @@ assert_starts_with() {
 # =========================================================================
 # Setup: create a temporary git repo with quantum.json
 # =========================================================================
-TMPDIR=$(mktemp -d)
+TEST_TMPDIR=$(mktemp -d)
 ORIG_DIR=$(pwd)
 
 cleanup_test_repo() {
   cd "$ORIG_DIR" 2>/dev/null || true
-  if [[ -d "$TMPDIR" ]]; then
+  if [[ -d "$TEST_TMPDIR" ]]; then
     # Remove any git worktrees first to avoid lock issues
-    cd "$TMPDIR" 2>/dev/null && git worktree list --porcelain 2>/dev/null | grep "^worktree " | while read -r _ path; do
-      if [[ "$path" != "$TMPDIR" ]]; then
+    cd "$TEST_TMPDIR" 2>/dev/null && git worktree list --porcelain 2>/dev/null | grep "^worktree " | while read -r _ path; do
+      if [[ "$path" != "$TEST_TMPDIR" ]]; then
         git worktree remove --force "$path" 2>/dev/null || true
       fi
     done
     cd "$ORIG_DIR" 2>/dev/null || true
-    rm -rf "$TMPDIR"
+    rm -rf "$TEST_TMPDIR"
   fi
 }
 
@@ -100,7 +100,7 @@ echo ""
 # =========================================================================
 echo "--- Step 1: Create temp git repo with quantum.json ---"
 
-cd "$TMPDIR"
+cd "$TEST_TMPDIR"
 git init --initial-branch=main . >/dev/null 2>&1
 git config user.email "test@test.com"
 git config user.name "Test"
@@ -111,7 +111,7 @@ git add file.txt
 git commit -m "initial commit" >/dev/null 2>&1
 
 # Create quantum.json with a story US-TEST having tasks T-001, T-002, T-003
-cat > "$TMPDIR/quantum.json" <<'JSONEOF'
+cat > "$TEST_TMPDIR/quantum.json" <<'JSONEOF'
 {
   "project": "test-crash-recovery-wip",
   "stories": [
@@ -140,7 +140,7 @@ git add quantum.json
 git commit -m "add quantum.json" >/dev/null 2>&1
 
 TOTAL=$((TOTAL + 1))
-if [[ -f "$TMPDIR/quantum.json" ]]; then
+if [[ -f "$TEST_TMPDIR/quantum.json" ]]; then
   echo "  PASS: quantum.json created"
   PASS=$((PASS + 1))
 else
@@ -152,7 +152,7 @@ fi
 echo ""
 echo "--- Step 2: Create worktree at .ql-wt/US-TEST ---"
 
-WT_PATH="$TMPDIR/.ql-wt/US-TEST"
+WT_PATH="$TEST_TMPDIR/.ql-wt/US-TEST"
 git worktree add "$WT_PATH" -b ql-wt/US-TEST HEAD >/dev/null 2>&1
 WT_EXIT=$?
 
@@ -198,7 +198,7 @@ assert_eq "3 WIP commits created" "3" "$WIP_COUNT"
 echo ""
 echo "--- Step 4: detect_resumable_work returns resumable with correct tasks ---"
 
-DETECT_OUTPUT=$(detect_resumable_work "$TMPDIR/quantum.json" "$TMPDIR" "US-TEST" 2>/dev/null)
+DETECT_OUTPUT=$(detect_resumable_work "$TEST_TMPDIR/quantum.json" "$TEST_TMPDIR" "US-TEST" 2>/dev/null)
 DETECT_EXIT=$?
 
 assert_eq "detect_resumable_work exits 0" "0" "$DETECT_EXIT"

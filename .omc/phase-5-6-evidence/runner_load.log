@@ -1,0 +1,16 @@
+Test: runner_load_valid_claude
+  PASS: runner_load claude exits 0
+  PASS: RUNNER_NAME is claude
+  PASS: RUNNER_BINARY is claude
+  PASS: RUNNER_TIER is guaranteed
+  PASS: RUNNER_PROMPT_DELIVERY is flag
+  PASS: RUNNER_PROMPT_FLAG is -p
+  PASS: RUNNER_HEADLESS_FLAGS contains --print
+  PASS: RUNNER_AUTO_APPROVE_FLAGS contains skip-permissions
+  PASS: RUNNER_STDIN_PIPE is false
+  PASS: RUNNER_INSTRUCTION_NATIVE is CLAUDE.md
+  PASS: RUNNER_PREAMBLE_INJECTION is false
+  PASS: RUNNER_HEURISTIC_FALLBACK is false
+  PASS: RUNNER_EXTRA_FLAGS is empty
+  PASS: RUNNER_OVERRIDE_SIGNAL is empty
+Test: runner_load_missing_manifest

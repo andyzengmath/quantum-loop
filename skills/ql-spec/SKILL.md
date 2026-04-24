@@ -7,11 +7,23 @@ description: "Part of the quantum-loop autonomous development pipeline (brainsto
 
 You are generating a formal Product Requirements Document (PRD). This document will be consumed by `/quantum-loop:plan` to produce machine-readable tasks for autonomous execution. Write for junior developers or AI agents -- be explicit, unambiguous, and verifiable.
 
+## Prerequisite: read prior-stage handoffs (Phase 15 / P2.3)
+
+Before doing anything else, ingest every prior-stage handoff so decisions, rejected alternatives, and risks carry forward even across context compaction:
+
+```bash
+bash lib/handoff.sh all | jq '.'
+bash lib/handoff.sh read brainstorm | jq '.'
+```
+
+Treat `brainstorm.decided` as binding (already agreed — do not re-litigate), `brainstorm.rejected` as closed alternatives (do not re-propose them), `brainstorm.remaining` as the exact backlog your PRD MUST resolve, and `brainstorm.risks` as mandatory §Risks entries in the PRD.
+
 ## Step 1: Gather Context
 
 1. Check for an approved design document in `docs/plans/`. If one exists, load it as primary context.
 2. Check for existing quantum.json to understand any in-progress features.
 3. Read project files (package.json, README, existing code structure) to understand the tech stack.
+4. Re-read `.handoffs/brainstorm.md`'s `remaining` list — it IS the starting backlog of clarifying questions.
 
 ## Step 2: Ask Clarifying Questions
 
@@ -180,3 +192,23 @@ For each item below, either address it in the PRD or mark it "N/A" with a justif
 - [ ] **Error recovery:** What happens when things go wrong? (network failures, invalid data, partial state, retry logic)
 - [ ] **No-data/empty state:** What does the user see when there is no data to display? (empty lists, missing config, uninitialized state)
 - [ ] **Uninstall/disable:** What happens when the feature is removed or disabled? (cleanup, orphaned data, dependent features)
+
+## Exit: write stage handoff (Phase 15 / P2.3)
+
+Before returning control, persist a stage handoff at `.handoffs/spec.md` so `/ql-plan`, `/ql-execute`, and downstream reviewers can read your decisions even across session compaction:
+
+```bash
+bash lib/handoff.sh write spec "$(cat <<'JSON'
+{
+  "decided":   ["<each AC that converges a prior brainstorm.remaining item>", "<scope-boundary picks>"],
+  "rejected":  ["<any alternative framing of an AC you considered and dropped, with reason>"],
+  "risks":     ["<each §Risks entry of the PRD>"],
+  "files":     ["tasks/prd-<feature>.md"],
+  "remaining": ["<any question you could not resolve — flag for /ql-plan>"],
+  "notes":     "<free-form: how this PRD re-grounds against userIntent, any re-negotiation logged>"
+}
+JSON
+)"
+```
+
+The `decided` array MUST NOT contradict `brainstorm.decided`; any re-negotiation MUST also land as a new `quantum.json.userClarifications[]` entry so `/ql-intent-check` sees it as explicit.

@@ -1,0 +1,38 @@
+=== Phase 7 ql-intent-check wiring tests ===
+
+Test 1: quantum.json.example JSON validity
+  PASS: quantum.json.example is valid JSON
+
+Test 2: userIntent schema shape
+  PASS: userIntent.text populated
+  PASS: userIntent.timestamp populated
+
+Test 3: userClarifications + intentDrift containers
+  PASS: userClarifications is array
+  PASS: intentDrift is object
+
+Test 4: ql-intent-check skill content
+  PASS: skill file exists
+  PASS: references Rule 4 — Non-goals violated
+  PASS: references CRITICAL_DRIFT_BLOCKS_MERGE verdict
+  PASS: lists Rule 7 scope creep
+
+Test 5: ql-brainstorm Phase 4b references userIntent
+  PASS: mentions Phase 4b snapshot
+  PASS: references immutable snapshot
+  PASS: points at json-atomic helper
+
+Test 6: ql-verify treats CRITICAL_DRIFT_BLOCKS_MERGE as blocking
+  PASS: mentions intent-drift audit step
+  PASS: mentions CRITICAL verdict blocks PASSED
+  PASS: references claim-check signal too
+
+Test 7: jq gate reads intentDrift verdict correctly
+  PASS: critical verdict readable
+  PASS: gate blocks on critical
+  PASS: gate passes on NO_DRIFT
+
+Test 8: Missing intentDrift degrades gracefully
+  PASS: missing verdict returns sentinel
+
+=== Results: 19/19 passed, 0 failed ===

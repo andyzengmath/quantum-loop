@@ -437,7 +437,10 @@ assert_eq "run_preflight re-runs after old ranAt" "0" "$EXIT_CODE"
 assert_not_contains "re-run does not skip" "skip" "$OUTPUT"
 
 echo "=== Test 28: run_preflight sets forceSequential when tmpdir not writable ==="
-# Force tmpdir_not_writable by setting TMPDIR to a non-existent path
+# Force tmpdir_not_writable by setting bash's magic TMPDIR env var (which
+# init-guard reads) to a non-existent path. NOTE: this is the actual magic
+# TMPDIR, not the test-local TEST_TMPDIR that Phase 6.5 renamed to avoid
+# tempdir-shadowing bugs in other places.
 SAVED_TMPDIR="${TMPDIR:-}"
 export TMPDIR="/nonexistent_path_ql_test_$$"
 
@@ -460,7 +463,7 @@ print(ig.get('forceSequential', False))
 ")
 assert_eq "forceSequential is True when tmpdir not writable" "True" "$FORCE_SEQ"
 
-# Restore TMPDIR
+# Restore bash's magic TMPDIR
 if [[ -n "$SAVED_TMPDIR" ]]; then
   export TMPDIR="$SAVED_TMPDIR"
 else

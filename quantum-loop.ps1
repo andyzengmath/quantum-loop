@@ -399,10 +399,37 @@ function Generate-Observations {
 
 $(jq -r '.stories[] | select(.status == "failed" or .status == "blocked") | "- **\(.id)** \(.title) — \(.status) (\(.retries.attempts)/\(.retries.maxAttempts) retries)"' quantum.json 2>$null)
 
+## Progress Log
+
+$(
+  $rows = jq -r '
+    [
+      (.stories[] | select(.retries.failureLog // [] | length > 0)
+        | .id as $sid
+        | (.retries.failureLog // [])[]
+        | [ $sid, (.phase // "unknown"), ((.error // "") | gsub("\\|"; "/") | .[0:80]), "", "", "" ]
+        | @tsv),
+      (.progress // [] | .[]
+        | [ (.storyId // "(pipeline)"), (.action // "unknown"), ((.details // "") | gsub("\\|"; "/") | .[0:80]), "", "", (.learnings // "") ]
+        | @tsv)
+    ] | .[]
+  ' quantum.json 2>$null
+  if ($rows) {
+    $header = "| Story | Phase / Action | Error / Detail | Root cause | Fix applied | Lesson |" + "`n" + "|-------|----------------|----------------|-----------|-------------|--------|"
+    $body = ($rows -split "`n" | Where-Object { $_ -match '.' } | ForEach-Object {
+      $f = $_ -split "`t"
+      "| " + ($f[0..5] -join " | ") + " |"
+    }) -join "`n"
+    "$header`n$body"
+  } else {
+    "_No failed / retried stories. Progress log is empty._"
+  }
+)
+
 ## Raw Data
 
 <details>
-<summary>Progress Log</summary>
+<summary>Progress JSON</summary>
 
 ``````json
 $(jq '.progress' quantum.json)
@@ -415,6 +442,22 @@ $(jq '.progress' quantum.json)
     git add $obsFile 2>$null
     git commit -m "docs: execution observations for $branch" 2>$null
     Write-Host "[OBSERVATIONS] Generated $obsFile" -ForegroundColor Cyan
+
+    # Phase 6 / P1.7 — promote generalizable lessons into codebasePatterns
+    # (parity with bash generate_observations)
+    $newPatterns = jq '[.progress // [] | .[] | select(.learnings? and (.learnings | length > 0)) | .learnings]' quantum.json 2>$null
+    if ($newPatterns -and $newPatterns -ne "[]") {
+        $tmpFile = [System.IO.Path]::GetTempFileName()
+        $updated = jq --argjson newlessons $newPatterns '.codebasePatterns = ((.codebasePatterns // []) + $newlessons | unique)' quantum.json 2>$null
+        if ($updated) {
+            $updated | Set-Content -Path $tmpFile -Encoding UTF8
+            Move-Item -Force -Path $tmpFile -Destination quantum.json
+            $count = jq 'length' <<< $newPatterns
+            Write-Host "[OBSERVATIONS] Promoted $count lessons into codebasePatterns." -ForegroundColor Cyan
+        } else {
+            Remove-Item -Force -Path $tmpFile -ErrorAction SilentlyContinue
+        }
+    }
 
     # Check if observations contain issues worth reporting
     $hasBlocked = [int](jq '[.stories[] | select(.status == "blocked" or .status == "failed")] | length' quantum.json)

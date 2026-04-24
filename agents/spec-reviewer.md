@@ -57,14 +57,66 @@ For EACH functional requirement (FR-N) related to this story:
    - `not_implemented`: Missing entirely
    - `deviated`: Implemented differently than specified (note whether the deviation is beneficial or problematic)
 
-### Step 5: Check for Scope Creep
+### Step 5: Over-building Audit (P2.2 / Superpowers spec-reviewer v4)
 
-Review the diff for changes that go BEYOND what the story requires:
+Per-story review has a well-known asymmetry: it's much better at catching
+**missing** features than **extra** features. Fix the asymmetry by auditing
+the diff explicitly against the out-of-scope surface.
+
+Required sub-checks:
+
+**5a — Scope creep (existing, kept)**. Review the diff for changes that go
+BEYOND what the story requires:
 - Extra features not in the acceptance criteria
 - Refactoring of unrelated code
 - "While I'm here" improvements
 
-Flag these as scope creep. They are not necessarily bad, but they must be noted.
+Flag these in `scopeCreep`. Not necessarily bad, but must be noted.
+
+**5b — PRD non-goals cross-check** (NEW). If the PRD has a `§5 Non-goals`
+section (or equivalently named "Out of scope", "Explicitly excluded",
+"Not in this release"), extract its bullet list. For each non-goal:
+
+1. Grep the diff for paths / symbols / keywords that would realize the
+   non-goal. Examples: non-goal "no Redis caching" → grep the diff for
+   `redis`, `ioredis`, `ConnectionPool`, `RedisClient`. Non-goal "no new
+   UI flow" → grep for new routes, new components, new view files.
+2. If any match is found with no covering AC, emit a **CRITICAL** finding
+   under a new `nonGoalsViolated` output array. Violating an explicit
+   non-goal is the highest-severity over-building signal per
+   `skills/ql-intent-check/SKILL.md` Rule 4.
+3. If the PRD has no Non-goals section at all, note this as an `info`
+   finding ("PRD missing §5 Non-goals — cannot audit over-building by
+   rule") so future ql-spec runs add the section.
+
+**5c — Exported-symbol justification** (NEW). For every new exported
+symbol in the diff (functions, classes, types, constants), find a
+supporting AC or PRD line that mandates it. Use `grep -rE` over the
+PRD + quantum.json acceptance criteria for the symbol name or a
+semantic abstraction of it.
+
+- If zero references → **HIGH** finding under `overBuilding`: symbol
+  exported without PRD support. May be genuine internal helper, but
+  exports are public surface — require explicit justification.
+- Test-only exports (`testing_`-prefixed, `__test_` suffixed, etc.) are
+  exempt.
+- Symbols that narrow a PRD-mandated interface (e.g., the PRD requires
+  `User`, implementation adds `UserInput` + `UserOutput`) count as
+  covered when the PRD explicitly allows refinement.
+
+**5d — Single-caller abstraction detection** (NEW). For every new
+factory / wrapper / interface in the diff, verify it has ≥2 callers.
+A one-member interface with one implementer, or a factory with one
+call site, is almost always over-engineering. Emit a **MEDIUM**
+finding under `overBuilding` with the suggestion to inline.
+
+Exception: interfaces documented as a "contract boundary" (imported
+by a consumer in a sibling story, per `consumedBy` field) are covered.
+
+**Invocation note**: Steps 5b-d exercise the same skill-prompt logic
+as `/quantum-loop:ql-deep-review` but at per-story scope. The two are
+complementary, not redundant: per-story catches over-building early;
+deep-review catches the cross-story convergence.
 
 ### Step 6: Wiring Verification
 
@@ -110,6 +162,29 @@ Produce a structured review:
   "scopeCreep": [
     "Refactored existing Task model constructor (not in scope)"
   ],
+  "nonGoalsViolated": [
+    {
+      "non_goal": "no Redis caching",
+      "violation": "src/cache/redis.ts imports ioredis",
+      "severity": "critical"
+    }
+  ],
+  "overBuilding": [
+    {
+      "kind": "unjustified-export",
+      "symbol": "UserRegistry",
+      "file": "src/user/registry.ts:12",
+      "severity": "high",
+      "suggested_action": "Inline into caller or cite supporting PRD line"
+    },
+    {
+      "kind": "single-caller-abstraction",
+      "symbol": "TaskFactory",
+      "file": "src/task/factory.ts:8",
+      "severity": "medium",
+      "suggested_action": "Inline into the one call site"
+    }
+  ],
   "issues": [
     "AC-3 'Existing tasks default to medium' not verified -- no migration for existing data"
   ],
@@ -123,6 +198,8 @@ Produce a structured review:
 - ALL acceptance criteria are `satisfied`
 - ALL related functional requirements are `implemented` or `deviated` with justification
 - No critical scope creep
+- `nonGoalsViolated` array is empty (any CRITICAL violation → automatic FAIL per Rule 4)
+- No HIGH over-building findings without user acknowledgement
 
 ### FAIL when:
 - ANY acceptance criterion is `not_satisfied`
