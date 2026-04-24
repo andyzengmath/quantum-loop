@@ -254,7 +254,7 @@ check "Trajectory tick header" "Trajectory tick"
 check "parse_trajectory invoked" 'parse_trajectory "$LOG"'
 check "should_early_kill gate" "| should_early_kill"
 check "classify_trajectory for log category" "| classify_trajectory"
-check "agent log path convention documented" ".ql-wt/\$sid/agent.log"
+check "agent log uses spawn.sh convention" ".ql-wt/\$sid/.ql-agent-output.txt"
 check "reap_agent integration (Phase 20)" "reap_agent"
 check "failureLog phase=trajectory-\$cls" '"trajectory-" + $cls'
 
