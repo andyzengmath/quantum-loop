@@ -26,6 +26,8 @@
     "no-sql-injection",
     "input-validation"
   ],
+  "_comment_knownFalsePositives": "Regex patterns for review findings that are known-safe and should be suppressed by lib/deep-review.sh far_filter (Phase 23 / P3.3, KBI-FAR arXiv:2505.17928). Match is tested against finding.title and finding.description. Use sparingly — better to fix a noisy linter than to silence it.",
+  "knownFalsePositives": [],
   "stories": [
     {
       "id": "US-001",

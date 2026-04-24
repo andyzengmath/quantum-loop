@@ -1,0 +1,38 @@
+=== Phase 10 dogfood end-to-end check ===
+
+Test 1: dogfood quantum.json parses
+  PASS: valid JSON
+
+Test 2: schema fields from Phases 7-9
+  PASS: userIntent.text present
+  PASS: userClarifications is array
+  PASS: intentDrift has entry
+  PASS: reviews has deepReview
+  PASS: deslop field present
+  PASS: codebasePatterns has entries
+  PASS: progress has entries
+
+Test 3: intent-drift gate semantics
+  PASS: NO_DRIFT gate allows merge
+
+Test 4: deep-review synthesize_verdict consumes the dogfood findings array
+  PASS: two HIGH confidence≥70 findings → REQUEST_CHANGES
+
+Test 5: dedup_findings idempotent on dogfood findings
+  PASS: dedup preserves 2-element unique set
+
+Test 6: plan retrospective — 10 stories all passed
+  PASS: 10 stories total
+  PASS: 10 stories passed
+
+Test 7: codebasePatterns contains real Phase-5 lesson
+  PASS: Phase-5 set-e lesson present
+
+Test 8: userIntent verbatim contains the original verbatim message
+  PASS: intent snapshot references IDEA_REPORT.md
+
+Test 9: companion PRD exists and references the dogfood artifact
+  PASS: PRD exists
+  PASS: PRD has AC-15 dogfood + references phase-10-evidence
+
+=== Results: 17/17 passed, 0 failed ===
