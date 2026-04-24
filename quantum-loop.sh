@@ -66,14 +66,106 @@ _audit_format_row() {
   fi
 }
 
+# _audit_drill_join NAMES_VAR_REF  (bash-4 nameref pattern)
+# Given an array of offending names, emit at most the first 3 joined with
+# ", " plus "(+N more)" when there's a tail. Empty input → empty string.
+_audit_drill_join() {
+  local -n _arr="$1"  # nameref
+  local n="${#_arr[@]}"
+  if (( n == 0 )); then printf ""; return 0; fi
+  local head_count=3
+  (( n < head_count )) && head_count=$n
+  local i=0 out=""
+  while (( i < head_count )); do
+    if (( i > 0 )); then out+=", "; fi
+    out+="${_arr[$i]}"
+    i=$((i + 1))
+  done
+  if (( n > head_count )); then
+    out+=" (+$((n - head_count)) more)"
+  fi
+  printf '%s' "$out"
+}
+
+# _audit_branches_local
+# Counts local branches excluding master/HEAD; emits OK row if count <=
+# QL_AUDIT_BRANCH_MAX (default 10) else FAIL with first-3 drill.
+_audit_branches_local() {
+  local max="${QL_AUDIT_BRANCH_MAX:-10}"
+  local -a names=()
+  local b
+  while IFS= read -r b; do
+    b="${b#\* }"
+    b="${b# }"
+    [[ -z "$b" || "$b" == "master" || "$b" == "HEAD" ]] && continue
+    names+=("$b")
+  done < <({ git branch 2>/dev/null ; } || true)
+  local n="${#names[@]}"
+  if (( n <= max )); then
+    printf 'branches-local|%d|≤%d|OK|\n' "$n" "$max"
+  else
+    local drill
+    drill=$(_audit_drill_join names)
+    printf 'branches-local|%d|≤%d|FAIL|%s\n' "$n" "$max" "$drill"
+  fi
+}
+
+# _audit_branches_remote
+# Same as _audit_branches_local but against `git branch -r`, excluding
+# HEAD pointers and origin/master.
+_audit_branches_remote() {
+  local max="${QL_AUDIT_BRANCH_MAX:-10}"
+  local -a names=()
+  local b
+  while IFS= read -r b; do
+    b="${b# }"
+    [[ -z "$b" ]] && continue
+    [[ "$b" == *"HEAD"* ]] && continue
+    [[ "$b" == "origin/master" ]] && continue
+    names+=("$b")
+  done < <({ git branch -r 2>/dev/null ; } || true)
+  local n="${#names[@]}"
+  if (( n <= max )); then
+    printf 'branches-remote|%d|≤%d|OK|\n' "$n" "$max"
+  else
+    local drill
+    drill=$(_audit_drill_join names)
+    printf 'branches-remote|%d|≤%d|FAIL|%s\n' "$n" "$max" "$drill"
+  fi
+}
+
+# _audit_readme_conflicts
+# Counts merge-conflict markers in README.md. Guards against missing file.
+# Target QL_AUDIT_CONFLICT_MAX (default 0). Drill = first 3 line numbers.
+_audit_readme_conflicts() {
+  local max="${QL_AUDIT_CONFLICT_MAX:-0}"
+  local n=0
+  local -a lines=()
+  if [[ -f README.md ]]; then
+    local ln
+    while IFS=: read -r ln _; do
+      [[ -n "$ln" ]] && lines+=("$ln")
+    done < <({ grep -nE '^(<<<<<<<|=======|>>>>>>>)' README.md 2>/dev/null ; } || true)
+    n="${#lines[@]}"
+  fi
+  if (( n <= max )); then
+    printf 'readme-conflicts|%d|%d|OK|\n' "$n" "$max"
+  else
+    local drill
+    drill=$(_audit_drill_join lines)
+    printf 'readme-conflicts|%d|%d|FAIL|%s\n' "$n" "$max" "$drill"
+  fi
+}
+
 # do_audit
-# Driver for --audit. US-001 ships a stub that emits header + one placeholder
-# row + Summary. US-002 and US-003 extend it with real metric helpers.
+# Driver for --audit. Calls all metric helpers in canonical order, renders
+# each row via _audit_format_row, returns 0 if all OK else 1.
 do_audit() {
   printf "=== Quantum-loop audit ===\n"
   local -a ROWS=()
-  # US-001 placeholder row (removed in US-002 T-004 once real helpers land):
-  ROWS+=("placeholder|0|0|OK|")
+  ROWS+=("$(_audit_branches_local)")
+  ROWS+=("$(_audit_branches_remote)")
+  ROWS+=("$(_audit_readme_conflicts)")
   local any_fail=0 ok_count=0 total=0
   local row
   for row in "${ROWS[@]}"; do

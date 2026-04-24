@@ -79,10 +79,10 @@ out=$(do_audit 2>&1)
 rc=$?
 assert "do_audit exits 0" "0" "$rc"
 case "$out" in
-  *"=== Quantum-loop audit ==="*"placeholder:"*"Summary:"*)
-    echo "  PASS: header + placeholder + summary present"; PASS=$((PASS + 1));;
+  *"=== Quantum-loop audit ==="*"Summary:"*)
+    echo "  PASS: header + summary present"; PASS=$((PASS + 1));;
   *)
-    echo "  FAIL: stub output — got [$out]"; FAIL=$((FAIL + 1));;
+    echo "  FAIL: do_audit output — got [$out]"; FAIL=$((FAIL + 1));;
 esac
 TOTAL=$((TOTAL + 1))
 
@@ -111,6 +111,103 @@ if [[ "$rc" -eq 2 ]] && printf '%s' "$out" | grep -q -- '--audit is exclusive'; 
 else
   echo "  FAIL: --audit exclusive guard (rc=$rc)"; FAIL=$((FAIL + 1))
 fi
+
+# --- US-002 tests -----------------------------------------------------------
+
+# Test 7: _audit_branches_local OK on clean repo
+echo ""
+echo "Test 7: _audit_branches_local OK on clean tmp repo"
+TMP=$(setup_audit_repo)
+out=$(cd "$TMP" && _audit_branches_local)
+case "$out" in
+  branches-local\|0\|≤10\|OK\|*)
+    echo "  PASS: branches_local OK on clean repo"; PASS=$((PASS + 1));;
+  *)
+    echo "  FAIL: branches_local OK — got [$out]"; FAIL=$((FAIL + 1));;
+esac
+TOTAL=$((TOTAL + 1))
+rm -rf "$TMP"
+
+# Test 8: _audit_branches_local FAIL when 12 branches exist
+echo ""
+echo "Test 8: _audit_branches_local FAIL over threshold"
+TMP=$(setup_audit_repo)
+(cd "$TMP" && for i in $(seq 1 12); do git branch "extra-$i" 2>/dev/null; done)
+out=$(cd "$TMP" && _audit_branches_local)
+case "$out" in
+  branches-local\|12\|≤10\|FAIL\|*extra-*)
+    echo "  PASS: branches_local FAIL with drill"; PASS=$((PASS + 1));;
+  *)
+    echo "  FAIL: branches_local FAIL — got [$out]"; FAIL=$((FAIL + 1));;
+esac
+TOTAL=$((TOTAL + 1))
+rm -rf "$TMP"
+
+# Test 9: _audit_branches_remote OK on clean repo
+echo ""
+echo "Test 9: _audit_branches_remote OK"
+TMP=$(setup_audit_repo)
+out=$(cd "$TMP" && _audit_branches_remote)
+case "$out" in
+  branches-remote\|0\|≤10\|OK\|*)
+    echo "  PASS: branches_remote OK"; PASS=$((PASS + 1));;
+  *)
+    echo "  FAIL: branches_remote OK — got [$out]"; FAIL=$((FAIL + 1));;
+esac
+TOTAL=$((TOTAL + 1))
+rm -rf "$TMP"
+
+# Test 10: _audit_readme_conflicts OK on clean README
+echo ""
+echo "Test 10: _audit_readme_conflicts OK"
+TMP=$(setup_audit_repo)
+out=$(cd "$TMP" && _audit_readme_conflicts)
+case "$out" in
+  readme-conflicts\|0\|0\|OK\|*)
+    echo "  PASS: readme_conflicts OK"; PASS=$((PASS + 1));;
+  *)
+    echo "  FAIL: readme_conflicts OK — got [$out]"; FAIL=$((FAIL + 1));;
+esac
+TOTAL=$((TOTAL + 1))
+rm -rf "$TMP"
+
+# Test 11: _audit_readme_conflicts FAIL when markers present
+echo ""
+echo "Test 11: _audit_readme_conflicts FAIL with markers"
+TMP=$(setup_audit_repo)
+(
+  cd "$TMP"
+  cat > README.md <<'EOF'
+line before
+<<<<<<< HEAD
+ours
+=======
+theirs
+>>>>>>> branch
+EOF
+)
+out=$(cd "$TMP" && _audit_readme_conflicts)
+case "$out" in
+  readme-conflicts\|3\|0\|FAIL\|*)
+    echo "  PASS: readme_conflicts FAIL with drill"; PASS=$((PASS + 1));;
+  *)
+    echo "  FAIL: readme_conflicts FAIL — got [$out]"; FAIL=$((FAIL + 1));;
+esac
+TOTAL=$((TOTAL + 1))
+rm -rf "$TMP"
+
+# Test 12: env-override BRANCH_MAX raises threshold
+echo ""
+echo "Test 12: env-override BRANCH_MAX"
+TMP=$(setup_audit_repo)
+(cd "$TMP" && for i in $(seq 1 12); do git branch "extra-$i" 2>/dev/null; done)
+# Default threshold (10) → 12 branches should FAIL → exit 1
+rc_default=$(cd "$TMP" && bash "$REPO_ROOT/quantum-loop.sh" --audit >/dev/null 2>&1 ; echo $?)
+# With QL_AUDIT_BRANCH_MAX=20 → 12 <= 20 → exit 0
+rc_override=$(cd "$TMP" && QL_AUDIT_BRANCH_MAX=20 bash "$REPO_ROOT/quantum-loop.sh" --audit >/dev/null 2>&1 ; echo $?)
+assert "default BRANCH_MAX=10 → exit 1" "1" "$rc_default"
+assert "override BRANCH_MAX=20 → exit 0" "0" "$rc_override"
+rm -rf "$TMP"
 
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
