@@ -35,6 +35,11 @@ if [[ ! -f "$LIB_DIR/monitor.sh" ]]; then
 fi
 source "$LIB_DIR/monitor.sh"
 
+# Tests use `bash $TEST_REPO/fake_typecheck.sh` as an explicit typecheck
+# command; extend the allowlist so the security gate lets it through.
+# See lib/monitor.sh:303 for the production allowlist.
+export TYPECHECK_EXTRA_ALLOWED_PREFIXES="bash"
+
 assert_eq() {
   local test_name="$1" expected="$2" actual="$3"
   TOTAL=$((TOTAL + 1))

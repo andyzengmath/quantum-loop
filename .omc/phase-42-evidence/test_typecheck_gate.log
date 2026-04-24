@@ -1,0 +1,51 @@
+=== Test 1: No typecheckCommand, no language files -> skip, return 0 ===
+  PASS: No config skip returns 0
+  PASS: Logs skip message
+=== Test 2: Explicit typecheckCommand in JSON -> uses it ===
+  PASS: Explicit command returns 0
+=== Test 3: Auto-detect TypeScript (tsconfig.json) -> tsc --noEmit ===
+  PASS: Auto-detect TS returns 0
+  PASS: Logs auto-detect
+=== Test 4: Command not on allowlist -> rejected, returns 1 ===
+  PASS: Non-allowlisted command returns 1
+  PASS: Logs rejection
+=== Test 5: Baseline not set -> initialize baseline, return 0 ===
+  PASS: Baseline init returns 0
+  PASS: Logs baseline initialized
+  PASS: Baseline value written to JSON
+=== Test 6: Error count <= baseline -> return 0 ===
+  PASS: Errors <= baseline returns 0
+  PASS: Logs PASS
+=== Test 7: Error count > baseline -> revert merge, return 1 ===
+  PASS: Errors > baseline returns 1
+  PASS: Logs FAIL and revert
+  PASS: Revert commit created (HEAD changed)
+=== Test 8: Timeout behavior (command that sleeps > timeout) ===
+  PASS: Timeout returns 0 (graceful)
+  PASS: Logs timeout warning
+=== Test 9: Multiple auto-detect options (tsconfig.json takes priority over go.mod) ===
+  PASS: tsconfig.json priority returns 0
+  PASS: Uses tsc (TypeScript detected)
+=== Test 10: Typecheck with warnings but zero errors passes ===
+  PASS: Warnings-only returns 0
+  PASS: Logs PASS for zero errors
+=== Test 11: Injection — typecheckCommand with semicolon rejected ===
+  PASS: Semicolon injection returns 1
+  PASS: Logs rejection for semicolon
+=== Test 12: Injection — typecheckCommand with pipe rejected ===
+  PASS: Pipe injection returns 1
+  PASS: Logs rejection for pipe
+=== Test 13: Injection — typecheckCommand with redirect > rejected ===
+  PASS: Redirect injection returns 1
+  PASS: Logs rejection for redirect
+=== Test 14: Injection — typecheckCommand with backtick rejected ===
+  PASS: Backtick injection returns 1
+  PASS: Logs rejection for backtick
+=== Test 15: Injection — typecheckCommand with embedded newline rejected ===
+  PASS: Newline injection returns 1
+  PASS: Logs rejection for newline
+=== Test 16: Allowlist — tsc --noEmit accepted ===
+  PASS: Allowed tsc --noEmit returns 0
+  PASS: Logs running for tsc
+
+=== Results: 33/33 passed, 0 failed ===

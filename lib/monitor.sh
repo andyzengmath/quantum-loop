@@ -299,8 +299,20 @@ post_merge_typecheck() {
     return 0
   fi
 
-  # Allowlist of known-safe typecheck command prefixes
+  # Allowlist of known-safe typecheck command prefixes. Tests may extend
+  # via TYPECHECK_EXTRA_ALLOWED_PREFIXES (colon-separated) — env-var
+  # tunable, same pattern as TYPECHECK_TIMEOUT. Env var is not readable
+  # by the quantum.json it guards, so this cannot be weaponized by a
+  # malicious repo.
   local -a ALLOWED_TYPECHECK_PREFIXES=("tsc" "pyright" "mypy" "go vet" "go build" "npx tsc" "pnpm tsc" "yarn tsc" "pnpm exec tsc" "npx pyright")
+  if [[ -n "${TYPECHECK_EXTRA_ALLOWED_PREFIXES:-}" ]]; then
+    local IFS=':'
+    local extra
+    for extra in $TYPECHECK_EXTRA_ALLOWED_PREFIXES; do
+      [[ -n "$extra" ]] && ALLOWED_TYPECHECK_PREFIXES+=("$extra")
+    done
+    unset IFS
+  fi
 
   local allowed=false
   for prefix in "${ALLOWED_TYPECHECK_PREFIXES[@]}"; do
