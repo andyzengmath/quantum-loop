@@ -55,6 +55,10 @@ source "$REPO_ROOT/lib/intent-graph.sh" 2>/dev/null || INTENT_GRAPH_AVAILABLE=fa
 SKELETON_AVAILABLE=true
 source "$REPO_ROOT/lib/skeleton.sh" 2>/dev/null || SKELETON_AVAILABLE=false
 
+# Source trajectory module (Phase 24 / P3.5 wiring, graceful fallback)
+TRAJECTORY_AVAILABLE=true
+source "$REPO_ROOT/lib/trajectory.sh" 2>/dev/null || TRAJECTORY_AVAILABLE=false
+
 # Run pre-flight checks (idempotent within 1 hour)
 if [[ "$INIT_GUARD_AVAILABLE" != "false" ]]; then
   run_preflight "$REPO_ROOT" "$JSON_PATH"
@@ -755,6 +759,48 @@ for row in $(printf '%s' "$POLL" | jq -rc '.[]'); do
   esac
 done
 ```
+
+**Trajectory tick (Phase 24 / P3.5 wiring):** a complementary signal to the watchdog. Watchdog fires on wall-clock staleness; trajectory fires on work-shape staleness — agent making tool calls but no edits/writes (thrashing) or many calls with zero productive outputs (stuck). Both checks run per cycle; either can trigger a kill.
+
+```bash
+# Per-story agent-output path convention: $REPO_ROOT/.ql-wt/$sid/agent.log
+# Spawners must tee stdout to this path for trajectory to see work shape.
+# No-op if the file doesn't exist (e.g. sequential run, or older spawn).
+if [[ "$TRAJECTORY_AVAILABLE" != "false" ]]; then
+  for sid in $(jq -r '.stories[] | select(.status == "in_progress") | .id' "$JSON_PATH"); do
+    LOG="$REPO_ROOT/.ql-wt/$sid/agent.log"
+    [[ -f "$LOG" ]] || continue
+    TRAJ=$(parse_trajectory "$LOG")
+    if printf '%s' "$TRAJ" | should_early_kill; then
+      CLS=$(printf '%s' "$TRAJ" | classify_trajectory)
+      echo "[TRAJECTORY] $sid classified as $CLS — early kill" >&2
+      # Kill via reap_agent (Phase 20 orphan reaper) or fall back to
+      # kill_agent_process, same contract as watchdog.
+      if declare -f reap_agent > /dev/null 2>&1; then
+        reap_agent "$sid" 2>/dev/null
+      else
+        kill_agent_process "$sid" 2>/dev/null
+      fi
+      jq --arg sid "$sid" --arg cls "$CLS" --arg ts "$(date -u +%FT%TZ)" '
+        (.stories[] | select(.id == $sid) | .status) = "failed"
+        | (.stories[] | select(.id == $sid) | .retries.failureLog) += [{
+            "phase": ("trajectory-" + $cls),
+            "timestamp": $ts,
+            "error": ("trajectory classified as " + $cls + " - early kill")
+          }]
+      ' "$JSON_PATH" > "$JSON_PATH.tmp" && mv "$JSON_PATH.tmp" "$JSON_PATH"
+    fi
+  done
+fi
+```
+
+Trajectory thresholds are env-overrideable:
+- `TRAJECTORY_THRASH_MIN_CALLS=20` — min total calls before a thrash verdict
+- `TRAJECTORY_STUCK_MIN_CALLS=30` — min calls + zero edits → stuck
+- `TRAJECTORY_THRASH_READ_RATIO=70` — read/grep % over which thrashing is flagged
+- `TRAJECTORY_THRASH_EDIT_RATIO=5` — edit % under which thrashing is flagged
+
+Setting `TRAJECTORY_THRASH_MIN_CALLS=999` effectively disables the check without removing the wiring.
 
 On each repeated same-error failure for a story, bump the circuit-breaker counter:
 
