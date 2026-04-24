@@ -1,0 +1,63 @@
+=== Phase 28 re-grounding tests ===
+
+Test 1: should_reground at interval
+  PASS: iter=5, last=0, interval=5 -> 0
+
+Test 2: below interval
+  PASS: iter=3, last=0, interval=5 -> 1
+
+Test 3: past interval (delta 6)
+  PASS: iter=10, last=4, interval=5 -> 0
+
+Test 4: just-grounded state
+  PASS: iter=5, last=5 -> 1
+
+Test 5: missing lastGroundedIteration defaults to 0
+  PASS: no state field, iter=5 -> 0
+
+Test 6: REGROUND_INTERVAL override
+  PASS: interval=3, delta=3 -> 0
+  PASS: interval=10, delta=3 -> 1
+
+Test 7: stdin input
+  PASS: stdin trigger
+
+Test 8: build_reground_context shape
+  PASS: header with iteration
+  PASS: branch rendered
+  PASS: progress counts
+  PASS: goal reminder
+
+Test 9: next pending stories listed
+  PASS: pending stories S3, S5 listed
+  PASS: only pending stories in next-up
+
+Test 10: PRD head included when file exists
+  PASS: PRD head rendered
+
+Test 11: missing PRD handled
+  PASS: missing PRD skipped cleanly
+
+Test 12: empty stories array
+  PASS: empty progress rendered
+
+Test 13: mark_grounded updates state
+  PASS: lastGroundedIteration = 7
+  PASS: other state preserved
+
+Test 14: mark_grounded creates state if absent
+  PASS: state created, lastGroundedIteration = 3
+
+Test 15: mark_grounded missing file
+  PASS: missing file -> exit 1
+
+Test 16: mark_grounded resets the should_reground signal
+  PASS: before mark: should -> 0
+  PASS: after mark: should -> 1
+
+Test 17: CLI subcommands
+  PASS: CLI should -> 0
+  PASS: CLI context
+  PASS: CLI mark updates field
+
+=== Results: 26/26 passed, 0 failed ===

@@ -1,0 +1,41 @@
+=== Phase 23 KBI-FAR far_filter tests ===
+
+Test 1: confidence cutoff
+  PASS: 1 kept (conf ≥60)
+  PASS: 2 suppressed (conf <60)
+  PASS: reason mentions confidence
+
+Test 2: agreement boost lifts across cutoff
+  PASS: agreement-boosted finding kept
+  PASS: confidence boosted 50 -> 65
+  PASS: original_confidence preserved
+  PASS: single-agent below-cutoff suppressed
+
+Test 3: confidence cap at 100
+  PASS: confidence capped at 100
+
+Test 4: knownFalsePositives regex suppression
+  PASS: genuine finding kept
+  PASS: 2 suppressed by regex
+  PASS: suppression reasons reference knownFalsePositives
+
+Test 5: missing quantum.json graceful fallback
+  PASS: finding kept with missing quantum.json
+
+Test 6: empty input
+  PASS: empty kept
+  PASS: empty suppressed
+
+Test 7: CLI subcommand
+  PASS: CLI far kept 1
+
+Test 8: aggregate_reviews wires far_filter
+  PASS: aggregate kept 1 real finding
+  PASS: aggregate suppressed 2 (cutoff + FP)
+  PASS: verdict REQUEST_CHANGES (high ≥70)
+  PASS: FP reason present
+
+Test 9: schema extension
+  PASS: knownFalsePositives is array
+
+=== Results: 20/20 passed, 0 failed ===

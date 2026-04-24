@@ -1,0 +1,60 @@
+=== Phase 25 HyClone Stage-1 tests ===
+
+Test 1: alpha_normalize basics
+  PASS: whitespace-only renames x
+  PASS: extra whitespace collapsed
+  PASS: multiple identifiers numbered
+
+Test 2: repeated identifiers reuse placeholder
+  PASS: repeated identifier reuses placeholder
+
+Test 3: keywords preserved
+  PASS: keywords preserved
+
+Test 4: comments stripped
+  PASS: line comment // stripped
+  PASS: line comment # stripped
+  PASS: block comment stripped
+
+Test 5: string literals preserved
+  PASS: double-quoted string preserved
+  PASS: single-quoted string preserved
+
+Test 6: clone fingerprints match
+  PASS: different names → same fingerprint
+  PASS: different whitespace → same fingerprint
+
+Test 7: semantic difference → different fingerprints
+  PASS: operator difference changes fingerprint
+  PASS: while vs if different
+
+Test 8: find_clones detects a clone pair
+  PASS: finds 1 clone group
+  PASS: group has 2 members
+  PASS: fnA in clone group
+  PASS: fnB in clone group
+  PASS: fnC NOT in clone group
+
+Test 9: find_clones with all unique functions
+  PASS: no clone groups
+
+Test 10: find_clones with triple
+  PASS: 3-way clone grouped
+  PASS: triple has 3 members
+
+Test 11: CLI subcommands
+  PASS: CLI normalize
+  PASS: CLI fingerprint is 64 hex chars
+
+Test 12: comment markers inside string literals not treated as comments
+  PASS: URL preserved, trailing double-slash stripped
+  PASS: regex preserved, trailing hash stripped
+  PASS: block markers in string do not consume rest
+  PASS: escaped quotes do not terminate string
+  PASS: different URLs -> different fingerprints (Stage-2 would catch)
+
+Test 13: empty input handling
+  PASS: empty normalize -> empty
+  PASS: empty find_clones -> []
+
+=== Results: 31/31 passed, 0 failed ===
