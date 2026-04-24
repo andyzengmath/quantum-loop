@@ -15,10 +15,11 @@
 #                         for a story reaches the threshold (default 3).
 #
 # Thresholds (all env-overrideable):
-#   WATCHDOG_FRESH_SECS=300          # ≤5 min = fresh, no action
-#   WATCHDOG_STALE_CHECK_SECS=600    # 5-10 min = status check
-#   WATCHDOG_STALE_REASSIGN_SECS=1200# 10-20 min = reassign
-#   WATCHDOG_TIMEOUT_SECS=1800       # >20 min = timeout (kill + mark failed)
+#   WATCHDOG_FRESH_SECS=300          # ≤5 min  = fresh, no action
+#   WATCHDOG_STALE_CHECK_SECS=600    # 5-10 min = status-probe
+#   WATCHDOG_STALE_REASSIGN_SECS=1200# 10-30 min = reassign (extends through
+#   WATCHDOG_TIMEOUT_SECS=1800       #            WATCHDOG_TIMEOUT_SECS)
+#                                    # >30 min = timed-out (kill + mark failed)
 #   WATCHDOG_CIRCUIT_THRESHOLD=3     # N consecutive same-error failures
 #
 # Library contract: no shell flags at source time. CLI block enables

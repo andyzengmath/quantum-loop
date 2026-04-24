@@ -37,6 +37,43 @@ FP=$(jq -cn --arg ip "inline://$INTENT_TEXT" --arg ih "$(bash lib/phase-skip.sh 
 bash lib/phase-skip.sh record brainstorm "$FP" . >/dev/null
 ```
 
+## Phase 0B: Ambiguity gate (Phase 19 / P2.8, OMC deep-interview)
+
+The skill MUST NOT produce a design doc until the ambiguity score falls below the gate threshold. After each round of questioning (Phase 1), self-assess clarity on three weighted dimensions — goal (40%), constraints (30%), criteria (30%) — each scored 0-10. Compute the composite via `lib/ambiguity.sh`:
+
+```bash
+# After round N of questioning, self-assess clarity 0-10 on each dimension:
+GOAL_CLARITY=<0-10>        # "Can I state what this feature does in one sentence?"
+CONSTRAINTS_CLARITY=<0-10> # "Can I list every constraint (time/tech/compliance)?"
+CRITERIA_CLARITY=<0-10>    # "Can I list every success / acceptance criterion?"
+
+SCORE=$(bash lib/ambiguity.sh score "$GOAL_CLARITY" "$CONSTRAINTS_CLARITY" "$CRITERIA_CLARITY")
+MODE=$(bash lib/ambiguity.sh mode "$ROUND" "$SCORE")
+
+if bash lib/ambiguity.sh gate "$SCORE"; then
+  echo "[AMBIGUITY] score=$SCORE  <20 — gate passes, proceed to Phase 4 (design)."
+else
+  echo "[AMBIGUITY] score=$SCORE  challenge-mode=$MODE — more questions required."
+  # Apply the challenge mode before the next question:
+  #   normal      — continue clarifying questions as usual
+  #   contrarian  — challenge every assumption with an opposing view; force justification
+  #   simplifier  — push "what is the minimum that solves 80% of this?"
+  #   ontologist  — refuse to proceed until every named object has a precise definition
+fi
+```
+
+**Ontology stability tracking**: each round, extract the substantive tokens from the accumulated Q&A via `bash lib/ambiguity.sh extract "$ROUND_TEXT"`. Diff against the prior round's token set via `bash lib/ambiguity.sh diff "$PRIOR" "$CURRENT"` (emits `{added, removed, carried, stability}`). **Thrashing ontology** (stability < 0.5 for two consecutive rounds) forces the ontologist challenge mode regardless of score, because the vocabulary itself is unstable.
+
+Record the final score in `.handoffs/brainstorm.md` as part of the Phase 4c handoff write, so downstream skills can verify the gate passed:
+
+```json
+{
+  "decided":  [...],
+  "ambiguity": { "final_score": 12, "rounds": 4, "final_mode": "normal" },
+  "notes":    "..."
+}
+```
+
 ## Phase 1: Understand the Problem
 
 Read existing project files for context:

@@ -115,15 +115,31 @@ spawn_autonomous() {
     runner_ensure_instructions "$worktree_path" 2>/dev/null || true
   fi
 
-  # Spawn in background using runner adapter (falls back to claude if runner not loaded)
+  # Spawn in background. We prepend `exec` so the subshell process image is
+  # REPLACED by claude (or the runner command), and `$!` captures the REAL
+  # claude PID rather than the intermediate subshell PID. Without exec, the
+  # subshell dies when killed but the inner claude.exe child keeps running —
+  # the confirmed root cause of orphan subprocesses on Git Bash (see
+  # lib/reaper.sh header for the full investigation + references).
   if type runner_build_cmd &>/dev/null && [[ -n "${RUNNER_NAME:-}" ]]; then
     local cmd
     cmd=$(runner_build_cmd "$prompt" 2>/dev/null) || return 1
-    (cd "$worktree_path" && eval "$cmd" > "$output_file" 2>&1) &
+    (cd "$worktree_path" && eval "exec $cmd" > "$output_file" 2>&1) &
   else
-    (cd "$worktree_path" && claude --dangerously-skip-permissions --print -p "$prompt" > "$output_file" 2>&1) &
+    (cd "$worktree_path" && exec claude --dangerously-skip-permissions --print -p "$prompt" > "$output_file" 2>&1) &
   fi
   local pid=$!
+
+  # Phase 20 / P2.11 — record the PID (plus winpid on Git Bash) into a durable
+  # pidfile so orphans can be reaped by `ql-housekeep --reap-orphans` even if
+  # the parent trap never fires (terminal close, crash, Agent-tool spawns).
+  if [[ -f "$(dirname "${BASH_SOURCE[0]}")/reaper.sh" ]] && [[ -n "${REAPER_PID_DIR:-}" ]]; then
+    # shellcheck source=lib/reaper.sh
+    source "$(dirname "${BASH_SOURCE[0]}")/reaper.sh"
+    local winpid
+    winpid=$(_msys_to_winpid "$pid")
+    write_agent_pidfile "$REAPER_PID_DIR" "$story_id" "$pid" "$winpid" "claude --print [$story_id]" >/dev/null
+  fi
 
   printf "%s" "$pid"
 }

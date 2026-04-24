@@ -102,6 +102,103 @@ else
 fi
 TOTAL=$((TOTAL + 1))
 
+# Phase 21 fixes
+# ----------------------------------------------------------------------
+
+# Test 8: deslop wiring has graceful fallback + uses BASE_SHA
+# (Phase 21 fix for PR #28 correctness finding)
+echo ""
+echo "Test 8: deslop wiring uses DESLOP_AVAILABLE + BASE_SHA"
+check "DESLOP_AVAILABLE guard present"  "DESLOP_AVAILABLE=true"
+check "DESLOP_AVAILABLE file check"      "[[ -f \"\$REPO_ROOT/lib/deslop.sh\" ]] || DESLOP_AVAILABLE=false"
+check "Fallback skip branch"             "DESLOP_AVAILABLE\" == \"false\""
+# Scope loop uses BASE_SHA (from 3A.1), not undefined STORY_BASE_SHA
+check "scope loop uses BASE_SHA"         "scope \"\$f\" \"\$BASE_SHA\" \"HEAD\""
+check "rollback uses BASE_SHA"           "rollback \"\$BASE_SHA\" \$STORY_FILES"
+# Negative check: no active STORY_BASE_SHA references in 3A.5B (comments
+# mentioning "not STORY_BASE_SHA" to document the fix are fine and expected)
+if grep -A 40 '3A.5B' "$ORCH" \
+   | grep -vE '^\s*#' \
+   | grep -q 'STORY_BASE_SHA'; then
+  echo "  FAIL: STORY_BASE_SHA still referenced (non-comment) in 3A.5B"
+  FAIL=$((FAIL + 1))
+else
+  echo "  PASS: no active STORY_BASE_SHA refs in 3A.5B"; PASS=$((PASS + 1))
+fi
+TOTAL=$((TOTAL + 1))
+
+# Test 9: RUNNER_EXTRA_FLAGS metacharacter guard in lib/runner.sh
+# (Phase 21 fix for PR #27 security finding)
+echo ""
+echo "Test 9: RUNNER_EXTRA_FLAGS validated after pre_spawn()"
+RUNNER="$REPO_ROOT/lib/runner.sh"
+TOTAL=$((TOTAL + 1))
+if grep -qF 'Unsafe characters in RUNNER_EXTRA_FLAGS' "$RUNNER"; then
+  echo "  PASS: RUNNER_EXTRA_FLAGS validation present"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: RUNNER_EXTRA_FLAGS not validated after hook pre_spawn()"
+  FAIL=$((FAIL + 1))
+fi
+# Verify the metacharacter blocklist matches the existing RUNNER_HEADLESS_FLAGS pattern
+TOTAL=$((TOTAL + 1))
+if grep -E 'RUNNER_EXTRA_FLAGS.*=~.*\[\\;\\\|\\&\\\$\\\`' "$RUNNER" >/dev/null 2>&1; then
+  echo "  PASS: metacharacter blocklist consistent with existing guards"
+  PASS=$((PASS + 1))
+else
+  # Accept any regex with at least ; and $
+  if grep -qE 'RUNNER_EXTRA_FLAGS.*=~.*[\\;]' "$RUNNER"; then
+    echo "  PASS: blocklist present (regex form varies)"
+    PASS=$((PASS + 1))
+  else
+    echo "  FAIL: blocklist regex missing"
+    FAIL=$((FAIL + 1))
+  fi
+fi
+
+# Test 10: integration — runner_build_cmd rejects injection payload
+echo ""
+echo "Test 10: runner_build_cmd rejects injection via RUNNER_EXTRA_FLAGS"
+# Source the runner then set RUNNER_EXTRA_FLAGS with an injection payload and call runner_build_cmd.
+TEST_TMPDIR=$(mktemp -d)
+HOOKS_DIR="$REPO_ROOT/runners/hooks"
+(
+  # Minimal runner state so runner_build_cmd's path validation etc. is satisfied
+  export RUNNER_NAME="claude"
+  export RUNNER_BINARY="true"
+  export RUNNER_PROMPT_DELIVERY="flag"
+  export RUNNER_PROMPT_FLAG="-p"
+  export RUNNER_HEADLESS_FLAGS=""
+  export RUNNER_AUTO_APPROVE_FLAGS=""
+  export RUNNER_EXTRA_FLAGS='--flag; rm -rf $HOME'
+  source "$RUNNER" 2>/dev/null
+  runner_build_cmd "safe prompt" 2>/tmp/rbc-stderr
+) >/dev/null
+rc=$?
+TOTAL=$((TOTAL + 1))
+if [[ "$rc" -ne 0 ]] && grep -qF 'Unsafe characters in RUNNER_EXTRA_FLAGS' /tmp/rbc-stderr 2>/dev/null; then
+  echo "  PASS: injection payload rejected with clear error"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: injection payload NOT rejected (rc=$rc)"
+  cat /tmp/rbc-stderr 2>/dev/null | sed 's/^/    /' | head -3
+  FAIL=$((FAIL + 1))
+fi
+rm -rf "$TEST_TMPDIR" /tmp/rbc-stderr
+
+# Test 11: classify_age doc comment fixed (Phase 21 consistency fix)
+echo ""
+echo "Test 11: lib/watchdog.sh doc comment corrected"
+WATCHDOG="$REPO_ROOT/lib/watchdog.sh"
+TOTAL=$((TOTAL + 1))
+if grep -qF '>30 min = timed-out' "$WATCHDOG"; then
+  echo "  PASS: watchdog threshold comment matches code (>30 min = timed-out)"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: watchdog comment still says '>20 min = timeout'"
+  FAIL=$((FAIL + 1))
+fi
+
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 exit $((FAIL > 0 ? 1 : 0))

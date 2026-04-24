@@ -466,16 +466,46 @@ printf "===========================================\n\n"
 # =============================================================================
 
 if [[ "$PARALLEL_MODE" == "true" ]]; then
-  # Trap SIGINT/SIGTERM to kill background agents and avoid orphaned processes
+  # Phase 20 / P2.11 — platform-aware reaper. Load lib/reaper.sh so the trap
+  # cascades through `taskkill //T //F` on Git Bash (where `kill` on a subshell
+  # pid does NOT reach the native claude.exe child) and via `kill -TERM -pgid`
+  # on POSIX where available. Durable pidfiles live in REAPER_PID_DIR so a
+  # separate `ql-housekeep --reap-orphans` can clean up anything this trap
+  # misses (terminal close, crash, Agent-tool grandchildren).
+  REAPER_PID_DIR="${REAPER_PID_DIR:-.ql-agent-pids}"
+  export REAPER_PID_DIR
+  if [[ -f "$REPO_ROOT/lib/reaper.sh" ]]; then
+    # shellcheck source=lib/reaper.sh
+    source "$REPO_ROOT/lib/reaper.sh"
+  fi
+
   declare -a AGENT_PIDS=()
+  declare -a AGENT_STORIES=()
   cleanup_on_exit() {
     printf "\n[INTERRUPT] Cleaning up agents...\n"
-    for pid in "${AGENT_PIDS[@]+"${AGENT_PIDS[@]}"}"; do
-      kill "$pid" 2>/dev/null || true
-    done
-    for pid in "${AGENT_PIDS[@]+"${AGENT_PIDS[@]}"}"; do
-      wait "$pid" 2>/dev/null || true
-    done
+    if type reap_agent &>/dev/null; then
+      # Phase 21 fix: background each reap so the SIGTERM → grace → SIGKILL
+      # escalation happens IN PARALLEL across all agents. Without this,
+      # Ctrl+C blocks for N × REAPER_GRACE_SECS (20+ seconds with
+      # MAX_PARALLEL=4). Waits ≤ 1 × REAPER_GRACE_SECS regardless of
+      # agent count.
+      local -a REAP_PIDS=()
+      for sid in "${AGENT_STORIES[@]+"${AGENT_STORIES[@]}"}"; do
+        reap_agent "$REAPER_PID_DIR" "$sid" &
+        REAP_PIDS+=("$!")
+      done
+      for rp in "${REAP_PIDS[@]+"${REAP_PIDS[@]}"}"; do
+        wait "$rp" 2>/dev/null || true
+      done
+    else
+      # Fallback: legacy best-effort kill if reaper missing
+      for pid in "${AGENT_PIDS[@]+"${AGENT_PIDS[@]}"}"; do
+        kill "$pid" 2>/dev/null || true
+      done
+      for pid in "${AGENT_PIDS[@]+"${AGENT_PIDS[@]}"}"; do
+        wait "$pid" 2>/dev/null || true
+      done
+    fi
     exit 130
   }
   trap cleanup_on_exit INT TERM
@@ -484,6 +514,15 @@ if [[ "$PARALLEL_MODE" == "true" ]]; then
   REPO_ROOT="$(pwd)"
   recover_orphaned_worktrees "$REPO_ROOT/quantum.json" "$REPO_ROOT" || true
   cleanup_stale_tmp "$REPO_ROOT/quantum.json" || true
+  # Phase 20 / P2.11 — reap any claude processes left by a prior crashed run
+  # (their pidfiles will be in REAPER_PID_DIR with start_epoch older than
+  # REAPER_STALE_SECS, default 1h). No-op if reaper not loaded.
+  if type reap_orphans &>/dev/null; then
+    REAPED=$(reap_orphans "$REPO_ROOT/$REAPER_PID_DIR" 2>/dev/null || echo 0)
+    if [[ -n "$REAPED" && "$REAPED" != "0" ]]; then
+      printf "[REAPER] reaped %s orphan agent(s) from prior run\n" "$REAPED"
+    fi
+  fi
 
   WAVE=0
 
@@ -595,7 +634,16 @@ if [[ "$PARALLEL_MODE" == "true" ]]; then
         # Check timeout
         TIMED_OUT=$(check_agent_timeout "$START" "$DEFAULT_AGENT_TIMEOUT")
         if [[ "$TIMED_OUT" == "true" ]]; then
-          kill_agent_process "$PID"
+          # Phase 21 fix: on Git Bash, kill_agent_process sends SIGTERM
+          # only to the MSYS wrapper PID — claude.exe survives. Prefer
+          # reap_agent which does MSYS→winpid translation + taskkill //T
+          # //F. This was the exact orphan bug PR #29 was filed for, but
+          # the watchdog path wasn't migrated in the original commit.
+          if type reap_agent &>/dev/null && [[ -n "${REAPER_PID_DIR:-}" ]]; then
+            reap_agent "$REAPER_PID_DIR" "$SID" || true
+          else
+            kill_agent_process "$PID"
+          fi
           printf "[TIMEOUT] %s\n" "$SID"
           # Mark failed with phase timeout
           jq --arg id "$SID" '

@@ -1,0 +1,55 @@
+=== Phase 18 phase-skip tests ===
+
+Test 1: artifact_hash basics
+  PASS: hash stable across calls
+  PASS: hash is 64 hex chars
+  PASS: missing file -> empty hash
+
+Test 2: artifact_hash differs on content change
+  PASS: hashes differ
+
+Test 3: artifact_hash_inline
+  PASS: inline hash stable
+  PASS: inline hash differs on content change
+
+Test 4: record + read round-trip
+  PASS: stage round-trips
+  PASS: artifact count
+  PASS: sha256 round-trips
+  PASS: recorded_at non-empty
+
+Test 5: read_fingerprint on missing file
+  PASS: missing -> {}
+
+Test 6: should_skip_stage when all artifacts fresh
+  PASS: all-fresh -> skip (exit 0)
+
+Test 7: should_skip_stage after content change
+  PASS: content changed -> re-run (exit 1)
+
+Test 8: should_skip_stage without any record
+  PASS: no record -> re-run (exit 1)
+
+Test 9: artifact count mismatch rejects
+  PASS: count mismatch -> re-run (exit 1)
+
+Test 10: inline: escape class
+  PASS: inline matches -> skip
+  PASS: inline mismatches -> re-run
+
+Test 11: CLI subcommands
+  PASS: CLI hash matches lib hash
+  PASS: CLI inline matches lib inline
+
+Test 12: skills reference lib/phase-skip.sh
+  PASS: brainstorm Phase 0 section
+  PASS: brainstorm calls phase-skip skip
+  PASS: brainstorm records fingerprint
+  PASS: spec Phase 0 section
+  PASS: spec calls phase-skip skip
+  PASS: spec records fingerprint
+  PASS: plan Phase 0 section
+  PASS: plan calls phase-skip skip
+  PASS: plan records fingerprint
+
+=== Results: 28/28 passed, 0 failed ===
