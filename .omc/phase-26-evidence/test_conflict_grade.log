@@ -1,0 +1,57 @@
+=== Phase 26 conflict-grade tests ===
+
+Test 1: whitespace-only → grade 1
+  PASS: single-ws diff
+  PASS: bracket-indent diff
+
+Test 2: comment-only → grade 2
+  PASS: line comment change
+  PASS: python-style comment change
+  PASS: block comment change
+
+Test 3: single-token rename → grade 2
+  PASS: single identifier rename
+
+Test 4: small body edit → grade 3
+  PASS: 3-line small body edit
+
+Test 5: moderate overlap → grade 4
+  PASS: 7-line overlap
+
+Test 6: structural reorg → grade 5
+  PASS: 2-function reorder
+  PASS: 2-def reorg (python)
+
+Test 7: split_conflict_hunks single
+  PASS: 1 conflict parsed
+  PASS: ours buffer captured
+  PASS: theirs buffer captured
+  PASS: start_line=2
+  PASS: end_line=7
+
+Test 8: split_conflict_hunks multiple
+  PASS: 2 conflicts parsed
+
+Test 9: grade_file end-to-end
+  PASS: 2 hunks graded
+  PASS: max_grade = 5 (structural)
+  PASS: first hunk grade 2 (comment)
+  PASS: second hunk grade 5 (structural)
+
+Test 10: grade_file clean file
+  PASS: clean file max_grade=0
+  PASS: clean file 0 hunks
+
+Test 11: routing_recommendation
+  PASS: grade 0 → none
+  PASS: grade 1 → auto-git
+  PASS: grade 2 → auto-git
+  PASS: grade 3 → diff3
+  PASS: grade 4 → llm-merge
+  PASS: grade 5 → escalate
+
+Test 12: CLI subcommands
+  PASS: CLI grade single-word rename
+  PASS: CLI route 4 → llm-merge
+
+=== Results: 30/30 passed, 0 failed ===
