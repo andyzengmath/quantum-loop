@@ -278,6 +278,17 @@ check_ms "grade_file invoked per conflict" "grade_file \"\$file\""
 check_ms "routing_recommendation logged" "routing_recommendation \"\$cg_max\""
 check_ms "grade 5 short-circuit to escalate" "grade 5 (structural)"
 
+# Test 10i: HyClone wired at wave-boundary 3C.NEG0 (Phase 25 / P3.7)
+echo ""
+echo "Test 10i: lib/hyclone.sh wired at Step 3C.NEG0"
+check "hyclone source line present" 'source "$REPO_ROOT/lib/hyclone.sh"'
+check "HYCLONE_AVAILABLE fallback flag" "HYCLONE_AVAILABLE=true"
+check "3C.NEG0 header present" "3C.NEG0: Wave-boundary semantic clone scan"
+check "find_clones invoked" "| find_clones"
+check "uses WAVE_BASE_SHA diff"  'git diff --name-only "$WAVE_BASE_SHA" HEAD'
+check "persists for deep-review"  ".quantum-hyclone-wave.json"
+check "advisory not blocking documented" "advisory"
+
 # Test 11: classify_age doc comment fixed (Phase 21 consistency fix)
 echo ""
 echo "Test 11: lib/watchdog.sh doc comment corrected"

@@ -1,0 +1,141 @@
+=== Phase 17 orchestrator-wiring prompt tests ===
+
+Test 1: lib/wave-boundary.sh wired at wave boundary
+  PASS: 3C.NEG1 section present
+  PASS: references wave-boundary.sh scan
+  PASS: routes HIGH severity to fix-story
+
+Test 2: lib/watchdog.sh wired in monitor loop
+  PASS: watchdog tick header
+  PASS: references watchdog.sh poll
+  PASS: status-probe action branch
+  PASS: kill-and-requeue action branch
+  PASS: mark-failed action branch
+  PASS: circuit-breaker bump
+  PASS: circuit-breaker check
+
+Test 3: lib/deep-review.sh wired at full-feature review
+  PASS: 4B.5 deep-review section
+  PASS: score-from-quantum call
+  PASS: tier lookup
+  PASS: dispatch-set call
+  PASS: context preparation
+  PASS: aggregate pipe
+  PASS: BLOCKS_MERGE handled
+  PASS: REQUEST_CHANGES handled
+  PASS: persists into quantum.reviews
+
+Test 4: lib/deslop.sh wired between review-pass and commit
+  PASS: 3A.5B deslop section
+  PASS: validate_scope gate
+  PASS: baseline snapshot before
+  PASS: compare_baseline call
+  PASS: rollback on regression
+  PASS: DESLOP_ROLLED_BACK signal
+  PASS: opt-out via story.deslop.skip
+
+Test 5: lib/commit-trailers.sh validation gate
+  PASS: commit-trailers reference
+  PASS: non-blocking warning
+
+Test 6: handoff.sh ownership is skill-side (orchestrator doesn't write)
+  PASS: orchestrator does NOT write handoffs directly (skills do)
+
+Test 7: all wirings carry a Phase-17 attribution comment
+  PASS: 5 Phase-17 attributions
+
+Test 8: deslop wiring uses DESLOP_AVAILABLE + BASE_SHA
+  PASS: DESLOP_AVAILABLE guard present
+  PASS: DESLOP_AVAILABLE file check
+  PASS: Fallback skip branch
+  PASS: scope loop uses BASE_SHA
+  PASS: rollback uses BASE_SHA
+  PASS: no active STORY_BASE_SHA refs in 3A.5B
+
+Test 9: RUNNER_EXTRA_FLAGS validated after pre_spawn()
+  PASS: RUNNER_EXTRA_FLAGS validation present
+  PASS: blocklist present (regex form varies)
+
+Test 10: runner_build_cmd rejects injection via RUNNER_EXTRA_FLAGS
+  PASS: injection payload rejected with clear error
+
+Test 10b: lib/reground.sh wired at Step 1C
+  PASS: reground source line present
+  PASS: REGROUND_AVAILABLE fallback flag
+  PASS: Step 1C header present
+  PASS: should_reground invoked
+  PASS: build_reground_context invoked
+  PASS: mark_grounded invoked
+  PASS: reground block path stable
+
+Test 10c: lib/tracecoder.sh wired at Step 3A.3
+  PASS: tracecoder source line present
+  PASS: TRACECODER_AVAILABLE fallback flag
+  PASS: observe primitive invoked
+  PASS: should_repair gate check
+  PASS: build_analysis_context call
+  PASS: opaque-failure bypass documented
+
+Test 10d: lib/dead-code.sh wired at Step 3A.5C
+  PASS: dead-code source line present
+  PASS: DEAD_CODE_AVAILABLE fallback flag
+  PASS: 3A.5C header present
+  PASS: find_post_commit_dead invoked
+  PASS: advisory trailer generated
+  PASS: clean-case trailer
+  PASS: side-file path for progress attach
+  PASS: non-blocking by design documented
+
+Test 10e: lib/intent-graph.sh wired at Step 3A.5D
+  PASS: intent-graph source line present
+  PASS: INTENT_GRAPH_AVAILABLE fallback flag
+  PASS: 3A.5D header present
+  PASS: extract_story_intents invoked
+  PASS: extract_code_intents invoked
+  PASS: match_intents invoked
+  PASS: intent trailer form
+  PASS: bidirectional drift documented
+  PASS: side-file path
+
+Test 10f: lib/skeleton.sh wired at 3A.1 + 3A.5E
+  PASS: skeleton source line present
+  PASS: SKELETON_AVAILABLE fallback flag
+  PASS: 3A.1 pre-skeleton preview step
+  PASS: pre-skeleton side-file
+  PASS: skeleton_text invoked in pre
+  PASS: 3A.5E header present
+  PASS: skeleton_diff invoked
+  PASS: trailer form has added/removed/changed
+  PASS: post-task side-file
+
+Test 10g: lib/trajectory.sh wired in Step 3B.3
+  PASS: trajectory source line present
+  PASS: TRAJECTORY_AVAILABLE fallback flag
+  PASS: Trajectory tick header
+  PASS: parse_trajectory invoked
+  PASS: should_early_kill gate
+  PASS: classify_trajectory for log category
+  PASS: agent log path convention documented
+  PASS: reap_agent integration (Phase 20)
+  PASS: failureLog phase=trajectory-$cls
+
+Test 10h: lib/conflict-grade.sh wired in merge-strategy.sh
+  PASS: conflict-grade source line
+  PASS: CONFLICT_GRADE_AVAILABLE fallback
+  PASS: grade_file invoked per conflict
+  PASS: routing_recommendation logged
+  PASS: grade 5 short-circuit to escalate
+
+Test 10i: lib/hyclone.sh wired at Step 3C.NEG0
+  PASS: hyclone source line present
+  PASS: HYCLONE_AVAILABLE fallback flag
+  PASS: 3C.NEG0 header present
+  PASS: find_clones invoked
+  PASS: uses WAVE_BASE_SHA diff
+  PASS: persists for deep-review
+  PASS: advisory not blocking documented
+
+Test 11: lib/watchdog.sh doc comment corrected
+  PASS: watchdog threshold comment matches code (>30 min = timed-out)
+
+=== Results: 100/100 passed, 0 failed ===
