@@ -1,0 +1,49 @@
+=== Phase 24 trajectory-kill tests ===
+
+Test 1: parse on missing file
+  PASS: exists=false
+  PASS: total=0
+
+Test 2: parse counts tools
+  PASS: reads=5
+  PASS: greps=3
+  PASS: edits=2
+  PASS: writes=1
+  PASS: bashes=4
+  PASS: total=15
+  PASS: read_pct=53
+  PASS: edit_pct=20
+
+Test 3: productive trajectory
+  PASS: classify productive
+  PASS: productive -> no kill (exit 1)
+
+Test 4: searching trajectory
+  PASS: classify searching (below thrash min)
+  PASS: searching -> no kill
+
+Test 5: thrashing trajectory
+  PASS: classify thrashing
+  PASS: thrashing -> kill (exit 0)
+
+Test 6: stuck trajectory
+  PASS: classify stuck
+  PASS: stuck -> kill (exit 0)
+
+Test 7: env-var overrides take effect
+  PASS: default: searching
+  PASS: override THRASH_MIN=5: thrashing
+
+Test 8: empty file handling
+  PASS: empty file total=0
+  PASS: empty file classify=productive (no signal)
+
+Test 9: CLI subcommands
+  PASS: CLI parse total=26
+  PASS: CLI classify thrashing
+  PASS: CLI kill exits 0 for thrashing
+
+Test 10: classify reads stdin
+  PASS: stdin classify productive
+
+=== Results: 26/26 passed, 0 failed ===
