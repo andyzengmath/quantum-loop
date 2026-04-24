@@ -258,6 +258,26 @@ check "agent log path convention documented" ".ql-wt/\$sid/agent.log"
 check "reap_agent integration (Phase 20)" "reap_agent"
 check "failureLog phase=trajectory-\$cls" '"trajectory-" + $cls'
 
+# Test 10h: Conflict-grade wired into merge-strategy (Phase 38 / P3.2)
+echo ""
+echo "Test 10h: lib/conflict-grade.sh wired in merge-strategy.sh"
+MERGE_STRATEGY="$REPO_ROOT/lib/merge-strategy.sh"
+check_ms() {
+  local name="$1" needle="$2"
+  TOTAL=$((TOTAL + 1))
+  if grep -qF -- "$needle" "$MERGE_STRATEGY"; then
+    echo "  PASS: $name"; PASS=$((PASS + 1))
+  else
+    echo "  FAIL: $name — needle [$needle] not in merge-strategy.sh"
+    FAIL=$((FAIL + 1))
+  fi
+}
+check_ms "conflict-grade source line" 'source "$MERGE_STRATEGY_LIB_DIR/conflict-grade.sh"'
+check_ms "CONFLICT_GRADE_AVAILABLE fallback" "CONFLICT_GRADE_AVAILABLE=true"
+check_ms "grade_file invoked per conflict" "grade_file \"\$file\""
+check_ms "routing_recommendation logged" "routing_recommendation \"\$cg_max\""
+check_ms "grade 5 short-circuit to escalate" "grade 5 (structural)"
+
 # Test 11: classify_age doc comment fixed (Phase 21 consistency fix)
 echo ""
 echo "Test 11: lib/watchdog.sh doc comment corrected"
