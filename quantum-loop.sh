@@ -42,6 +42,71 @@ MAX_PARALLEL=4
 STALE_TIMEOUT=20
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# =============================================================================
+# --audit flag support (Phase 44 / US-001 -- US-004). Read-only repo-hygiene
+# check per idea-stage/IDEA_REPORT.md §6 measurement plan.
+# Helpers live near the top so the pre-arg-loop audit shortcut can call them.
+# =============================================================================
+
+# _audit_format_row PIPE_ROW
+# Takes one pipe-delimited string "name|value|target|status|drill" and emits
+# formatted output on stdout. Single line for OK, two lines for FAIL (main
+# line + indented drill-down with └─ prefix). Column widths locked so CI
+# scripts can grep reliably.
+_audit_format_row() {
+  local row="${1:-}"
+  local name value target status drill
+  IFS='|' read -r name value target status drill <<< "$row"
+  # Main line: "<name>: <value> (target <target>) <status>"
+  # Column widths: name: padded to 18, value+target padded to 30, status right.
+  printf "%-18s %s (target %s) %6s\n" "${name}:" "$value" "$target" "$status"
+  # Drill only when FAIL and non-empty drill
+  if [[ "$status" == "FAIL" && -n "$drill" ]]; then
+    printf "                   └─ %s\n" "$drill"
+  fi
+}
+
+# do_audit
+# Driver for --audit. US-001 ships a stub that emits header + one placeholder
+# row + Summary. US-002 and US-003 extend it with real metric helpers.
+do_audit() {
+  printf "=== Quantum-loop audit ===\n"
+  local -a ROWS=()
+  # US-001 placeholder row (removed in US-002 T-004 once real helpers land):
+  ROWS+=("placeholder|0|0|OK|")
+  local any_fail=0 ok_count=0 total=0
+  local row
+  for row in "${ROWS[@]}"; do
+    _audit_format_row "$row"
+    total=$((total + 1))
+    if [[ "$row" == *"|FAIL|"* ]]; then
+      any_fail=1
+    else
+      ok_count=$((ok_count + 1))
+    fi
+  done
+  printf "\nSummary: %d/%d metrics on target.\n" "$ok_count" "$total"
+  return "$any_fail"
+}
+
+# Test-mode guard (Phase 44 / US-001): when QL_AUDIT_TEST_MODE=1 is set,
+# sourcing this file returns here so unit tests can reach the audit
+# helpers defined above without triggering the main arg-loop or any
+# state-mutating code below.
+[[ "${QL_AUDIT_TEST_MODE:-0}" == "1" ]] && return 0 2>/dev/null
+
+# Pre-arg-loop audit shortcut: --audit is exclusive and takes no other args.
+# Must run BEFORE the normal arg-parsing loop so any stray sibling flag
+# (--audit --parallel) is rejected with exit 2.
+if [[ " $* " == *" --audit "* ]]; then
+  if [[ "$#" -ne 1 ]]; then
+    printf "Error: --audit is exclusive and takes no other arguments\n" >&2
+    exit 2
+  fi
+  do_audit
+  exit $?
+fi
+
 # Parse arguments
 while [[ $# -gt 0 ]]; do
   case $1 in
