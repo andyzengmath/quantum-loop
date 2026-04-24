@@ -70,15 +70,23 @@ _msys_to_winpid() {
   cat "/proc/$msys_pid/winpid" 2>/dev/null | tr -d '[:space:]'
 }
 
-# _proc_start_epoch(msys_pid)
-# Echoes the start-time epoch for a process, used to defeat PID reuse.
+# _proc_start_epoch(pid)
+# Echoes a per-process start-time signature used to defeat PID reuse.
 # Returns "" if the process is gone.
+#
+# IMPORTANT: previously this used `stat -c %Y /proc/$pid` as a portable
+# approximation, but on MSYS2/Git Bash the /proc VFS reports the SAME
+# mtime for every process (the MSYS session start), making the PID-reuse
+# guard a no-op on exactly the platform reaper.sh was designed to fix
+# (Soliton PR #29 correctness finding). Read field 22 of /proc/$pid/stat
+# instead — that's the per-process start-tick on both Linux procfs and
+# MSYS2's Linux-compatible procfs.
 _proc_start_epoch() {
   local pid="${1:?pid required}"
   if [[ -r "/proc/$pid/stat" ]]; then
-    # Field 22 is starttime in clock ticks since boot. Use mtime of
-    # /proc/$pid/ as a portable approximation.
-    stat -c %Y "/proc/$pid" 2>/dev/null || echo ""
+    # Field 22 is `starttime` (clock ticks since boot). Per-process.
+    # Portable across Linux and MSYS2/Cygwin.
+    awk '{print $22}' "/proc/$pid/stat" 2>/dev/null | head -1
   elif [[ "$(uname -s 2>/dev/null)" == "Darwin" ]]; then
     ps -o lstart= -p "$pid" 2>/dev/null | head -1
   else
@@ -250,18 +258,20 @@ reap_orphans() {
     [[ -f "$f" ]] || continue
     local sid
     sid=$(basename "$f" .pid)
-    local entry
-    entry=$(read_agent_pidfile "$pid_dir" "$sid")
-    local start
-    start=$(jq -r '.start_epoch // ""' <<< "$entry")
     # If process is not alive, just rm the stale pidfile
     if ! is_agent_alive "$pid_dir" "$sid"; then
       rm -f "$f"
       continue
     fi
-    # If process is alive and older than REAPER_STALE_SECS, reap
-    if [[ -n "$start" && "$start" =~ ^[0-9]+$ ]]; then
-      local age=$(( now - start ))
+    # If process is alive and older than REAPER_STALE_SECS, reap.
+    # Use PIDFILE mtime (when spawn wrote the file) for wall-clock age —
+    # NOT the per-process start_epoch stored inside the pidfile, which
+    # after the Phase 21 fix is clock-ticks-since-boot (a uniqueness
+    # token, not a timestamp).
+    local spawn_epoch
+    spawn_epoch=$(stat -c %Y "$f" 2>/dev/null || echo 0)
+    if [[ "$spawn_epoch" -gt 0 ]]; then
+      local age=$(( now - spawn_epoch ))
       if (( age >= REAPER_STALE_SECS )); then
         reap_agent "$pid_dir" "$sid" && count=$((count + 1))
       fi

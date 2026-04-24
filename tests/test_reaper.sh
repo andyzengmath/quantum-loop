@@ -210,6 +210,56 @@ else
 fi
 TOTAL=$((TOTAL + 1))
 
+# Phase 21 fixes
+# ----------------------------------------------------------------------
+
+# Test 13: _proc_start_epoch returns per-process values on Linux/MSYS
+# (Phase 21 fix for PR #29 correctness finding)
+echo ""
+echo "Test 13: _proc_start_epoch is per-process (not a constant)"
+sleep 30 &
+P1=$!
+sleep 1
+sleep 30 &
+P2=$!
+SE1=$(_proc_start_epoch "$P1")
+SE2=$(_proc_start_epoch "$P2")
+if [[ -z "$SE1" ]] || [[ -z "$SE2" ]]; then
+  echo "  SKIP: _proc_start_epoch returned empty (non-Linux/non-MSYS platform)"
+elif [[ "$SE1" != "$SE2" ]]; then
+  echo "  PASS: distinct processes have distinct start epochs ($SE1 vs $SE2)"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: two distinct processes share start_epoch [$SE1] — PID-reuse guard is broken"
+  FAIL=$((FAIL + 1))
+fi
+TOTAL=$((TOTAL + 1))
+kill "$P1" "$P2" 2>/dev/null; wait "$P1" "$P2" 2>/dev/null || true
+
+# Test 14: cleanup_on_exit parallelizes reaps (Phase 21 fix)
+echo ""
+echo "Test 14: cleanup_on_exit uses parallel reap pattern"
+if grep -q 'REAP_PIDS+=("$!")' "$REPO_ROOT/quantum-loop.sh"; then
+  echo "  PASS: cleanup_on_exit parallelizes reap_agent calls"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: cleanup_on_exit still sequential"; FAIL=$((FAIL + 1))
+fi
+TOTAL=$((TOTAL + 1))
+
+# Test 15: watchdog timeout path uses reap_agent (Phase 21 fix)
+echo ""
+echo "Test 15: timeout branch uses reap_agent on Git Bash"
+# Find the TIMED_OUT branch and verify it prefers reap_agent over kill_agent_process
+TIMED_OUT_SNIPPET=$(awk '/TIMED_OUT.*==.*"true"/,/printf .*TIMEOUT/' "$REPO_ROOT/quantum-loop.sh")
+if echo "$TIMED_OUT_SNIPPET" | grep -q 'reap_agent "$REAPER_PID_DIR"'; then
+  echo "  PASS: TIMED_OUT branch prefers reap_agent"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: TIMED_OUT still calls legacy kill_agent_process only"
+  FAIL=$((FAIL + 1))
+fi
+TOTAL=$((TOTAL + 1))
+
 # Test 12: CLI subcommands
 echo ""
 echo "Test 12: CLI subcommands work"

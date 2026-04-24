@@ -339,6 +339,18 @@ runner_build_cmd() {
     fi
   fi
 
+  # Phase 21 fix: validate RUNNER_EXTRA_FLAGS for shell metacharacters.
+  # Hooks are allowed to mutate this value (runners/hooks/*-hooks.sh), and
+  # the result flows straight into `eval "exec $cmd"` in spawn.sh. All
+  # other RUNNER_* flags are validated at manifest load; RUNNER_EXTRA_FLAGS
+  # was not. Soliton PR #27 security finding.
+  if [[ -n "$RUNNER_EXTRA_FLAGS" ]] && \
+     [[ "$RUNNER_EXTRA_FLAGS" =~ [\;\|\&\$\`\(\)\>\<\!\{\}] ]]; then
+    printf "ERROR: Unsafe characters in RUNNER_EXTRA_FLAGS set by %s-hooks.sh pre_spawn(): '%s'\n" \
+      "$RUNNER_NAME" "$RUNNER_EXTRA_FLAGS" >&2
+    return 1
+  fi
+
   # Build the command based on prompt delivery method
   local cmd=""
   case "$RUNNER_PROMPT_DELIVERY" in
