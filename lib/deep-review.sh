@@ -195,6 +195,93 @@ synthesize_verdict() {
 }
 
 # ------------------------------------------------------------------------------
+# Phase 23 / P3.3 — KBI-FAR reviewer split (arXiv:2505.17928)
+# ------------------------------------------------------------------------------
+#
+# The ICML 2025 paper decomposes review into two stages:
+#   KBI (Known-Bug-Inspection)  — broad, high-recall sweep: each reviewer
+#                                  aggressively flags anything suspicious.
+#   FAR (False-Alarm-Reduction) — precision filter: drop low-confidence,
+#                                  suppress known-false-positives, boost
+#                                  multi-agent agreement.
+#
+# Our existing actionability_filter + dedup + hallucination_check already do
+# part of FAR. This section adds the explicit precision filter to complete
+# the split: confidence cutoff, multi-agent agreement boost, and known-FP
+# regex suppression from quantum.json.knownFalsePositives[].
+
+: "${FAR_CONFIDENCE_CUTOFF:=60}"
+: "${FAR_AGREEMENT_BOOST:=15}"
+
+# far_filter(findings_json, [quantum_json_path])
+# Input: JSON array of findings on stdin (already actionability-filtered,
+# deduped, and hallucination-checked). Outputs:
+#   { "kept":      [<findings that survived the precision filter>],
+#     "suppressed":[<findings that were dropped, each with .far_reason>] }
+#
+# Steps applied in order:
+#   1. Multi-agent agreement boost: findings whose .agents array has ≥2
+#      distinct entries get +FAR_AGREEMENT_BOOST on their confidence
+#      (capped at 100). Rewrites the input findings in place.
+#   2. Known-FP pattern suppression: if quantum_json_path is provided and
+#      .knownFalsePositives is an array of regexes, drop any finding whose
+#      title OR description matches any regex.
+#   3. Confidence cutoff: drop any finding whose (boosted) confidence is
+#      below FAR_CONFIDENCE_CUTOFF.
+#
+# Preserves original confidence in .original_confidence on boosted findings.
+far_filter() {
+  local qj="${1:-}"
+  local cutoff="${FAR_CONFIDENCE_CUTOFF:-60}"
+  local boost="${FAR_AGREEMENT_BOOST:-15}"
+
+  # Load known-FP regex list (array of strings). Empty if no quantum.json
+  # or field absent.
+  local fp_json='[]'
+  if [[ -n "$qj" && -f "$qj" ]]; then
+    fp_json=$(jq -c '.knownFalsePositives // []' "$qj" 2>/dev/null || echo '[]')
+  fi
+
+  jq -c \
+    --argjson cutoff "$cutoff" \
+    --argjson boost  "$boost" \
+    --argjson fps    "$fp_json" \
+    '
+    def apply_boost:
+      map(
+        if ((.agents // []) | length) >= 2
+        then . + {
+          original_confidence: (.confidence // 0),
+          confidence: ([.confidence // 0, 0] | max + $boost | if . > 100 then 100 else . end)
+        }
+        else .
+        end
+      );
+
+    def matches_fp:
+      . as $f
+      | any($fps[]?;
+          ((. // "") as $re | $re != "" and
+           (($f.title // "") | test($re)) or
+           (($f.description // "") | test($re))));
+
+    def classify:
+      . as $f
+      | if matches_fp then . + {__suppress: true, far_reason: "matched knownFalsePositives pattern"}
+        elif (.confidence // 0) < $cutoff then . + {__suppress: true, far_reason: ("confidence " + ((.confidence // 0) | tostring) + " below cutoff " + ($cutoff | tostring))}
+        else .
+        end;
+
+    . | apply_boost
+      | map(classify)
+      | {
+          kept:       map(select(.__suppress != true)),
+          suppressed: map(select(.__suppress == true) | del(.__suppress))
+        }
+    '
+}
+
+# ------------------------------------------------------------------------------
 # Phase 12 / P1.3 — risk-adaptive reviewer dispatch
 # ------------------------------------------------------------------------------
 
@@ -268,13 +355,17 @@ prepare_review_context() {
     }'
 }
 
-# aggregate_reviews(repo_root)
+# aggregate_reviews(repo_root, [quantum_json])
 # Input: JSON array of finding arrays — one per reviewer — on stdin. Chains:
 #   flatten → actionability_filter → dedup_findings → hallucination_check →
-#   synthesize_verdict, and emits a single JSON object:
-#   { verdict, tier_findings: [kept], suppressed: [with reasons], kudos: [] }
+#   far_filter → synthesize_verdict, and emits a single JSON object:
+#   { verdict, findings: [kept], suppressed: [with reasons] }
+# far_filter applies the KBI-FAR precision pass (Phase 23/P3.3): agreement
+# boost, confidence cutoff, known-FP regex suppression from
+# quantum.json.knownFalsePositives[].
 aggregate_reviews() {
   local repo_root="${1:-.}"
+  local quantum_json="${2:-}"
   local flat
   flat=$(jq -c '[.[] | .[]]')
   local actionable
@@ -284,18 +375,24 @@ aggregate_reviews() {
   sup_action=$(printf '%s' "$actionable"  | jq -c '.suppressed')
   local deduped
   deduped=$(printf '%s' "$kept_action" | dedup_findings)
-  local checked kept_final sup_hall
+  local checked kept_after_hall sup_hall
   checked=$(printf '%s' "$deduped" | hallucination_check "$repo_root")
-  kept_final=$(printf '%s' "$checked" | jq -c '.kept')
+  kept_after_hall=$(printf '%s' "$checked" | jq -c '.kept')
   sup_hall=$(printf '%s'  "$checked" | jq -c '.suppressed')
+  # Phase 23 / P3.3 precision stage
+  local far kept_final sup_far
+  far=$(printf '%s' "$kept_after_hall" | far_filter "$quantum_json")
+  kept_final=$(printf '%s' "$far" | jq -c '.kept')
+  sup_far=$(printf '%s' "$far" | jq -c '.suppressed')
   local verdict
   verdict=$(printf '%s' "$kept_final" | synthesize_verdict)
   jq -cn \
     --argjson k "$kept_final" \
     --argjson sa "$sup_action" \
     --argjson sh "$sup_hall" \
+    --argjson sf "$sup_far" \
     --arg v "$verdict" \
-    '{verdict: $v, findings: $k, suppressed: ($sa + $sh)}'
+    '{verdict: $v, findings: $k, suppressed: ($sa + $sh + $sf)}'
 }
 
 # ------------------------------------------------------------------------------
@@ -316,6 +413,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     actionability) actionability_filter ;;
     dedup)         dedup_findings ;;
     hallucination) hallucination_check "$@" ;;
+    far)           far_filter "$@" ;;
     verdict)       synthesize_verdict ;;
     dispatch-set)  dispatch_set "$@"; printf "\n" ;;
     context)       prepare_review_context "$@"; printf "\n" ;;
