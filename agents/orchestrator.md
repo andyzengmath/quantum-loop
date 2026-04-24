@@ -767,12 +767,13 @@ done
 **Trajectory tick (Phase 24 / P3.5 wiring):** a complementary signal to the watchdog. Watchdog fires on wall-clock staleness; trajectory fires on work-shape staleness — agent making tool calls but no edits/writes (thrashing) or many calls with zero productive outputs (stuck). Both checks run per cycle; either can trigger a kill.
 
 ```bash
-# Per-story agent-output path convention: $REPO_ROOT/.ql-wt/$sid/agent.log
-# Spawners must tee stdout to this path for trajectory to see work shape.
-# No-op if the file doesn't exist (e.g. sequential run, or older spawn).
+# Per-story agent-output path: $REPO_ROOT/.ql-wt/$sid/.ql-agent-output.txt
+# This is the file lib/spawn.sh already writes via spawn_autonomous
+# (AGENT_OUTPUT_FILENAME). No new spawner hook needed — we just read it.
+# No-op if the file doesn't exist (e.g. sequential run, spawn pending).
 if [[ "$TRAJECTORY_AVAILABLE" != "false" ]]; then
   for sid in $(jq -r '.stories[] | select(.status == "in_progress") | .id' "$JSON_PATH"); do
-    LOG="$REPO_ROOT/.ql-wt/$sid/agent.log"
+    LOG="$REPO_ROOT/.ql-wt/$sid/.ql-agent-output.txt"
     [[ -f "$LOG" ]] || continue
     TRAJ=$(parse_trajectory "$LOG")
     if printf '%s' "$TRAJ" | should_early_kill; then
