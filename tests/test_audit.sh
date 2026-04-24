@@ -330,6 +330,87 @@ else
 fi
 rm -rf "$TMP"
 
+# --- US-004 tests -----------------------------------------------------------
+
+# Test 20: --help output contains --audit line
+echo ""
+echo "Test 20: --help documents --audit"
+help_out=$(bash "$REPO_ROOT/quantum-loop.sh" --help 2>&1)
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$help_out" | grep -- '--audit' | grep -q 'measurement metrics'; then
+  echo "  PASS: --help contains --audit line"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: --help missing --audit"; FAIL=$((FAIL + 1))
+fi
+
+# Test 21: format_row byte-exact regression (OK)
+echo ""
+echo "Test 21: format_row byte-exact OK regression"
+expected='branches-local:    5 (target ≤10)     OK'
+actual=$(_audit_format_row 'branches-local|5|≤10|OK|')
+assert "format_row OK byte-exact" "$expected" "$actual"
+
+# Test 22: format_row byte-exact regression (FAIL with drill)
+echo ""
+echo "Test 22: format_row byte-exact FAIL regression"
+expected_main='cpc-files:         2 (target 0)   FAIL'
+expected_drill='                   └─ plugin-CPC.json, README-CPC.md'
+actual=$(_audit_format_row 'cpc-files|2|0|FAIL|plugin-CPC.json, README-CPC.md')
+line1=$(printf '%s\n' "$actual" | sed -n '1p')
+line2=$(printf '%s\n' "$actual" | sed -n '2p')
+assert "format_row FAIL line 1"   "$expected_main"  "$line1"
+assert "format_row FAIL drill line" "$expected_drill" "$line2"
+
+# Test 23: full-flow happy-path integration (all 6 OK, exit 0)
+echo ""
+echo "Test 23: full-flow happy path 6/6"
+TMP=$(setup_audit_repo)
+mkdir -p "$TMP/.omc/phase-99-evidence"
+printf '=== Results: 1/1 passed, 0 failed ===\n' > "$TMP/.omc/phase-99-evidence/test_x.log"
+out=$(cd "$TMP" && bash "$REPO_ROOT/quantum-loop.sh" --audit 2>&1 || true)
+rc=$(cd "$TMP" && bash "$REPO_ROOT/quantum-loop.sh" --audit >/dev/null 2>&1 ; echo $?)
+TOTAL=$((TOTAL + 1))
+ok_count=$(printf '%s' "$out" | grep -cE '^[a-z].*OK$')
+if [[ "$rc" -eq 0 ]] && [[ "$ok_count" -eq 6 ]] && printf '%s' "$out" | grep -q 'Summary: 6/6 metrics on target.'; then
+  echo "  PASS: full-flow happy 6/6"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: full-flow happy (rc=$rc, ok_count=$ok_count)"; FAIL=$((FAIL + 1))
+fi
+rm -rf "$TMP"
+
+# Test 24: full-flow all-fail integration
+echo ""
+echo "Test 24: full-flow all-fail"
+TMP=$(setup_audit_repo)
+# Seed all 5 non-remote failure conditions
+(cd "$TMP" && for i in $(seq 1 15); do git branch "extra-$i" 2>/dev/null; done)
+touch "$TMP/plugin-CPC-xyz.json"
+mkdir -p "$TMP/.claude/worktrees/agent-stale"
+cat > "$TMP/README.md" <<'EOF'
+<<<<<<< HEAD
+ours
+=======
+theirs
+>>>>>>> branch
+EOF
+mkdir -p "$TMP/.omc/phase-99-evidence"
+printf '=== Results: 3/5 passed, 2 failed ===\n' > "$TMP/.omc/phase-99-evidence/test_x.log"
+out=$(cd "$TMP" && bash "$REPO_ROOT/quantum-loop.sh" --audit 2>&1 || true)
+rc=$(cd "$TMP" && bash "$REPO_ROOT/quantum-loop.sh" --audit >/dev/null 2>&1 ; echo $?)
+TOTAL=$((TOTAL + 1))
+fail_count=$(printf '%s' "$out" | grep -cE 'FAIL$')
+if [[ "$rc" -eq 1 ]] && (( fail_count >= 4 )) \
+   && printf '%s' "$out" | grep -q 'branches-local.*FAIL' \
+   && printf '%s' "$out" | grep -q 'cpc-files.*FAIL' \
+   && printf '%s' "$out" | grep -q 'orphan-worktrees.*FAIL' \
+   && printf '%s' "$out" | grep -q 'test-suites.*FAIL'; then
+  echo "  PASS: full-flow all-fail (rc=$rc, fail_count=$fail_count)"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: full-flow all-fail (rc=$rc, fail_count=$fail_count)"; FAIL=$((FAIL + 1))
+  printf '%s\n' "$out" | sed 's/^/    /' | head -10
+fi
+rm -rf "$TMP"
+
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 exit $((FAIL > 0 ? 1 : 0))

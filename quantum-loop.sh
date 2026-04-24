@@ -20,6 +20,7 @@ set -euo pipefail
 #   ./quantum-loop.sh [OPTIONS]
 #
 # Options:
+#   --audit              Print §6 measurement metrics and exit (read-only).
 #   --max-iterations N   Maximum iterations before stopping (default: 20)
 #   --max-retries N      Max retry attempts per story (default: 3)
 #   --tool TOOL          AI tool to use (default: "claude"). Any runner in runners/*.json.
@@ -323,7 +324,7 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --help)
-      head -24 "$0" | tail -19
+      head -29 "$0" | tail -24
       exit 0
       ;;
     *)
