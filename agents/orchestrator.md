@@ -60,12 +60,31 @@ for story_id in $(jq -r '.stories[].id' "$JSON_PATH"); do
     echo "[PRD-HASH] $story_id has no prdSha — proceeding (back-compat)" >&2
     continue
   fi
-  if [[ "$STORED_SHA" != "$CURRENT_PRD_SHA" ]]; then
-    echo "[PRD-HASH] $story_id WARNING: stored prdSha=${STORED_SHA:0:12} != current=${CURRENT_PRD_SHA:0:12}; marking stale (re-plan needed)" >&2
-    jq --arg id "$story_id" '
-      (.stories[] | select(.id==$id) | .status) = "stale"
-    ' "$JSON_PATH" > "$JSON_PATH.tmp" && mv "$JSON_PATH.tmp" "$JSON_PATH"
-  fi
+  # G10 / v0.6.2 — verify_prd_sha returns:
+  #   "match"                  — story is up-to-date
+  #   "migrate <new-sha>"      — stored is the v0.6.0 legacy form (pre-CRLF-fix);
+  #                              update field instead of marking stale (transparent
+  #                              upgrade for Windows users with autocrlf=true).
+  #   exit 1 + stderr "drift…" — real PRD drift; mark story stale as before.
+  VERIFY_RESULT=$(verify_prd_sha "$STORED_SHA" "$PRD_PATH" 2>/dev/null) || VERIFY_RESULT="drift"
+  case "$VERIFY_RESULT" in
+    match)
+      : # silent — story is up-to-date
+      ;;
+    migrate*)
+      NEW_SHA="${VERIFY_RESULT#migrate }"
+      echo "[PRD-HASH] $story_id MIGRATE: legacy v0.6.0 prdSha format detected; updating in-place to v0.6.1+ LF-normalized hash (no re-plan needed)" >&2
+      jq --arg id "$story_id" --arg sha "$NEW_SHA" '
+        (.stories[] | select(.id==$id) | .prdSha) = $sha
+      ' "$JSON_PATH" > "$JSON_PATH.tmp" && mv "$JSON_PATH.tmp" "$JSON_PATH"
+      ;;
+    *)
+      echo "[PRD-HASH] $story_id WARNING: stored prdSha=${STORED_SHA:0:12} != current=${CURRENT_PRD_SHA:0:12}; marking stale (re-plan needed)" >&2
+      jq --arg id "$story_id" '
+        (.stories[] | select(.id==$id) | .status) = "stale"
+      ' "$JSON_PATH" > "$JSON_PATH.tmp" && mv "$JSON_PATH.tmp" "$JSON_PATH"
+      ;;
+  esac
 done
 ```
 

@@ -32,6 +32,53 @@ print(hashlib.sha256(content).hexdigest())
 " "$prd_path"
 }
 
+# compute_prd_sha_legacy(prd_path)
+# G10 / P5.A5 v0.6.0 compatibility — pre-v0.6.1 hash that did NOT normalize
+# CRLF before stripping trailing whitespace. Used by verify_prd_sha to detect
+# upgrade-path mismatches and trigger one-shot migration without forcing a
+# full /ql-plan re-run on Windows users with autocrlf=true checkouts.
+compute_prd_sha_legacy() {
+  local prd_path="${1:?compute_prd_sha_legacy: PRD path required}"
+  if [[ ! -f "$prd_path" ]]; then
+    printf "ERROR: compute_prd_sha_legacy: file not found: %s\n" "$prd_path" >&2
+    return 1
+  fi
+  python3 -c "
+import sys, hashlib
+with open(sys.argv[1], 'rb') as f:
+    content = f.read().rstrip(b' \t\n\r')
+print(hashlib.sha256(content).hexdigest())
+" "$prd_path"
+}
+
+# verify_prd_sha(stored_sha, prd_path)
+# G10 / P5.A5 v0.6.2 — compares stored_sha against the PRD's current sha,
+# falling back to the legacy (v0.6.0) hash on miss to detect upgrade paths.
+# Returns one of:
+#   exit 0 + stdout "match"            — stored == current (already on v0.6.1+ format)
+#   exit 0 + stdout "migrate <new-sha>" — stored == legacy v0.6.0 sha; caller should
+#                                         update the field with the new value rather
+#                                         than mark the story stale.
+#   exit 1 + stderr "drift: ..."        — neither matches; real PRD drift.
+verify_prd_sha() {
+  local stored="${1:?verify_prd_sha: stored sha required}"
+  local prd_path="${2:?verify_prd_sha: PRD path required}"
+  local current legacy
+  current=$(compute_prd_sha "$prd_path") || return 1
+  if [[ "$stored" == "$current" ]]; then
+    printf "match\n"
+    return 0
+  fi
+  legacy=$(compute_prd_sha_legacy "$prd_path") || return 1
+  if [[ "$stored" == "$legacy" ]]; then
+    printf "migrate %s\n" "$current"
+    return 0
+  fi
+  printf "drift: stored=%s current=%s legacy=%s\n" \
+    "${stored:0:12}" "${current:0:12}" "${legacy:0:12}" >&2
+  return 1
+}
+
 # write_quantum_json(json_path, content)
 # Writes content to json_path atomically via a .tmp intermediate file.
 # Validates that content is non-empty and valid JSON before writing.
