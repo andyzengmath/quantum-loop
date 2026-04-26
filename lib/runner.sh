@@ -317,7 +317,10 @@ runner_parse_output() {
 # _availability_check(provider, role)
 # Echoes the resolved provider name (possibly degraded). Returns 0 always.
 # Emits a one-line WARN to stderr when the requested provider is not on
-# $PATH and falls back to claude.
+# $PATH. US-001 / G8 (v0.6.3): role-aware fallback. Critic role degrades
+# to 'none' (preserving US-002's "downgrade rather than substitute" intent
+# and matching quantum-loop.ps1). Planner/executor degrade to 'claude'
+# because disabling them would abort the run.
 _availability_check() {
   local provider="${1:-auto}"
   local role="${2:-unknown}"
@@ -330,8 +333,10 @@ _availability_check() {
       if command -v "$provider" >/dev/null 2>&1; then
         printf '%s' "$provider"
       else
-        printf "WARN: per-role routing: %s provider %s not available, falling back to claude\n" "$role" "$provider" >&2
-        printf 'claude'
+        local _fallback="claude"
+        [[ "$role" == "critic" ]] && _fallback="none"
+        printf "WARN: per-role routing: %s provider %s not available, falling back to %s\n" "$role" "$provider" "$_fallback" >&2
+        printf '%s' "$_fallback"
       fi
       return 0
       ;;
