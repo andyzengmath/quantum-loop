@@ -17,4 +17,8 @@ test_dispatch_set                                  === Results: 29/29 passed, 0 
 test_dogfood_e2e                                   === Results: 17/17 passed, 0 failed ===
 test_far_filter                                    === Results: 20/20 passed, 0 failed ===
 test_final_sweep                                   === test_hyclone                                       === Results: 31/31 passed, 0 failed ===
-38 passed, 0 failed ===
+test_init_guard                                    === Results: 56/56 passed, 0 failed ===
+test_intent_check                                  === Results: 19/19 passed, 0 failed ===
+test_intent_graph                                  === Results: 34/34 passed, 0 failed ===
+test_json_atomic                                   === Results: 19/19 passed, 0 failed ===
+test_known_failures                                === Results: 90/90 passed, 0 failed ===
