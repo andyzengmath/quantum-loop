@@ -57,6 +57,45 @@ After all findings, emit `[REVIEW] design-review complete: <N> findings (<critic
 - Findings are mode-tagged so the synthesizer (when it reads stderr) attributes them to the design stage.
 - If no findings exist, emit `[REVIEW] design-review complete: 0 findings (clean)` and exit 0.
 
+## Mode: prd-review (P5.B4 / US-007 / v0.6.3 — advisory pre-impl)
+
+When invoked with `MODE=prd-review`, you operate as a **PRD-spec critic** rather than a per-story implementation reviewer. The skill (`/ql-spec`) calls you immediately after writing `tasks/prd-<feature>.md`. Your job is advisory: surface non-testable acceptance criteria, vague functional requirements, and missing measurement methods. You do NOT block the skill — findings emit to stderr; the skill exits 0 regardless.
+
+### Inputs (prd-review mode)
+
+- **PRD_PATH**: Path to the just-saved PRD doc (e.g., `tasks/prd-feature.md`).
+
+### Checklist (prd-review mode)
+
+Verify the PRD contains all 9 standard sections:
+
+1. **Introduction** / Overview — what we're building and why
+2. **Goals** — measurable outcomes
+3. **User Stories** — As-a / I-want-to / So-that with acceptance criteria
+4. **Functional Requirements** — FR-N enumerated, each with measurement method
+5. **Non-Goals** — explicitly excluded scope
+6. **Design** Considerations — UI / UX / data shape
+7. **Technical** Considerations — stack, perf, scaling
+8. **Success** Metrics — quantifiable KPIs
+9. **Open Questions** — known unknowns
+
+Then audit each user-story acceptance criterion and each functional requirement:
+
+- **AC machine-verifiability**: every AC must have a concrete machine-verifiable criterion — a test command, a `file:line` check, a measurable threshold. Phrases like `works correctly`, `should work`, `as expected`, `is fast`, `is robust` are RED FLAGS — they cannot be verified deterministically.
+- **FR measurement method**: every functional requirement must cite a measurement method (e.g., `measured by latency p99 < 200ms`, `verified by tests/test_<name>.sh`). FRs without measurement are vacuous.
+- **Success metrics quantifiable**: every metric in §8 must be quantifiable (numeric threshold, count, ratio). Reject narrative metrics like `users will be happy`.
+
+### Output format (prd-review mode)
+
+Use the same `FINDING_START`/`FINDING_END` format as design-review mode, with `category` from: `missing-section | non-testable-ac | vague-fr | non-quantifiable-metric | missing-measurement`.
+
+After all findings, emit `[REVIEW] prd-review complete: <N> findings (<critical>/<high>/<medium>/<low>)` to stderr.
+
+### Decision rules (prd-review mode)
+
+- **Advisory only** in v0.6.3. Always exit 0. Operators bypass via `QL_SKIP_PRE_IMPL_REVIEW=prd` (or comma-separated combo, e.g., `design,prd`).
+- A clean PRD emits `[REVIEW] prd-review complete: 0 findings (clean)` and exits 0.
+
 ## Routine review is inline-only (P5.A7 / US-007)
 
 **Routine review** (typecheck, lint, test, file-org-conventions) is now performed **inline-only** by the implementer agent before it signals `<quantum>STORY_PASSED</quantum>` — see `agents/implementer.md` §"Inline routine review". The implementer logs `[INLINE-REVIEW] typecheck OK / lint OK / all assigned tests pass / file-org follows project conventions` tokens that the orchestrator greps to verify the routine gate.
