@@ -2,6 +2,7 @@
   "project": "MyApp",
   "_comment_storyType": "Each story may have a 'storyType' field. Allowed values: 'types-only' (stories that only define types/interfaces/schemas), 'logic' (stories with business logic), 'config' (scaffold/config-only stories), 'test' (test-only stories). When absent, defaults to 'logic'.",
   "_comment_complexity": "P5.A8 / US-008: Optional integer 0-100 per story computed by dag-validator using the formula: min(100, task_count*10 + dependsOn_depth*15 + (has_security_tag ? 30 : 0) + filePaths_count*2). lib/runner.sh:runner_select_model routes <=30 -> haiku, 31-60 -> sonnet, 61+ -> opus. When absent, the orchestrator falls back to its default model (opus). Story-level 'model' field overrides the complexity-derived choice. Backward-compatible: existing v0.5.x quantum.json files without complexity behave identically.",
+  "_comment_prdSha": "P5.A5 / US-005: Optional sha256 of the PRD content per story (RAGShield Level-1 drift detection, arXiv:2604.00387). Set by dag-validator at story creation via lib/json-atomic.sh:compute_prd_sha. At orchestrator pre-flight (Step 1.1), each story's stored prdSha is compared against the current PRD sha; mismatches mark the story status:'stale' and exclude it from execution until /ql-plan re-validates. Trailing whitespace excluded per git hash-object convention. Backward-compatible: stories without prdSha skip the check.",
   "branchName": "ql/task-priority",
   "description": "Task Priority System - Add priority levels to tasks with filtering and sorting",
   "prdPath": "tasks/prd-task-priority.md",
@@ -43,6 +44,7 @@
       ],
       "priority": 1,
       "complexity": 26,
+      "prdSha": null,
       "status": "pending",
       "dependsOn": [],
       "tasks": [

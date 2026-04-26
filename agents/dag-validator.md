@@ -33,6 +33,19 @@ Before performing any validation:
 4. **If the file has NOT been modified since `dagValidation.timestamp`**: return `"Already validated on <timestamp>"` and STOP.
 5. **If the file HAS been modified** (or `dagValidation.timestamp` does not exist): proceed with validation.
 
+### (2.4) PRD Hash Pinning (P5.A5 / US-005)
+
+When creating new story stubs (or validating existing ones), set each story's `prdSha` field to the current PRD's sha256, computed via:
+
+```bash
+source "$REPO_ROOT/lib/json-atomic.sh"
+PRD_SHA=$(compute_prd_sha "$PRD_PATH")
+```
+
+This is the cheapest possible drift-detection mitigation per RAGShield Level-1 (arXiv:2604.00387). At orchestrator pre-flight (Step 1.1), each story's stored prdSha is compared against the current PRD sha. Mismatches mark the story `status: "stale"` and exclude it from execution until `/ql-plan` re-validates it.
+
+Backward-compatible: existing stories without a `prdSha` field skip the check and proceed normally with a one-line warning.
+
 ### (2.5) Complexity Scoring (P5.A8 / US-008)
 
 For each story in quantum.json, compute a `complexity` score (integer 0-100) using the formula:
