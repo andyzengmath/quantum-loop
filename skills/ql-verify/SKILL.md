@@ -5,6 +5,23 @@ description: "Part of the quantum-loop autonomous development pipeline (brainsto
 
 # Quantum-Loop: Verify
 
+## Inline-vs-adversarial review split (P5.A7 / US-007)
+
+The verify gate distinguishes **routine** checks (deterministic verdict, exit-code 0/non-0) from **adversarial** checks (require judgement) and routes them differently:
+
+| Check kind | Examples | Mode | Rationale |
+|---|---|---|---|
+| Routine | typecheck, lint, full test suite, file-org conventions | **inline-only** in implementer prompt before STORY_PASSED | Verdict is deterministic; subagent round-trip adds 25min for zero signal value |
+| Adversarial | cross-story file conflicts, intent drift vs PRD, security review, architecture / API-shape | **subagent dispatch** (spec-reviewer, quality-reviewer, security-reviewer, architect) | Requires judgement, context, and human-readable explanation that grep cannot provide |
+
+Routine checks emit literal tokens the orchestrator greps for evidence:
+- `[INLINE-REVIEW] typecheck OK`
+- `[INLINE-REVIEW] lint OK`
+- `[INLINE-REVIEW] all assigned tests pass`
+- `[INLINE-REVIEW] file-org follows project conventions`
+
+If a routine check fails, the implementer marks the story failed and EXITS — does NOT signal STORY_PASSED. Adversarial review is reserved for cases the inline gate cannot adjudicate. Per Superpowers v5.0.6: 25min -> 30s on the routine path; total throughput improves 10-50x at the same quality bar.
+
 ## The Iron Law
 
 ```

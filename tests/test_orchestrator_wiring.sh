@@ -312,6 +312,41 @@ else
   FAIL=$((FAIL + 1))
 fi
 
+# Test 12: P5.A7 / US-007 — inline self-review checklist tokens.
+# Replace subagent dispatch on routine review with structured inline
+# checklists embedded in implementer + spec-reviewer prompts. Reserve
+# subagent dispatch for adversarial review (cross-story conflict, intent
+# drift, security). Per Superpowers v5.0.6: 25min -> 30sec on routine path.
+echo ""
+echo "Test 12: P5.A7 inline checklist tokens"
+IMPLEMENTER="$REPO_ROOT/agents/implementer.md"
+SPEC_REVIEWER="$REPO_ROOT/agents/spec-reviewer.md"
+SKILL_VERIFY="$REPO_ROOT/skills/ql-verify/SKILL.md"
+
+check_in() {
+  local name="$1" needle="$2" file="$3"
+  TOTAL=$((TOTAL + 1))
+  if grep -qF -- "$needle" "$file"; then
+    echo "  PASS: $name"; PASS=$((PASS + 1))
+  else
+    echo "  FAIL: $name — needle [$needle] not in $(basename "$file")"
+    FAIL=$((FAIL + 1))
+  fi
+}
+
+# implementer.md must include explicit inline-checklist tokens before STORY_PASSED
+check_in "implementer.md mentions 'typecheck OK'"             "typecheck OK"   "$IMPLEMENTER"
+check_in "implementer.md mentions 'lint OK'"                  "lint OK"        "$IMPLEMENTER"
+check_in "implementer.md mentions 'all assigned tests pass'"  "all assigned tests pass" "$IMPLEMENTER"
+check_in "implementer.md mentions 'file-org follows project conventions'" "file-org follows project conventions" "$IMPLEMENTER"
+
+# spec-reviewer.md marks routine review as inline-only with adversarial dispatch reserved
+check_in "spec-reviewer.md marks routine path inline-only"    "inline-only"    "$SPEC_REVIEWER"
+check_in "spec-reviewer.md reserves adversarial dispatch"     "adversarial dispatch reserved for" "$SPEC_REVIEWER"
+
+# ql-verify SKILL.md documents the inline-vs-adversarial split
+check_in "ql-verify SKILL.md documents inline-vs-adversarial split" "inline-only" "$SKILL_VERIFY"
+
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 exit $((FAIL > 0 ? 1 : 0))

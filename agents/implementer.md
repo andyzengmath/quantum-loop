@@ -225,6 +225,21 @@ Answer each item with a one-line status. If any item fails, **do not signal yet*
 
 If every box is checked, proceed to **On All Checks Passing**. Otherwise, fix the gap or mark the story failed — do NOT rationalize past a missing check.
 
+## Inline routine review (P5.A7 / US-007, before signaling PASSED)
+
+Routine review checks that historically dispatched a subagent (typecheck, lint, test, file-org) now run **inline** as a structured one-line-per-item gate. Subagent dispatch is reserved for **adversarial** review (cross-story conflict, intent drift, security). Per Superpowers v5.0.6 the routine path collapses from ~25 minutes to ~30 seconds.
+
+Before emitting `<quantum>STORY_PASSED</quantum>`, log each item with a literal status token so the orchestrator's grep can verify it. Run the underlying command **fresh** for each — no cached output:
+
+- `[INLINE-REVIEW] typecheck OK`              — `tsc --noEmit` / `pyright` / `mypy` exit 0 just now
+- `[INLINE-REVIEW] lint OK`                   — `eslint` / `ruff` / project-specific linter exit 0 just now
+- `[INLINE-REVIEW] all assigned tests pass`   — every test the story's tasks reference + the project's full suite exit 0
+- `[INLINE-REVIEW] file-org follows project conventions` — new files live in the same dir-shape as siblings; no rogue top-level directories
+
+If any token is unprintable (because its underlying check failed), the story does NOT proceed to STORY_PASSED. Either fix the gap or mark failed — do NOT rationalize.
+
+When **adversarial** issues arise (cross-story file conflicts, intent drift vs PRD, security findings), escalate to the appropriate subagent (`spec-reviewer`, `quality-reviewer`, `oh-my-claudecode:security-reviewer`) — those checks are NOT inline-able.
+
 ## On All Checks Passing
 
 **Sequential mode (repo root):**
