@@ -33,6 +33,29 @@ Before performing any validation:
 4. **If the file has NOT been modified since `dagValidation.timestamp`**: return `"Already validated on <timestamp>"` and STOP.
 5. **If the file HAS been modified** (or `dagValidation.timestamp` does not exist): proceed with validation.
 
+### (2.5) Complexity Scoring (P5.A8 / US-008)
+
+For each story in quantum.json, compute a `complexity` score (integer 0-100) using the formula:
+
+```
+complexity = min(100, task_count*10 + dependsOn_depth*15 + (has_security_tag ? 30 : 0) + filePaths_count*2)
+```
+
+Where:
+- **task_count** = `len(story.tasks)`
+- **dependsOn_depth** = the longest path from this story back to a no-dep root via `dependsOn`
+- **has_security_tag** = true when `story.storyType == "security"` OR any task has `security: true` in its tags
+- **filePaths_count** = total `len(filePaths)` summed across all tasks
+
+The score lets `lib/runner.sh:runner_select_model` route stories to the cheapest capable model:
+- **<=30** -> Haiku (most cleanup/wiring stories land here)
+- **31-60** -> Sonnet (typical feature stories)
+- **61+** -> Opus (multi-file integrations / security work)
+
+Story-level `"model": "<override>"` field overrides the score-derived choice. Stories without a `complexity` field fall back to the orchestrator's default model (opus), preserving v0.5.x semantics.
+
+After computing scores, set `dagValidation.complexityScored: true` and `dagValidation.complexityFormula: "min(100, task_count*10 + dependsOn_depth*15 + (has_security_tag ? 30 : 0) + filePaths_count*2)"`.
+
 ### (3) Plan Size Routing
 
 Count the number of stories in quantum.json. Read thresholds from `skills/ql-plan/references/dag-validation.md` (Plan Size Thresholds section).

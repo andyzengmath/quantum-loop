@@ -1,6 +1,7 @@
 {
   "project": "MyApp",
   "_comment_storyType": "Each story may have a 'storyType' field. Allowed values: 'types-only' (stories that only define types/interfaces/schemas), 'logic' (stories with business logic), 'config' (scaffold/config-only stories), 'test' (test-only stories). When absent, defaults to 'logic'.",
+  "_comment_complexity": "P5.A8 / US-008: Optional integer 0-100 per story computed by dag-validator using the formula: min(100, task_count*10 + dependsOn_depth*15 + (has_security_tag ? 30 : 0) + filePaths_count*2). lib/runner.sh:runner_select_model routes <=30 -> haiku, 31-60 -> sonnet, 61+ -> opus. When absent, the orchestrator falls back to its default model (opus). Story-level 'model' field overrides the complexity-derived choice. Backward-compatible: existing v0.5.x quantum.json files without complexity behave identically.",
   "branchName": "ql/task-priority",
   "description": "Task Priority System - Add priority levels to tasks with filtering and sorting",
   "prdPath": "tasks/prd-task-priority.md",
@@ -41,6 +42,7 @@
         "Typecheck passes"
       ],
       "priority": 1,
+      "complexity": 26,
       "status": "pending",
       "dependsOn": [],
       "tasks": [
