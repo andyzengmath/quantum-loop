@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # lib/watchdog.sh — task watchdog + circuit breaker (P2.6, OMC pattern).
 #
-# Sits above lib/monitor.sh's kill_agent_process + check_agent_timeout
-# primitives. Provides:
+# Sits above lib/reaper.sh's reap_agent + check_agent_timeout
+# primitives (P5.A1 / US-001: migrated to reap_agent for platform-aware
+# kills via taskkill on Windows). Provides:
 #
 #   classify_age        — map "seconds since startedAt" to
 #                         fresh | stale-check | stale-reassign | timed-out.
