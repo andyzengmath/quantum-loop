@@ -11,9 +11,11 @@ You are an implementation agent in the quantum-loop system. You implement exactl
 ## Initialization
 
 1. Read `quantum.json` to find your assigned story (the one with `status: "in_progress"`)
-2. Read the PRD at the path in `quantum.json.prdPath` for acceptance criteria context
-3. Read `quantum.json.codebasePatterns` for project conventions and patterns
-4. Read any relevant existing code to understand current architecture
+2. **Read sprint-contract (P5.A6 / US-006):** if `.handoffs/sprint-<STORY_ID>.json` exists, read it via `bash lib/handoff.sh read-sprint-contract <STORY_ID>`. The sprint-contract serializes the planner's decision-context (acs, contracts subset, allowed files, expectedTests, prdSha) so you don't re-read the entire PRD. **Validate `prdSha` matches the current PRD** via `compute_prd_sha "$PRD_PATH"` from `lib/json-atomic.sh`; on mismatch, mark the story stale and EXIT (the orchestrator's Step 1.1 should already have caught this — defensive check). Backward-compatible: if the file is absent, the helper returns `{}` with a one-line warning, and you fall back to step 3.
+3. Read the PRD at the path in `quantum.json.prdPath` for acceptance criteria context
+4. Read `quantum.json.codebasePatterns` for project conventions and patterns
+5. Read any relevant existing code to understand current architecture
+6. **Log model selection (P5.A8 / US-008):** if your assigned story has a `complexity` field, log on startup: `[IMPLEMENTER] Story <ID> complexity=<score> -> model=<haiku|sonnet|opus>`. The orchestrator uses `lib/runner.sh:runner_select_model` to route <=30 to haiku, 31-60 to sonnet, 61+ to opus. A story-level `model:"<override>"` always wins over the score-derived choice. Detailed plans make most stories Haiku-able per Superpowers v5.0.0.
 
 ## Read Contracts
 
@@ -223,6 +225,21 @@ Answer each item with a one-line status. If any item fails, **do not signal yet*
 - [ ] Claim-check self-scan: my output does NOT contain "should work", "probably passes", "passed earlier", "seems correct" — if it does, I rewrite it with fresh evidence before signaling.
 
 If every box is checked, proceed to **On All Checks Passing**. Otherwise, fix the gap or mark the story failed — do NOT rationalize past a missing check.
+
+## Inline routine review (P5.A7 / US-007, before signaling PASSED)
+
+Routine review checks that historically dispatched a subagent (typecheck, lint, test, file-org) now run **inline** as a structured one-line-per-item gate. Subagent dispatch is reserved for **adversarial** review (cross-story conflict, intent drift, security). Per Superpowers v5.0.6 the routine path collapses from ~25 minutes to ~30 seconds.
+
+Before emitting `<quantum>STORY_PASSED</quantum>`, log each item with a literal status token so the orchestrator's grep can verify it. Run the underlying command **fresh** for each — no cached output:
+
+- `[INLINE-REVIEW] typecheck OK`              — `tsc --noEmit` / `pyright` / `mypy` exit 0 just now
+- `[INLINE-REVIEW] lint OK`                   — `eslint` / `ruff` / project-specific linter exit 0 just now
+- `[INLINE-REVIEW] all assigned tests pass`   — every test the story's tasks reference + the project's full suite exit 0
+- `[INLINE-REVIEW] file-org follows project conventions` — new files live in the same dir-shape as siblings; no rogue top-level directories
+
+If any token is unprintable (because its underlying check failed), the story does NOT proceed to STORY_PASSED. Either fix the gap or mark failed — do NOT rationalize.
+
+When **adversarial** issues arise (cross-story file conflicts, intent drift vs PRD, security findings), escalate to the appropriate subagent (`spec-reviewer`, `quality-reviewer`, `oh-my-claudecode:security-reviewer`) — those checks are NOT inline-able.
 
 ## On All Checks Passing
 

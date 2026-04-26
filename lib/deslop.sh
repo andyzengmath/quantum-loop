@@ -123,42 +123,92 @@ rollback_pass() {
 #   python|vulture
 #   go|staticcheck
 #   rust|cargo-udeps
+#   <language>|regex-fallback   (P5.A3 / US-003: tooling absent)
 #   unknown|skip
+#
+# P5.A3 / US-003: when the language-specific tool is not on \$PATH we no
+# longer return 'skip-missing-tool' (which silently dropped detection).
+# Instead we return 'regex-fallback' so the caller dispatches to
+# _regex_fallback(), which proxies to lib/dead-code.sh's regex-based
+# unused-import + unused-private-helper scanner. This closes the
+# silent-skip gap flagged in v0.5.x.
 detect_language() {
   local dir="${1:-.}"
   if [[ -f "$dir/tsconfig.json" ]]; then
     if command -v ts-prune &>/dev/null; then
       printf "typescript|ts-prune"
     else
-      printf "typescript|skip-missing-tool"
+      printf "typescript|regex-fallback"
     fi
   elif [[ -f "$dir/package.json" ]]; then
     if command -v knip &>/dev/null; then
       printf "javascript|knip"
     else
-      printf "javascript|skip-missing-tool"
+      printf "javascript|regex-fallback"
     fi
   elif [[ -f "$dir/pyproject.toml" || -f "$dir/setup.py" ]]; then
     if command -v vulture &>/dev/null; then
       printf "python|vulture"
     else
-      printf "python|skip-missing-tool"
+      printf "python|regex-fallback"
     fi
   elif [[ -f "$dir/go.mod" ]]; then
     if command -v staticcheck &>/dev/null; then
       printf "go|staticcheck"
     else
-      printf "go|skip-missing-tool"
+      printf "go|regex-fallback"
     fi
   elif [[ -f "$dir/Cargo.toml" ]]; then
     if command -v cargo-udeps &>/dev/null; then
       printf "rust|cargo-udeps"
     else
-      printf "rust|skip-missing-tool"
+      printf "rust|regex-fallback"
     fi
   else
     printf "unknown|skip"
   fi
+}
+
+# _regex_fallback(path, language)
+# P5.A3 / US-003 — proxy to lib/dead-code.sh's scan_dead_code() and
+# normalize the output to the deslop schema {file, line, kind, severity}.
+# Returns a JSON array (possibly empty). language argument is informational
+# only — dead-code.sh's regex scanner self-detects per file.
+_regex_fallback() {
+  local path="${1:?_regex_fallback: path required}"
+  local language="${2:-unknown}"
+
+  # Source dead-code.sh on demand (it's already shipped v0.5.0).
+  local _dc="$(dirname "${BASH_SOURCE[0]}")/dead-code.sh"
+  if [[ ! -f "$_dc" ]]; then
+    printf '[]'
+    return 0
+  fi
+  # shellcheck disable=SC1090
+  source "$_dc"
+
+  local raw
+  raw=$(scan_dead_code "$path" 2>/dev/null || printf '{"unused_imports":[],"unused_privates":[]}')
+
+  # Normalize: each unused_import -> {file, line, kind:"unused-import", severity:"warning"}
+  #            each unused_private -> {file, line, kind:"unused-private", severity:"warning"}
+  jq -c --arg lang "$language" '
+    [
+      (.unused_imports // [])[] | {
+        file: (.file // ""),
+        line: (.line // 0),
+        kind: "unused-import",
+        severity: "warning"
+      }
+    ] + [
+      (.unused_privates // [])[] | {
+        file: (.file // ""),
+        line: (.line // 0),
+        kind: "unused-private",
+        severity: "warning"
+      }
+    ]
+  ' <<< "$raw"
 }
 
 # ------------------------------------------------------------------------------
@@ -173,6 +223,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     compare)         compare_baseline "$@" ;;
     rollback)        rollback_pass "$@" ;;
     detect-language) detect_language "$@"; printf "\n" ;;
+    regex-fallback)  _regex_fallback "$@"; printf "\n" ;;
     *)
       cat >&2 <<USAGE
 Usage: bash lib/deslop.sh <subcmd> [args...]
@@ -181,6 +232,7 @@ Usage: bash lib/deslop.sh <subcmd> [args...]
   compare BEFORE AFTER             — exit 0 if no regression
   rollback BASE FILE [FILE...]     — restore files to BASE
   detect-language [DIR]            — echo language|tool
+  regex-fallback PATH LANG         — emit normalized {file,line,kind,severity} JSON
 USAGE
       exit 2
       ;;

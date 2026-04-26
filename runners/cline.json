@@ -1,0 +1,37 @@
+{
+  "$schema": "../schemas/runner.schema.json",
+  "name": "cline",
+  "displayName": "Cline (VS Code extension w/ CLI)",
+  "binary": "cline",
+  "tier": "experimental",
+  "experimental": true,
+  "installHint": "npm install -g @cline/cli (preview) or use the VS Code extension https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev",
+  "version": ">=0.1.0",
+  "invocation": {
+    "promptDelivery": "flag",
+    "promptFlag": "--task",
+    "headlessFlags": [
+      "--non-interactive"
+    ],
+    "autoApproveFlags": [
+      "--auto-approve"
+    ],
+    "outputFlags": [],
+    "extraFlags": [],
+    "stdinPipe": false
+  },
+  "instructionFile": {
+    "native": ".clinerules",
+    "fallbackFrom": "CLAUDE.md",
+    "autoGenerate": true
+  },
+  "signals": {
+    "preambleInjection": true,
+    "heuristicFallback": true
+  },
+  "quirks": {
+    "vscode_extension_primary": true,
+    "cli_preview": true,
+    "notes": "Cline started as a VS Code extension; the standalone CLI is in preview. Reads .clinerules for project conventions. Most stable when invoked through VS Code, but the headless CLI path is wired here for parity."
+  }
+}

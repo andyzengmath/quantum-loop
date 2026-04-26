@@ -1,0 +1,39 @@
+{
+  "$schema": "../schemas/runner.schema.json",
+  "name": "opencode",
+  "displayName": "OpenCode (sst/opencode)",
+  "binary": "opencode",
+  "tier": "experimental",
+  "experimental": true,
+  "installHint": "curl -fsSL https://opencode.ai/install | bash",
+  "version": ">=0.4.0",
+  "invocation": {
+    "promptDelivery": "flag",
+    "promptFlag": "-p",
+    "headlessFlags": [
+      "--no-tui"
+    ],
+    "autoApproveFlags": [
+      "--auto-approve"
+    ],
+    "outputFlags": [],
+    "extraFlags": [],
+    "stdinPipe": false
+  },
+  "instructionFile": {
+    "native": "AGENTS.md",
+    "fallbackFrom": "CLAUDE.md",
+    "autoGenerate": true
+  },
+  "signals": {
+    "preambleInjection": true,
+    "heuristicFallback": true
+  },
+  "quirks": {
+    "skill_discovery_paths": [
+      ".opencode/skills/",
+      ".claude/skills/"
+    ],
+    "notes": "OpenCode is the open-source alternative to Claude Code by sst. Auto-discovers skills from both .opencode/skills/ and .claude/skills/ directories per the Superpowers v5 plugin pattern. Uses OPENAI_API_KEY or ANTHROPIC_API_KEY from env."
+  }
+}

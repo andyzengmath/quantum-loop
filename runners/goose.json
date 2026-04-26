@@ -1,0 +1,36 @@
+{
+  "$schema": "../schemas/runner.schema.json",
+  "name": "goose",
+  "displayName": "Goose (Block / Square)",
+  "binary": "goose",
+  "tier": "experimental",
+  "experimental": true,
+  "installHint": "curl -fsSL https://github.com/block/goose/releases/latest/download/download_cli.sh | bash",
+  "version": ">=1.0.0",
+  "invocation": {
+    "promptDelivery": "flag",
+    "promptFlag": "--text",
+    "headlessFlags": [
+      "run"
+    ],
+    "autoApproveFlags": [
+      "--no-confirm"
+    ],
+    "outputFlags": [],
+    "extraFlags": [],
+    "stdinPipe": false
+  },
+  "instructionFile": {
+    "native": "GOOSE.md",
+    "fallbackFrom": "CLAUDE.md",
+    "autoGenerate": true
+  },
+  "signals": {
+    "preambleInjection": true,
+    "heuristicFallback": true
+  },
+  "quirks": {
+    "mcp_first": true,
+    "notes": "Goose is Block's open-source agent built on MCP (Model Context Protocol). Reads ~/.config/goose/config.yaml for provider config (OpenAI, Anthropic, etc). Strong MCP-tool support; pair with quantum-loop's lib/runner.sh hooks for tool registration."
+  }
+}

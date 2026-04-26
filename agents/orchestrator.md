@@ -22,6 +22,55 @@ You manage the full execution lifecycle for quantum-loop. You read quantum.json,
    ```
 7. Count stories by status and report summary to user
 
+### Step 1.0.5: Per-role Routing Snapshot (P5.B1 / US-009)
+
+After sourcing `lib/runner.sh`, read the persisted routing snapshot from `quantum.json.routing` and use it as the default per-role provider when CLI flags are absent. This ports OMC v4.12.0 mechanism to make provider choice operator-visible and replayable.
+
+```bash
+SNAPSHOT=$(read_routing_snapshot "$JSON_PATH")
+# CLI flags (QL_PLANNER/CRITIC/EXECUTOR) override the snapshot when set.
+PLANNER="${QL_PLANNER:-$(printf '%s' "$SNAPSHOT" | jq -r '.planner // "auto"')}"
+CRITIC="${QL_CRITIC:-$(printf '%s' "$SNAPSHOT" | jq -r '.critic // "auto"')}"
+EXECUTOR="${QL_EXECUTOR:-$(printf '%s' "$SNAPSHOT" | jq -r '.executor // "auto"')}"
+
+# Re-resolve to handle availability changes since the snapshot was written
+ROUTING=$(resolve_routing "$PLANNER" "$CRITIC" "$EXECUTOR")
+write_routing_snapshot "$JSON_PATH" "$ROUTING"
+
+# Export for downstream consumers (lib/deep-review.sh, lib/spawn.sh)
+export QL_ROLE_PLANNER=$(printf '%s' "$ROUTING" | jq -r '.planner')
+export QL_ROLE_CRITIC=$(printf '%s' "$ROUTING" | jq -r '.critic')
+export QL_ROLE_EXECUTOR=$(printf '%s' "$ROUTING" | jq -r '.executor')
+```
+
+If a role's provider becomes unavailable on replay, `_availability_check` falls back to `claude` and emits a one-line WARN. Replay determinism: when no CLI flags are passed, the orchestrator re-uses the prior snapshot's choices verbatim (modulo availability).
+
+### Step 1.1: PRD Hash-Check (P5.A5 / US-005)
+
+After reading the PRD, compute its sha256 via `compute_prd_sha` (from `lib/json-atomic.sh`) and compare against each story's `prdSha` field. This is the cheapest possible mitigation against PRD drift (RAGShield Level-1, arXiv:2604.00387).
+
+```bash
+source "$REPO_ROOT/lib/json-atomic.sh"
+CURRENT_PRD_SHA=$(compute_prd_sha "$PRD_PATH")
+
+for story_id in $(jq -r '.stories[].id' "$JSON_PATH"); do
+  STORED_SHA=$(jq -r --arg id "$story_id" '.stories[] | select(.id==$id) | .prdSha // ""' "$JSON_PATH")
+  if [[ -z "$STORED_SHA" || "$STORED_SHA" == "null" ]]; then
+    # Backward-compat: stories without prdSha proceed unchanged. Log warning once.
+    echo "[PRD-HASH] $story_id has no prdSha — proceeding (back-compat)" >&2
+    continue
+  fi
+  if [[ "$STORED_SHA" != "$CURRENT_PRD_SHA" ]]; then
+    echo "[PRD-HASH] $story_id WARNING: stored prdSha=${STORED_SHA:0:12} != current=${CURRENT_PRD_SHA:0:12}; marking stale (re-plan needed)" >&2
+    jq --arg id "$story_id" '
+      (.stories[] | select(.id==$id) | .status) = "stale"
+    ' "$JSON_PATH" > "$JSON_PATH.tmp" && mv "$JSON_PATH.tmp" "$JSON_PATH"
+  fi
+done
+```
+
+Stories with `status: "stale"` are excluded from the eligible-stories DAG query in Step 2. They remain in quantum.json so the operator (or `/ql-plan` re-run) can re-validate them against the updated PRD.
+
 ### Init-Guard and Resilience Integration
 
 After branch verification and before counting stories, source the init-guard and resilience modules:
@@ -194,6 +243,34 @@ This prevents interface-changing stories from running in parallel with their con
 
 **If 1 eligible story** -> Sequential execution (Step 3A)
 **If 2+ eligible stories** -> Parallel execution (Step 3B)
+
+### Step 2.5: Sprint-Contract Emission (P5.A6 / US-006)
+
+For each eligible story (whether dispatched sequentially or in parallel), write its Sprint-Contract to `.handoffs/sprint-<storyId>.json` via `bash lib/handoff.sh write-sprint-contract <storyId> '<json>'`. The contract serializes the planner's decision-context — `acs`, the relevant `contracts` subset, allowed `files`, `expectedTests`, `prdSha`, `plannedBy`, `plannedAt` — so the implementer + reviewers can read it instead of re-parsing the full PRD. This mirrors Anthropic's 2026-03-24 Generator-Evaluator contract.
+
+```bash
+source "$REPO_ROOT/lib/handoff.sh"
+source "$REPO_ROOT/lib/json-atomic.sh"
+PRD_SHA=$(compute_prd_sha "$PRD_PATH")
+for sid in $ELIGIBLE_STORY_IDS; do
+  CONTRACT=$(jq -n --arg id "$sid" --arg sha "$PRD_SHA" --arg ts "$(date -u +%FT%TZ)" \
+    --slurpfile q "$JSON_PATH" '
+      ($q[0].stories[] | select(.id == $id)) as $story |
+      {
+        storyId: $id,
+        prdSha: $sha,
+        acs: ($story.acceptanceCriteria // []),
+        contracts: ($q[0].contracts // {}),
+        files: [($story.tasks // [])[].filePaths // []] | flatten | unique,
+        expectedTests: [($story.tasks // [])[].commands // []] | flatten,
+        plannedBy: "orchestrator",
+        plannedAt: $ts
+      }')
+  write_sprint_contract "$sid" "$CONTRACT"
+done
+```
+
+Schema is documented in `references/sprint-contract.md`.
 
 ## Step 3A: Sequential Execution
 
@@ -757,9 +834,10 @@ Wait for agent completion notifications. Do NOT poll in a loop — Claude Code a
 1. Use `TaskOutput` with `block: false, timeout: 5000`
 2. Check output for `<quantum>STORY_PASSED</quantum>` or `<quantum>STORY_FAILED</quantum>`
 
-**Watchdog tick (Phase 17 wiring, P2.6):** once per check cycle, consult `lib/watchdog.sh` for staleness:
+**Watchdog tick (Phase 17 wiring, P2.6; migrated to reap_agent in P5.A1 / US-001):** once per check cycle, consult `lib/watchdog.sh` for staleness. Three explicit calls fire here: (1) **age-tier check** via `watchdog.sh poll`, (2) **circuit-breaker check** via `watchdog.sh circuit`, and (3) **circuit-breaker reset on STORY_PASSED** via `watchdog.sh reset` (see the success-handler below).
 
 ```bash
+# (1) Age-tier check — fresh / stale-check / stale-reassign / timed-out
 POLL=$(bash "$REPO_ROOT/lib/watchdog.sh" poll "$JSON_PATH")
 for row in $(printf '%s' "$POLL" | jq -rc '.[]'); do
   action=$(jq -r '.recommended_action' <<< "$row")
@@ -768,11 +846,13 @@ for row in $(printf '%s' "$POLL" | jq -rc '.[]'); do
     continue)         : ;;  # no-op
     status-probe)     echo "[WATCHDOG] $sid stale >5min — probing agent output" >&2 ;;
     kill-and-requeue) echo "[WATCHDOG] $sid stale >10min — killing + requeueing" >&2
-                      kill_agent_process "$sid" 2>/dev/null
+                      # Use platform-aware reap_agent (P5.A1 migration);
+                      # falls back to kill on POSIX, taskkill //T //F on Windows.
+                      reap_agent "${REAPER_PID_DIR:-.ql-pids}" "$sid" 2>/dev/null
                       # story status reset to pending; bump startedAt=null
                       ;;
     mark-failed)      echo "[WATCHDOG] $sid >30min — timed out" >&2
-                      kill_agent_process "$sid" 2>/dev/null
+                      reap_agent "${REAPER_PID_DIR:-.ql-pids}" "$sid" 2>/dev/null
                       # append failureLog with phase=watchdog-timeout
                       ;;
   esac
@@ -827,13 +907,20 @@ On each repeated same-error failure for a story, bump the circuit-breaker counte
 ```bash
 ERR_SIG=$(extract_error_signature "$STORY_OUTPUT")  # normalized error stack/phrase
 COUNT=$(bash "$REPO_ROOT/lib/watchdog.sh" bump "$STATE_DIR" "$sid" "$ERR_SIG")
+# (2) Circuit-breaker check — flag stories hitting the same error N times in a row.
 if bash "$REPO_ROOT/lib/watchdog.sh" circuit "$STATE_DIR" "$sid"; then
   echo "[CIRCUIT] $sid hit consecutive-same-error threshold — flagging as fundamental issue" >&2
   # Mark status=failed with retries.maxAttempts reached; do NOT retry.
 fi
 ```
 
-Reset the counter on any pass or any different-category outcome via `bash lib/watchdog.sh reset`.
+(3) Circuit-breaker **reset on STORY_PASSED** — clear the counter on any pass or any different-category outcome via `bash lib/watchdog.sh reset`. This is the third explicit watchdog call wired into Step 3B.3:
+
+```bash
+# Fired from the STORY_PASSED handler below; also called when a story's
+# next failure is in a different error category (different signature).
+bash "$REPO_ROOT/lib/watchdog.sh" reset "$STATE_DIR" "$sid"
+```
 
 **On STORY_PASSED:**
 - Log: `[PASSED] US-XXX - Story Title`

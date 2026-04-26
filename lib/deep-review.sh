@@ -285,14 +285,36 @@ far_filter() {
 # Phase 12 / P1.3 — risk-adaptive reviewer dispatch
 # ------------------------------------------------------------------------------
 
+# _critic_agent_for(provider)
+# P5.A2 / US-002 — map a critic provider name to its agent identifier.
+# 'auto' returns the canonical CRITICAL-tier critic (omc:ask-codex-critic);
+# 'none' returns empty (caller should skip critic dispatch entirely).
+_critic_agent_for() {
+  case "${1:-auto}" in
+    auto|codex) printf 'omc:ask-codex-critic' ;;
+    gemini)     printf 'omc:ask-gemini-critic' ;;
+    claude)     printf 'oh-my-claudecode:critic' ;;
+    none)       printf '' ;;
+    *)          printf 'omc:ask-codex-critic' ;;  # unknown -> auto default
+  esac
+}
+
 # dispatch_set(tier)
 # Echoes a JSON array of reviewer agent IDs that SHOULD be dispatched at the
 # given tier. Canonical table from skills/ql-deep-review/SKILL.md §"Risk
 # scoring". Each tier is a strict superset of the previous, so HIGH includes
 # all MEDIUM reviewers, and CRITICAL includes all HIGH reviewers plus the
 # cross-provider critic.
+#
+# P5.A2 / US-002: when QL_CRITIC env var is set to a non-'auto' value, the
+# CRITICAL-tier critic agent is overridden (or omitted entirely for 'none').
+# This allows operators to swap codex<->gemini<->claude or disable the critic
+# without modifying the tier-driven core.
 dispatch_set() {
   local tier="${1:?dispatch_set: tier required (LOW|MEDIUM|HIGH|CRITICAL)}"
+  local critic_choice="${QL_CRITIC:-auto}"
+  local critic_agent
+  critic_agent=$(_critic_agent_for "$critic_choice")
   case "$tier" in
     LOW)
       jq -cn '["oh-my-claudecode:code-reviewer","soliton:synthesizer"]' ;;
@@ -301,7 +323,14 @@ dispatch_set() {
     HIGH)
       jq -cn '["oh-my-claudecode:code-reviewer","soliton:synthesizer","oh-my-claudecode:security-reviewer","oh-my-claudecode:test-engineer","oh-my-claudecode:critic","oh-my-claudecode:architect"]' ;;
     CRITICAL)
-      jq -cn '["oh-my-claudecode:code-reviewer","soliton:synthesizer","oh-my-claudecode:security-reviewer","oh-my-claudecode:test-engineer","oh-my-claudecode:critic","oh-my-claudecode:architect","omc:ask-codex-critic"]' ;;
+      if [[ -z "$critic_agent" ]]; then
+        # QL_CRITIC=none -> drop the cross-provider critic from dispatch.
+        jq -cn '["oh-my-claudecode:code-reviewer","soliton:synthesizer","oh-my-claudecode:security-reviewer","oh-my-claudecode:test-engineer","oh-my-claudecode:critic","oh-my-claudecode:architect"]'
+      else
+        jq -cn --arg crit "$critic_agent" \
+          '["oh-my-claudecode:code-reviewer","soliton:synthesizer","oh-my-claudecode:security-reviewer","oh-my-claudecode:test-engineer","oh-my-claudecode:critic","oh-my-claudecode:architect", $crit]'
+      fi
+      ;;
     *)
       printf 'ERROR: unknown tier %q (expected LOW|MEDIUM|HIGH|CRITICAL)\n' "$tier" >&2
       return 1 ;;

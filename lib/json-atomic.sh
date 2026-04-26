@@ -1,7 +1,36 @@
 #!/usr/bin/env bash
 # lib/json-atomic.sh -- Atomic quantum.json write functions for quantum-loop
-# Source this file to use write_quantum_json(), cleanup_stale_tmp(), etc.
-# Requires: jq
+# Source this file to use write_quantum_json(), cleanup_stale_tmp(),
+# compute_prd_sha() (P5.A5 / US-005), etc.
+# Requires: jq, sha256sum (or python3 sha256 fallback)
+
+# compute_prd_sha(prd_path)
+# P5.A5 / US-005 — produces a stable sha256 of the PRD file content,
+# used by the orchestrator pre-flight hash-check to detect PRD drift
+# (RAGShield Level-1 mitigation, arXiv:2604.00387).
+#
+# Excludes trailing whitespace per git hash-object convention so that
+# trivial line-ending or trailing-blank-line edits don't invalidate
+# every story's prdSha. Echoes the 64-char hex sha256 on stdout.
+compute_prd_sha() {
+  local prd_path="${1:?compute_prd_sha: PRD path required}"
+  if [[ ! -f "$prd_path" ]]; then
+    printf "ERROR: compute_prd_sha: file not found: %s\n" "$prd_path" >&2
+    return 1
+  fi
+  # Normalize CRLF to LF, then strip trailing whitespace, for consistent
+  # hashes across platforms (Windows Git Bash autocrlf=true vs Linux/macOS LF).
+  # Without CRLF normalization, the same PRD checked out on Windows vs Linux
+  # produces different sha256s — every story's prdSha would false-positive
+  # as 'stale' in cross-platform setups (CLAUDE.md Platform Notes).
+  # Use python3 for cross-platform consistency (Git Bash, Linux, macOS).
+  python3 -c "
+import sys, hashlib
+with open(sys.argv[1], 'rb') as f:
+    content = f.read().replace(b'\r\n', b'\n').rstrip(b' \t\n')
+print(hashlib.sha256(content).hexdigest())
+" "$prd_path"
+}
 
 # write_quantum_json(json_path, content)
 # Writes content to json_path atomically via a .tmp intermediate file.
