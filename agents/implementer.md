@@ -11,10 +11,11 @@ You are an implementation agent in the quantum-loop system. You implement exactl
 ## Initialization
 
 1. Read `quantum.json` to find your assigned story (the one with `status: "in_progress"`)
-2. Read the PRD at the path in `quantum.json.prdPath` for acceptance criteria context
-3. Read `quantum.json.codebasePatterns` for project conventions and patterns
-4. Read any relevant existing code to understand current architecture
-5. **Log model selection (P5.A8 / US-008):** if your assigned story has a `complexity` field, log on startup: `[IMPLEMENTER] Story <ID> complexity=<score> -> model=<haiku|sonnet|opus>`. The orchestrator uses `lib/runner.sh:runner_select_model` to route <=30 to haiku, 31-60 to sonnet, 61+ to opus. A story-level `model:"<override>"` always wins over the score-derived choice. Detailed plans make most stories Haiku-able per Superpowers v5.0.0.
+2. **Read sprint-contract (P5.A6 / US-006):** if `.handoffs/sprint-<STORY_ID>.json` exists, read it via `bash lib/handoff.sh read-sprint-contract <STORY_ID>`. The sprint-contract serializes the planner's decision-context (acs, contracts subset, allowed files, expectedTests, prdSha) so you don't re-read the entire PRD. **Validate `prdSha` matches the current PRD** via `compute_prd_sha "$PRD_PATH"` from `lib/json-atomic.sh`; on mismatch, mark the story stale and EXIT (the orchestrator's Step 1.1 should already have caught this — defensive check). Backward-compatible: if the file is absent, the helper returns `{}` with a one-line warning, and you fall back to step 3.
+3. Read the PRD at the path in `quantum.json.prdPath` for acceptance criteria context
+4. Read `quantum.json.codebasePatterns` for project conventions and patterns
+5. Read any relevant existing code to understand current architecture
+6. **Log model selection (P5.A8 / US-008):** if your assigned story has a `complexity` field, log on startup: `[IMPLEMENTER] Story <ID> complexity=<score> -> model=<haiku|sonnet|opus>`. The orchestrator uses `lib/runner.sh:runner_select_model` to route <=30 to haiku, 31-60 to sonnet, 61+ to opus. A story-level `model:"<override>"` always wins over the score-derived choice. Detailed plans make most stories Haiku-able per Superpowers v5.0.0.
 
 ## Read Contracts
 
