@@ -7,6 +7,18 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.6.1] - 2026-04-26
+
+### Fixed
+
+Three correctness bugs surfaced by `soliton:pr-review` on the v0.6.0 bundle (1 at-threshold + 2 below-threshold; all confirmed as real cross-environment hazards rather than nits):
+
+- **`lib/runner.sh:write_routing_snapshot` orphan `.tmp` cleanup** — the inline `jq ... > "$qj.tmp" && mv ...` pattern left a 0-byte `$qj.tmp` on jq failure, inconsistent with `lib/json-atomic.sh:write_quantum_json`'s canonical `rm -f "$tmp_path"` failure-branch cleanup. Now the function captures the jq exit code and removes the tmp file before propagating, mirroring the canonical pattern.
+- **`lib/json-atomic.sh:compute_prd_sha` CRLF cross-platform sha mismatch** — the `rstrip(b' \t\n\r')` only stripped trailing whitespace; on Windows with `autocrlf=true`, internal `\r\n` bytes throughout a CRLF-checked-out PRD were retained, producing a different sha256 than the same file on Linux/LF. Every story's `prdSha` would false-positive as `status: "stale"` in cross-platform setups. Now normalizes `\r\n` → `\n` before hashing.
+- **`quantum-loop.sh` `--critic` / `--planner` / `--executor` space-form `$2` guards** — under `set -euo pipefail`, a trailing flag (e.g. `--critic` at end-of-args) crashed with bash's `unbound variable` error; a flag-following pattern (e.g. `--critic --parallel`) consumed the next flag as a value and emitted a generic enum error. Each space-form now guards `[[ $# -lt 2 || "${2:-}" == --* ]]` and emits a user-friendly `Error: --<flag> requires a value (...)` exit-2 message.
+
+No new tests required — these fixes are tightening existing code paths exercised by `tests/test_per_role_routing.sh` (26), `tests/test_prd_hash_pinning.sh` (12), and `tests/test_runner_integration.sh` baseline. Test count and assertion totals unchanged from v0.6.0.
+
 ## [0.6.0] - 2026-04-26
 
 ### Added

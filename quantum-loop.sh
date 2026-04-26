@@ -444,6 +444,10 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --critic)
+      if [[ $# -lt 2 || "${2:-}" == --* ]]; then
+        printf "Error: --critic requires a value (auto|claude|codex|gemini|none)\n" >&2
+        exit 2
+      fi
       QL_CRITIC=$(parse_role_arg critic "$2") || exit 2
       export QL_CRITIC
       shift 2
@@ -456,6 +460,10 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --planner)
+      if [[ $# -lt 2 || "${2:-}" == --* ]]; then
+        printf "Error: --planner requires a value (auto|claude|codex|gemini)\n" >&2
+        exit 2
+      fi
       QL_PLANNER=$(parse_role_arg planner "$2") || exit 2
       export QL_PLANNER
       shift 2
@@ -468,6 +476,10 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --executor)
+      if [[ $# -lt 2 || "${2:-}" == --* ]]; then
+        printf "Error: --executor requires a value (auto|claude|codex|gemini)\n" >&2
+        exit 2
+      fi
       QL_EXECUTOR=$(parse_role_arg executor "$2") || exit 2
       export QL_EXECUTOR
       shift 2

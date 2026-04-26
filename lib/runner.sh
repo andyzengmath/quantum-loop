@@ -397,7 +397,14 @@ write_routing_snapshot() {
     printf "ERROR: quantum.json not found at %s\n" "$qj" >&2
     return 1
   fi
-  jq --argjson r "$routing" '.routing = $r' "$qj" > "$qj.tmp" && mv "$qj.tmp" "$qj"
+  local tmp="$qj.tmp"
+  if jq --argjson r "$routing" '.routing = $r' "$qj" > "$tmp"; then
+    mv "$tmp" "$qj"
+  else
+    local rc=$?
+    rm -f "$tmp"
+    return "$rc"
+  fi
 }
 
 # read_routing_snapshot(quantum_json_path)
