@@ -7,6 +7,36 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.6.0] - 2026-04-26
+
+### Added
+
+P5.A cleanup bundle (8 items) + P5.B1 per-role provider routing + P5.Z1 dogfood retrospective. Bigger dogfood than v0.5.1's --audit (10 stories, 5 waves, multi-runner dispatch). Closes P2.9 fully via OMC v4.12 mechanism port.
+
+- **`agents/orchestrator.md` Step 3B.3 watchdog wiring** (US-001) — 3 explicit calls (poll, circuit, reset on STORY_PASSED) with reap_agent migration for platform-aware kills via taskkill on Windows.
+- **`--critic=auto|codex|gemini|claude|none`** (US-002) — operator-facing critic provider flag with availability detection and fallback (subsumed by --planner/--critic/--executor in US-009).
+- **`lib/deslop.sh` regex fallback** (US-003) — when knip/ts-prune/vulture/cargo-udeps/staticcheck are absent, dispatches to `lib/dead-code.sh` with normalized `{file, line, kind, severity}` schema.
+- **5 new runner manifests** (US-004) — `runners/{opencode,devin,kiro,goose,cline}.json`, all `experimental: true`. `opencode.json` includes skill_discovery_paths quirk for Superpowers v5 plugin pattern compatibility.
+- **`prdSha` field per story** (US-005) — RAGShield Level-1 drift detection (arXiv:2604.00387). `lib/json-atomic.sh:compute_prd_sha` produces a stable sha256; orchestrator Step 1.1 hash-check marks mismatched stories `status: "stale"` for re-plan.
+- **Sprint-Contract handoff** (US-006) — per-story `.handoffs/sprint-<storyId>.json` written by `/ql-plan` and consumed by `/ql-execute` + `/ql-review`. Mirrors Anthropic's 2026-03-24 Generator-Evaluator contract pattern. Schema documented in `references/sprint-contract.md`.
+- **Inline self-review checklists** (US-007) — `[INLINE-REVIEW] typecheck OK / lint OK / all assigned tests pass / file-org follows project conventions` tokens in implementer prompt before STORY_PASSED. Subagent dispatch reserved for adversarial review (cross-story conflict, intent drift, security). 25min -> 30s on routine path per Superpowers v5.0.6.
+- **`complexity` field per story + `runner_select_model`** (US-008) — formula `min(100, task_count*10 + dependsOn_depth*15 + (security_tag ? 30 : 0) + filePaths_count*2)`. Routes <=30 -> haiku, 31-60 -> sonnet, 61+ -> opus. Story-level `model:'<override>'` wins.
+- **`--planner / --critic / --executor` per-role routing** (US-009) — ports OMC v4.12 mechanism. `lib/runner.sh:resolve_routing` resolves each role with availability check + fallback to claude. Snapshot persisted to `quantum.json.routing` for replay determinism. Closes P2.9 fully.
+- **`idea-stage/PIPELINE_REPORT_v3.md` + `idea-stage/IDEA_REPORT_v3.md`** (US-010) — v0.6.0 dogfood findings: 9/9 user-facing stories first-attempt PASS across 5 waves (5 parallel + 2 parallel + 3 sequential). 5 NEW codebasePatterns logged. P5.B2-B5 + P5.C frontier remain open for v0.7+. Test-suite delta: ~+110 new assertions, zero regressions.
+
+### Test-suite delta
+
+110+ new assertions across 8 new test files. Zero regressions in pre-existing suites:
+- `tests/test_watchdog_wiring.sh` (9), `tests/test_cross_provider_critic_flag.sh` (13), `tests/test_deslop_regex_fallback.sh` (7)
+- `tests/test_runner_manifests.sh` extended +28 assertions, `tests/test_complexity_routing.sh` (19)
+- `tests/test_prd_hash_pinning.sh` (12), `tests/test_sprint_contract.sh` (11)
+- `tests/test_per_role_routing.sh` (26), `tests/test_per_role_routing_integration.sh` (6)
+- `tests/test_orchestrator_wiring.sh` extended +7 assertions for inline-checklist tokens
+
+### Dogfood milestone (v0.6.0)
+
+The pipeline executed its largest fan-out yet: **5-story parallel wave-0** with worktree isolation, zero file-conflict resolution failures. The DAG validator's Rule 0 fileConflicts severity=none classification held perfectly across all 10 conflicts. 5 NEW codebasePatterns surfaced (cross-module rename doc-comment scanning, jq validator gaps, PATH manipulation in tests, test-guard carve-outs, set -uo pipefail return-1 termination). All retrospective material captured in `idea-stage/PIPELINE_REPORT_v3.md` + `idea-stage/IDEA_REPORT_v3.md`.
+
 ## [0.5.1] - 2026-04-24
 
 ### Added
