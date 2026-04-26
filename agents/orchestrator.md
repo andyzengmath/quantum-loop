@@ -22,6 +22,32 @@ You manage the full execution lifecycle for quantum-loop. You read quantum.json,
    ```
 7. Count stories by status and report summary to user
 
+### Step 1.1: PRD Hash-Check (P5.A5 / US-005)
+
+After reading the PRD, compute its sha256 via `compute_prd_sha` (from `lib/json-atomic.sh`) and compare against each story's `prdSha` field. This is the cheapest possible mitigation against PRD drift (RAGShield Level-1, arXiv:2604.00387).
+
+```bash
+source "$REPO_ROOT/lib/json-atomic.sh"
+CURRENT_PRD_SHA=$(compute_prd_sha "$PRD_PATH")
+
+for story_id in $(jq -r '.stories[].id' "$JSON_PATH"); do
+  STORED_SHA=$(jq -r --arg id "$story_id" '.stories[] | select(.id==$id) | .prdSha // ""' "$JSON_PATH")
+  if [[ -z "$STORED_SHA" || "$STORED_SHA" == "null" ]]; then
+    # Backward-compat: stories without prdSha proceed unchanged. Log warning once.
+    echo "[PRD-HASH] $story_id has no prdSha — proceeding (back-compat)" >&2
+    continue
+  fi
+  if [[ "$STORED_SHA" != "$CURRENT_PRD_SHA" ]]; then
+    echo "[PRD-HASH] $story_id WARNING: stored prdSha=${STORED_SHA:0:12} != current=${CURRENT_PRD_SHA:0:12}; marking stale (re-plan needed)" >&2
+    jq --arg id "$story_id" '
+      (.stories[] | select(.id==$id) | .status) = "stale"
+    ' "$JSON_PATH" > "$JSON_PATH.tmp" && mv "$JSON_PATH.tmp" "$JSON_PATH"
+  fi
+done
+```
+
+Stories with `status: "stale"` are excluded from the eligible-stories DAG query in Step 2. They remain in quantum.json so the operator (or `/ql-plan` re-run) can re-validate them against the updated PRD.
+
 ### Init-Guard and Resilience Integration
 
 After branch verification and before counting stories, source the init-guard and resilience modules:
