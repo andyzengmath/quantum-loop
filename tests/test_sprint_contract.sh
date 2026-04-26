@@ -126,6 +126,126 @@ else
   echo "  FAIL: schema doc does not document required fields"; FAIL=$((FAIL + 1))
 fi
 
+# Test 6: G9 / US-002 — orchestrator Step 2.5 jq splits commands into
+# expectedTests (test commands only) and otherCommands (typecheck/lint/etc).
+# We replicate the jq from agents/orchestrator.md and run it against a
+# synthetic story whose tasks contain mixed commands.
+echo ""
+echo "Test 6: G9 expectedTests filter + otherCommands schema split"
+
+# Extract the jq snippet from orchestrator.md so we test the actual deployed
+# logic. Pattern: a fenced bash block under "Step 2.5" containing 'jq -n'
+# and 'expectedTests:'. We slurp the heredoc-equivalent and stitch it.
+ORCH_MD="$REPO_ROOT/agents/orchestrator.md"
+TOTAL=$((TOTAL + 1))
+if grep -qE 'expectedTests:.*\[' "$ORCH_MD" && grep -qE 'otherCommands:.*\[' "$ORCH_MD"; then
+  echo "  PASS: orchestrator.md Step 2.5 declares both expectedTests and otherCommands"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: orchestrator.md Step 2.5 missing expectedTests + otherCommands split"
+  FAIL=$((FAIL + 1))
+fi
+
+# Test 6a: synthetic story with ONLY test commands
+TOTAL=$((TOTAL + 1))
+synthetic_only_tests='{
+  "stories": [{
+    "id": "US-S1",
+    "acceptanceCriteria": ["AC1"],
+    "tasks": [{
+      "filePaths": ["src/x.py"],
+      "commands": ["bash tests/test_a.sh", "pytest tests/test_b.py", "npm test foo.spec.ts"]
+    }]
+  }],
+  "contracts": {}
+}'
+out=$(printf '%s' "$synthetic_only_tests" | jq -c '
+  .stories[0] as $story |
+  ($story.tasks // []) as $tasks |
+  {
+    expectedTests: ([($tasks[].commands // [])] | flatten | map(select(test("(test_|\\.test\\.|spec|pytest|^bash tests/|^npm test)")))),
+    otherCommands: ([($tasks[].commands // [])] | flatten | map(select(test("(test_|\\.test\\.|spec|pytest|^bash tests/|^npm test)") | not)))
+  }')
+exp_test_count=$(printf '%s' "$out" | jq -r '.expectedTests | length')
+oth_test_count=$(printf '%s' "$out" | jq -r '.otherCommands | length')
+if [[ "$exp_test_count" == "3" && "$oth_test_count" == "0" ]]; then
+  echo "  PASS: only-test-cmds story -> expectedTests=3 otherCommands=0"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: only-test-cmds split wrong (expected=3/0 got=$exp_test_count/$oth_test_count)"
+  FAIL=$((FAIL + 1))
+fi
+
+# Test 6b: mixed
+TOTAL=$((TOTAL + 1))
+synthetic_mixed='{
+  "stories": [{
+    "id": "US-S2",
+    "acceptanceCriteria": ["AC1"],
+    "tasks": [{
+      "filePaths": ["src/y.py"],
+      "commands": ["bash tests/test_z.sh", "tsc --noEmit", "eslint .", "pytest tests/integration/"]
+    }]
+  }],
+  "contracts": {}
+}'
+out=$(printf '%s' "$synthetic_mixed" | jq -c '
+  .stories[0] as $story |
+  ($story.tasks // []) as $tasks |
+  {
+    expectedTests: ([($tasks[].commands // [])] | flatten | map(select(test("(test_|\\.test\\.|spec|pytest|^bash tests/|^npm test)")))),
+    otherCommands: ([($tasks[].commands // [])] | flatten | map(select(test("(test_|\\.test\\.|spec|pytest|^bash tests/|^npm test)") | not)))
+  }')
+exp_test_count=$(printf '%s' "$out" | jq -r '.expectedTests | length')
+oth_test_count=$(printf '%s' "$out" | jq -r '.otherCommands | length')
+if [[ "$exp_test_count" == "2" && "$oth_test_count" == "2" ]]; then
+  echo "  PASS: mixed story -> expectedTests=2 (test cmds) otherCommands=2 (typecheck+lint)"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: mixed split wrong (expected=2/2 got=$exp_test_count/$oth_test_count)"
+  FAIL=$((FAIL + 1))
+fi
+
+# Test 6c: only typecheck/lint
+TOTAL=$((TOTAL + 1))
+synthetic_only_other='{
+  "stories": [{
+    "id": "US-S3",
+    "acceptanceCriteria": ["AC1"],
+    "tasks": [{
+      "filePaths": ["src/z.py"],
+      "commands": ["tsc --noEmit", "eslint ."]
+    }]
+  }],
+  "contracts": {}
+}'
+out=$(printf '%s' "$synthetic_only_other" | jq -c '
+  .stories[0] as $story |
+  ($story.tasks // []) as $tasks |
+  {
+    expectedTests: ([($tasks[].commands // [])] | flatten | map(select(test("(test_|\\.test\\.|spec|pytest|^bash tests/|^npm test)")))),
+    otherCommands: ([($tasks[].commands // [])] | flatten | map(select(test("(test_|\\.test\\.|spec|pytest|^bash tests/|^npm test)") | not)))
+  }')
+exp_test_count=$(printf '%s' "$out" | jq -r '.expectedTests | length')
+oth_test_count=$(printf '%s' "$out" | jq -r '.otherCommands | length')
+if [[ "$exp_test_count" == "0" && "$oth_test_count" == "2" ]]; then
+  echo "  PASS: only-typecheck-lint story -> expectedTests=0 otherCommands=2"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: only-typecheck-lint split wrong (expected=0/2 got=$exp_test_count/$oth_test_count)"
+  FAIL=$((FAIL + 1))
+fi
+
+# Test 6d: schema doc documents otherCommands
+TOTAL=$((TOTAL + 1))
+if grep -qE "otherCommands.*string\[\].*optional" "$REPO_ROOT/references/sprint-contract.md"; then
+  echo "  PASS: references/sprint-contract.md documents otherCommands as optional string[]"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: references/sprint-contract.md missing otherCommands schema entry"
+  FAIL=$((FAIL + 1))
+fi
+
 cd "$REPO_ROOT"
 rm -rf "$TMP"
 

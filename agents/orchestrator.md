@@ -265,7 +265,9 @@ This prevents interface-changing stories from running in parallel with their con
 
 ### Step 2.5: Sprint-Contract Emission (P5.A6 / US-006)
 
-For each eligible story (whether dispatched sequentially or in parallel), write its Sprint-Contract to `.handoffs/sprint-<storyId>.json` via `bash lib/handoff.sh write-sprint-contract <storyId> '<json>'`. The contract serializes the planner's decision-context — `acs`, the relevant `contracts` subset, allowed `files`, `expectedTests`, `prdSha`, `plannedBy`, `plannedAt` — so the implementer + reviewers can read it instead of re-parsing the full PRD. This mirrors Anthropic's 2026-03-24 Generator-Evaluator contract.
+For each eligible story (whether dispatched sequentially or in parallel), write its Sprint-Contract to `.handoffs/sprint-<storyId>.json` via `bash lib/handoff.sh write-sprint-contract <storyId> '<json>'`. The contract serializes the planner's decision-context — `acs`, the relevant `contracts` subset, allowed `files`, `expectedTests`, `otherCommands`, `prdSha`, `plannedBy`, `plannedAt` — so the implementer + reviewers can read it instead of re-parsing the full PRD. This mirrors Anthropic's 2026-03-24 Generator-Evaluator contract.
+
+**G9 / US-002 (v0.6.3):** the per-task `commands` array is split into two siblings. `expectedTests` contains only test-pattern commands (regex `(test_|\.test\.|spec|pytest|^bash tests/|^npm test)`); the rest (typecheck, lint, build, install, etc.) go into `otherCommands`. This lets the implementer wave-end gate run `expectedTests` as the test-suite check and `otherCommands` as the auxiliary-quality gate without conflating them. Backward-compat: existing readers that ignore unknown fields are unaffected.
 
 ```bash
 source "$REPO_ROOT/lib/handoff.sh"
@@ -275,13 +277,15 @@ for sid in $ELIGIBLE_STORY_IDS; do
   CONTRACT=$(jq -n --arg id "$sid" --arg sha "$PRD_SHA" --arg ts "$(date -u +%FT%TZ)" \
     --slurpfile q "$JSON_PATH" '
       ($q[0].stories[] | select(.id == $id)) as $story |
+      ($story.tasks // []) as $tasks |
       {
         storyId: $id,
         prdSha: $sha,
         acs: ($story.acceptanceCriteria // []),
         contracts: ($q[0].contracts // {}),
-        files: [($story.tasks // [])[].filePaths // []] | flatten | unique,
-        expectedTests: [($story.tasks // [])[].commands // []] | flatten,
+        files: [$tasks[].filePaths // []] | flatten | unique,
+        expectedTests: ([$tasks[].commands // []] | flatten | map(select(test("(test_|\\.test\\.|spec|pytest|^bash tests/|^npm test)")))),
+        otherCommands: ([$tasks[].commands // []] | flatten | map(select(test("(test_|\\.test\\.|spec|pytest|^bash tests/|^npm test)") | not))),
         plannedBy: "orchestrator",
         plannedAt: $ts
       }')
