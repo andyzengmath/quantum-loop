@@ -757,9 +757,10 @@ Wait for agent completion notifications. Do NOT poll in a loop — Claude Code a
 1. Use `TaskOutput` with `block: false, timeout: 5000`
 2. Check output for `<quantum>STORY_PASSED</quantum>` or `<quantum>STORY_FAILED</quantum>`
 
-**Watchdog tick (Phase 17 wiring, P2.6):** once per check cycle, consult `lib/watchdog.sh` for staleness:
+**Watchdog tick (Phase 17 wiring, P2.6; migrated to reap_agent in P5.A1 / US-001):** once per check cycle, consult `lib/watchdog.sh` for staleness. Three explicit calls fire here: (1) **age-tier check** via `watchdog.sh poll`, (2) **circuit-breaker check** via `watchdog.sh circuit`, and (3) **circuit-breaker reset on STORY_PASSED** via `watchdog.sh reset` (see the success-handler below).
 
 ```bash
+# (1) Age-tier check — fresh / stale-check / stale-reassign / timed-out
 POLL=$(bash "$REPO_ROOT/lib/watchdog.sh" poll "$JSON_PATH")
 for row in $(printf '%s' "$POLL" | jq -rc '.[]'); do
   action=$(jq -r '.recommended_action' <<< "$row")
@@ -768,11 +769,13 @@ for row in $(printf '%s' "$POLL" | jq -rc '.[]'); do
     continue)         : ;;  # no-op
     status-probe)     echo "[WATCHDOG] $sid stale >5min — probing agent output" >&2 ;;
     kill-and-requeue) echo "[WATCHDOG] $sid stale >10min — killing + requeueing" >&2
-                      kill_agent_process "$sid" 2>/dev/null
+                      # Use platform-aware reap_agent (P5.A1 migration);
+                      # falls back to kill on POSIX, taskkill //T //F on Windows.
+                      reap_agent "${REAPER_PID_DIR:-.ql-pids}" "$sid" 2>/dev/null
                       # story status reset to pending; bump startedAt=null
                       ;;
     mark-failed)      echo "[WATCHDOG] $sid >30min — timed out" >&2
-                      kill_agent_process "$sid" 2>/dev/null
+                      reap_agent "${REAPER_PID_DIR:-.ql-pids}" "$sid" 2>/dev/null
                       # append failureLog with phase=watchdog-timeout
                       ;;
   esac
@@ -827,13 +830,20 @@ On each repeated same-error failure for a story, bump the circuit-breaker counte
 ```bash
 ERR_SIG=$(extract_error_signature "$STORY_OUTPUT")  # normalized error stack/phrase
 COUNT=$(bash "$REPO_ROOT/lib/watchdog.sh" bump "$STATE_DIR" "$sid" "$ERR_SIG")
+# (2) Circuit-breaker check — flag stories hitting the same error N times in a row.
 if bash "$REPO_ROOT/lib/watchdog.sh" circuit "$STATE_DIR" "$sid"; then
   echo "[CIRCUIT] $sid hit consecutive-same-error threshold — flagging as fundamental issue" >&2
   # Mark status=failed with retries.maxAttempts reached; do NOT retry.
 fi
 ```
 
-Reset the counter on any pass or any different-category outcome via `bash lib/watchdog.sh reset`.
+(3) Circuit-breaker **reset on STORY_PASSED** — clear the counter on any pass or any different-category outcome via `bash lib/watchdog.sh reset`. This is the third explicit watchdog call wired into Step 3B.3:
+
+```bash
+# Fired from the STORY_PASSED handler below; also called when a story's
+# next failure is in a different error category (different signature).
+bash "$REPO_ROOT/lib/watchdog.sh" reset "$STATE_DIR" "$sid"
+```
 
 **On STORY_PASSED:**
 - Log: `[PASSED] US-XXX - Story Title`
