@@ -41,8 +41,62 @@ TOOL="claude"
 PARALLEL_MODE=false
 MAX_PARALLEL=4
 STALE_TIMEOUT=20
-QL_CRITIC="${QL_CRITIC:-auto}"  # P5.A2 / US-002 default
+QL_CRITIC="${QL_CRITIC:-auto}"      # P5.A2 / US-002 default
+QL_PLANNER="${QL_PLANNER:-auto}"    # P5.B1 / US-009 default
+QL_EXECUTOR="${QL_EXECUTOR:-auto}"  # P5.B1 / US-009 default
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# =============================================================================
+# P5.B1 / US-009 — Per-role provider routing (--planner / --critic / --executor)
+# Subsumes US-002's --critic flag; adds --planner and --executor with the
+# same availability-check + fallback semantics. Resolved choices are
+# snapshotted to quantum.json.routing at run start for replay determinism.
+# =============================================================================
+
+# parse_role_arg ROLE VALUE
+# Validates VALUE against the per-role enum and runs availability check.
+# Roles: planner | critic | executor.
+# Enums:
+#   planner:  auto | claude | codex | gemini
+#   critic:   auto | claude | codex | gemini | none  (critic may be disabled)
+#   executor: auto | claude | codex | gemini
+# On absence of codex/gemini, emits WARN to stderr and rewrites to 'claude'.
+parse_role_arg() {
+  local role="${1:-}"
+  local value="${2:-}"
+  case "$role" in
+    planner|critic|executor) : ;;
+    *) printf "Error: parse_role_arg: unknown role %q\n" "$role" >&2; return 1 ;;
+  esac
+
+  case "$value" in
+    auto|claude|codex|gemini) : ;;
+    none)
+      if [[ "$role" != "critic" ]]; then
+        printf "Error: --%s=none not supported (only --critic accepts 'none')\n" "$role" >&2
+        return 1
+      fi
+      ;;
+    *)
+      local extra=""
+      [[ "$role" == "critic" ]] && extra='|none'
+      printf "Error: --%s value must be auto|claude|codex|gemini%s (got [%s])\n" \
+        "$role" "$extra" "$value" >&2
+      return 1
+      ;;
+  esac
+
+  # Availability check for non-claude/auto/none providers
+  case "$value" in
+    codex|gemini)
+      if ! command -v "$value" >/dev/null 2>&1; then
+        printf "WARN: per-role routing: %s provider %s not available, falling back to claude\n" "$role" "$value" >&2
+        value="claude"
+      fi
+      ;;
+  esac
+  printf '%s' "$value"
+}
 
 # =============================================================================
 # P5.A2 / US-002 — --critic=auto|codex|gemini|claude|none flag with
@@ -50,6 +104,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # dispatch (lib/deep-review.sh); 'none' disables critic entirely; explicit
 # values override. When chosen provider's CLI binary is not on \$PATH, log
 # warning and degrade to 'none' rather than failing the review gate.
+# Note: parse_role_arg above is the unified entry point; parse_critic_arg
+# remains for backward compatibility with US-002 callers.
 # =============================================================================
 
 # parse_critic_arg VALUE
@@ -381,15 +437,39 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     --critic=*)
-      # P5.A2 / US-002 -- critic provider routing
+      # P5.A2 / US-002 -- critic provider routing (subsumed by US-009 per-role)
       _ql_critic_raw="${1#--critic=}"
-      QL_CRITIC=$(parse_critic_arg "$_ql_critic_raw") || exit 2
+      QL_CRITIC=$(parse_role_arg critic "$_ql_critic_raw") || exit 2
       export QL_CRITIC
       shift
       ;;
     --critic)
-      QL_CRITIC=$(parse_critic_arg "$2") || exit 2
+      QL_CRITIC=$(parse_role_arg critic "$2") || exit 2
       export QL_CRITIC
+      shift 2
+      ;;
+    --planner=*)
+      # P5.B1 / US-009 — per-role planner routing
+      _ql_planner_raw="${1#--planner=}"
+      QL_PLANNER=$(parse_role_arg planner "$_ql_planner_raw") || exit 2
+      export QL_PLANNER
+      shift
+      ;;
+    --planner)
+      QL_PLANNER=$(parse_role_arg planner "$2") || exit 2
+      export QL_PLANNER
+      shift 2
+      ;;
+    --executor=*)
+      # P5.B1 / US-009 — per-role executor routing
+      _ql_executor_raw="${1#--executor=}"
+      QL_EXECUTOR=$(parse_role_arg executor "$_ql_executor_raw") || exit 2
+      export QL_EXECUTOR
+      shift
+      ;;
+    --executor)
+      QL_EXECUTOR=$(parse_role_arg executor "$2") || exit 2
+      export QL_EXECUTOR
       shift 2
       ;;
     --non-interactive)

@@ -33,21 +33,40 @@ param(
     [string]$Tool = "claude",
     [ValidateSet("auto","codex","gemini","claude","none")]
     [string]$Critic = "auto",
+    [ValidateSet("auto","codex","gemini","claude")]
+    [string]$Planner = "auto",
+    [ValidateSet("auto","codex","gemini","claude")]
+    [string]$Executor = "auto",
     [switch]$NonInteractive
 )
 
 $ErrorActionPreference = "Stop"
 
-# P5.A2 / US-002 — Critic provider availability check + fallback.
+# P5.A2 / US-002 + P5.B1 / US-009 — Per-role provider availability check.
 # auto -> existing tier-driven dispatch; none -> skip critic; explicit
-# values resolve via Get-Command. Missing binary -> WARN + degrade to 'none'.
+# values resolve via Get-Command. Missing binary -> WARN + degrade
+# (critic to 'none', planner/executor to 'claude').
 if ($Critic -eq "codex" -or $Critic -eq "gemini") {
     if (-not (Get-Command $Critic -ErrorAction SilentlyContinue)) {
         Write-Warning "WARN: critic provider $Critic not available, falling back to none"
         $Critic = "none"
     }
 }
+if ($Planner -eq "codex" -or $Planner -eq "gemini") {
+    if (-not (Get-Command $Planner -ErrorAction SilentlyContinue)) {
+        Write-Warning "WARN: per-role routing: planner provider $Planner not available, falling back to claude"
+        $Planner = "claude"
+    }
+}
+if ($Executor -eq "codex" -or $Executor -eq "gemini") {
+    if (-not (Get-Command $Executor -ErrorAction SilentlyContinue)) {
+        Write-Warning "WARN: per-role routing: executor provider $Executor not available, falling back to claude"
+        $Executor = "claude"
+    }
+}
 $env:QL_CRITIC = $Critic
+$env:QL_PLANNER = $Planner
+$env:QL_EXECUTOR = $Executor
 
 # ─── Dependency Check ───
 if (-not (Get-Command "jq" -ErrorAction SilentlyContinue)) {

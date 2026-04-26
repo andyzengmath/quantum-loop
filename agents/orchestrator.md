@@ -22,6 +22,29 @@ You manage the full execution lifecycle for quantum-loop. You read quantum.json,
    ```
 7. Count stories by status and report summary to user
 
+### Step 1.0.5: Per-role Routing Snapshot (P5.B1 / US-009)
+
+After sourcing `lib/runner.sh`, read the persisted routing snapshot from `quantum.json.routing` and use it as the default per-role provider when CLI flags are absent. This ports OMC v4.12.0 mechanism to make provider choice operator-visible and replayable.
+
+```bash
+SNAPSHOT=$(read_routing_snapshot "$JSON_PATH")
+# CLI flags (QL_PLANNER/CRITIC/EXECUTOR) override the snapshot when set.
+PLANNER="${QL_PLANNER:-$(printf '%s' "$SNAPSHOT" | jq -r '.planner // "auto"')}"
+CRITIC="${QL_CRITIC:-$(printf '%s' "$SNAPSHOT" | jq -r '.critic // "auto"')}"
+EXECUTOR="${QL_EXECUTOR:-$(printf '%s' "$SNAPSHOT" | jq -r '.executor // "auto"')}"
+
+# Re-resolve to handle availability changes since the snapshot was written
+ROUTING=$(resolve_routing "$PLANNER" "$CRITIC" "$EXECUTOR")
+write_routing_snapshot "$JSON_PATH" "$ROUTING"
+
+# Export for downstream consumers (lib/deep-review.sh, lib/spawn.sh)
+export QL_ROLE_PLANNER=$(printf '%s' "$ROUTING" | jq -r '.planner')
+export QL_ROLE_CRITIC=$(printf '%s' "$ROUTING" | jq -r '.critic')
+export QL_ROLE_EXECUTOR=$(printf '%s' "$ROUTING" | jq -r '.executor')
+```
+
+If a role's provider becomes unavailable on replay, `_availability_check` falls back to `claude` and emits a one-line WARN. Replay determinism: when no CLI flags are passed, the orchestrator re-uses the prior snapshot's choices verbatim (modulo availability).
+
 ### Step 1.1: PRD Hash-Check (P5.A5 / US-005)
 
 After reading the PRD, compute its sha256 via `compute_prd_sha` (from `lib/json-atomic.sh`) and compare against each story's `prdSha` field. This is the cheapest possible mitigation against PRD drift (RAGShield Level-1, arXiv:2604.00387).

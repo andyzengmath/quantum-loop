@@ -305,6 +305,117 @@ runner_parse_output() {
 }
 
 # =============================================================================
+# P5.B1 / US-009 — Per-role provider routing with resolved-routing snapshot.
+# =============================================================================
+#
+# Ports OMC v4.12.0 mechanism. Operator passes --planner / --critic /
+# --executor flags; at run start we resolve each role's provider via
+# availability check, fall back to claude on absence, and snapshot the
+# resolved choices into quantum.json.routing for replay determinism.
+# Closes P2.9 fully and addresses §4.1 OMC tight-coupling.
+
+# _availability_check(provider, role)
+# Echoes the resolved provider name (possibly degraded). Returns 0 always.
+# Emits a one-line WARN to stderr when the requested provider is not on
+# $PATH and falls back to claude.
+_availability_check() {
+  local provider="${1:-auto}"
+  local role="${2:-unknown}"
+  case "$provider" in
+    auto|claude|none)
+      printf '%s' "$provider"
+      return 0
+      ;;
+    *)
+      if command -v "$provider" >/dev/null 2>&1; then
+        printf '%s' "$provider"
+      else
+        printf "WARN: per-role routing: %s provider %s not available, falling back to claude\n" "$role" "$provider" >&2
+        printf 'claude'
+      fi
+      return 0
+      ;;
+  esac
+}
+
+# _provider_version(provider)
+# Best-effort CLI version string ("unknown" when not detectable, "n/a" for auto/none).
+_provider_version() {
+  local p="${1:-}"
+  case "$p" in
+    none|auto) printf 'n/a' ;;
+    *)
+      if command -v "$p" >/dev/null 2>&1; then
+        "$p" --version 2>/dev/null | head -1 | tr -d '\r' | head -c 80 || printf 'unknown'
+      else
+        printf 'unknown'
+      fi
+      ;;
+  esac
+}
+
+# resolve_routing(planner, critic, executor)
+# Performs availability check + fallback per role and emits the resolved
+# routing object as compact JSON: {planner, critic, executor, resolvedAt,
+# versions:{<provider>:'<version>'}}.
+resolve_routing() {
+  local p="${1:-auto}"
+  local c="${2:-auto}"
+  local e="${3:-auto}"
+
+  local rp rc re
+  rp=$(_availability_check "$p" "planner")
+  rc=$(_availability_check "$c" "critic")
+  re=$(_availability_check "$e" "executor")
+
+  local now
+  now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+  # Build versions dict only for actually-used providers
+  local versions='{}'
+  for v in "$rp" "$rc" "$re"; do
+    [[ "$v" == "none" || "$v" == "auto" ]] && continue
+    # Avoid duplicate version probes
+    if printf '%s' "$versions" | jq -e --arg k "$v" 'has($k)' >/dev/null 2>&1; then continue; fi
+    local ver
+    ver=$(_provider_version "$v")
+    versions=$(jq -c --arg k "$v" --arg ver "$ver" '. + {($k): $ver}' <<< "$versions")
+  done
+
+  jq -cn \
+    --arg p "$rp" --arg c "$rc" --arg e "$re" \
+    --arg ts "$now" --argjson vs "$versions" \
+    '{planner: $p, critic: $c, executor: $e, resolvedAt: $ts, versions: $vs}'
+}
+
+# write_routing_snapshot(quantum_json_path, routing_json)
+# Persists the routing object under .routing in quantum.json (atomic).
+write_routing_snapshot() {
+  local qj="${1:?write_routing_snapshot: quantum.json path required}"
+  local routing="${2:?write_routing_snapshot: routing JSON required}"
+  if [[ ! -f "$qj" ]]; then
+    printf "ERROR: quantum.json not found at %s\n" "$qj" >&2
+    return 1
+  fi
+  jq --argjson r "$routing" '.routing = $r' "$qj" > "$qj.tmp" && mv "$qj.tmp" "$qj"
+}
+
+# read_routing_snapshot(quantum_json_path)
+# Echoes the routing object from quantum.json or {} if absent.
+read_routing_snapshot() {
+  local qj="${1:?read_routing_snapshot: quantum.json path required}"
+  [[ -f "$qj" ]] || { printf '{}'; return 0; }
+  jq -c '.routing // {}' "$qj"
+}
+
+# Per-role dispatch hooks — exported so spawn.sh / deep-review.sh can
+# read them without re-resolving. These are populated at run start by
+# the orchestrator (or tests, via direct env).
+QL_ROLE_PLANNER="${QL_ROLE_PLANNER:-${QL_PLANNER:-auto}}"
+QL_ROLE_CRITIC="${QL_ROLE_CRITIC:-${QL_CRITIC:-auto}}"
+QL_ROLE_EXECUTOR="${QL_ROLE_EXECUTOR:-${QL_EXECUTOR:-auto}}"
+
+# =============================================================================
 # P5.A8 / US-008 — Cheapest-capable-model routing per task.
 # =============================================================================
 #
