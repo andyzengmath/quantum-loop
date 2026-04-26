@@ -41,7 +41,45 @@ TOOL="claude"
 PARALLEL_MODE=false
 MAX_PARALLEL=4
 STALE_TIMEOUT=20
+QL_CRITIC="${QL_CRITIC:-auto}"  # P5.A2 / US-002 default
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# =============================================================================
+# P5.A2 / US-002 — --critic=auto|codex|gemini|claude|none flag with
+# availability detection at runtime. 'auto' triggers existing tier-driven
+# dispatch (lib/deep-review.sh); 'none' disables critic entirely; explicit
+# values override. When chosen provider's CLI binary is not on \$PATH, log
+# warning and degrade to 'none' rather than failing the review gate.
+# =============================================================================
+
+# parse_critic_arg VALUE
+# Validates VALUE against the enum (auto|codex|gemini|claude|none) and runs
+# availability check on codex/gemini. On absence, emits WARN to stderr and
+# rewrites the choice to 'none'. Echoes the resolved value on stdout.
+# Returns 0 on success, 1 on invalid enum value (caller should exit).
+parse_critic_arg() {
+  local value="${1:-}"
+  case "$value" in
+    auto|codex|gemini|claude|none) : ;;
+    *)
+      printf "Error: --critic value must be one of auto|codex|gemini|claude|none (got [%s])\n" "$value" >&2
+      return 1
+      ;;
+  esac
+
+  # Availability check for external providers.
+  # claude is assumed present (the orchestrator binary itself); auto/none
+  # never need a binary check.
+  case "$value" in
+    codex|gemini)
+      if ! command -v "$value" >/dev/null 2>&1; then
+        printf "WARN: critic provider %s not available, falling back to none\n" "$value" >&2
+        value="none"
+      fi
+      ;;
+  esac
+  printf '%s' "$value"
+}
 
 # =============================================================================
 # --audit flag support (Phase 44 / US-001 -- US-004). Read-only repo-hygiene
@@ -340,6 +378,18 @@ while [[ $# -gt 0 ]]; do
       ;;
     --stale-timeout)
       STALE_TIMEOUT="$2"
+      shift 2
+      ;;
+    --critic=*)
+      # P5.A2 / US-002 -- critic provider routing
+      _ql_critic_raw="${1#--critic=}"
+      QL_CRITIC=$(parse_critic_arg "$_ql_critic_raw") || exit 2
+      export QL_CRITIC
+      shift
+      ;;
+    --critic)
+      QL_CRITIC=$(parse_critic_arg "$2") || exit 2
+      export QL_CRITIC
       shift 2
       ;;
     --non-interactive)

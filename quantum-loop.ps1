@@ -31,10 +31,23 @@ param(
     [switch]$SkipPermissions,
     [string]$Model = "",
     [string]$Tool = "claude",
+    [ValidateSet("auto","codex","gemini","claude","none")]
+    [string]$Critic = "auto",
     [switch]$NonInteractive
 )
 
 $ErrorActionPreference = "Stop"
+
+# P5.A2 / US-002 — Critic provider availability check + fallback.
+# auto -> existing tier-driven dispatch; none -> skip critic; explicit
+# values resolve via Get-Command. Missing binary -> WARN + degrade to 'none'.
+if ($Critic -eq "codex" -or $Critic -eq "gemini") {
+    if (-not (Get-Command $Critic -ErrorAction SilentlyContinue)) {
+        Write-Warning "WARN: critic provider $Critic not available, falling back to none"
+        $Critic = "none"
+    }
+}
+$env:QL_CRITIC = $Critic
 
 # ─── Dependency Check ───
 if (-not (Get-Command "jq" -ErrorAction SilentlyContinue)) {
