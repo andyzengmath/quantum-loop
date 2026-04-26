@@ -165,6 +165,49 @@ else
   echo "  FAIL: quantum.json.example missing prdSha"; FAIL=$((FAIL + 1))
 fi
 
+# Test 7: verify_prd_sha — match path (v0.6.2 G10 helper)
+echo ""
+echo "Test 7: verify_prd_sha — match path"
+PRD_M="$TMP/prd-match.md"
+printf "v0.6.1+ PRD\nLF only\n" > "$PRD_M"
+SHA_M=$(compute_prd_sha "$PRD_M")
+RES_M=$(verify_prd_sha "$SHA_M" "$PRD_M")
+assert_eq "verify_prd_sha returns 'match' when stored == current" "match" "$RES_M"
+
+# Test 8: verify_prd_sha — migrate path (v0.6.0 legacy → v0.6.1+ format)
+echo ""
+echo "Test 8: verify_prd_sha — migrate path (v0.6.0 CRLF legacy hash)"
+PRD_L="$TMP/prd-legacy.md"
+printf "Windows v0.6.0 PRD\r\nwith CRLF\r\nstored under legacy hash\r\n" > "$PRD_L"
+LEGACY_SHA=$(compute_prd_sha_legacy "$PRD_L")
+NEW_SHA=$(compute_prd_sha "$PRD_L")
+assert_neq "legacy and new hashes differ for CRLF input" "$LEGACY_SHA" "$NEW_SHA"
+RES_L=$(verify_prd_sha "$LEGACY_SHA" "$PRD_L")
+assert_eq "verify_prd_sha returns 'migrate <new>' for legacy stored sha" "migrate $NEW_SHA" "$RES_L"
+
+# Test 9: verify_prd_sha — drift path (neither matches)
+echo ""
+echo "Test 9: verify_prd_sha — drift path"
+PRD_D="$TMP/prd-drift.md"
+printf "real content unrelated to fake sha\n" > "$PRD_D"
+TOTAL=$((TOTAL + 1))
+if ! verify_prd_sha "deadbeef0000000000000000000000000000000000000000000000000000dead" "$PRD_D" 2>/dev/null; then
+  echo "  PASS: unrelated sha returns non-zero (drift)"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: drift path"; FAIL=$((FAIL + 1))
+fi
+
+# Test 10: orchestrator.md references verify_prd_sha + migrate path
+echo ""
+echo "Test 10: orchestrator.md Step 1.1 wires verify_prd_sha + migrate case"
+TOTAL=$((TOTAL + 1))
+if grep -qF "verify_prd_sha" "$REPO_ROOT/agents/orchestrator.md" \
+   && grep -qF "migrate" "$REPO_ROOT/agents/orchestrator.md"; then
+  echo "  PASS: orchestrator references verify_prd_sha + migrate"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: orchestrator missing verify_prd_sha or migrate handling"; FAIL=$((FAIL + 1))
+fi
+
 # Cleanup
 rm -rf "$TMP"
 

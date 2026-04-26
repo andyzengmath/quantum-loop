@@ -7,6 +7,19 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.6.2] - 2026-04-26
+
+### Fixed
+
+Two follow-up items from the v0.6.x cycle's `/soliton:pr-review` post-merge findings (IDEA_REPORT_v3 §G10 + score-100 .cursor-plugin gap):
+
+- **G10 — `lib/json-atomic.sh` PRD-sha migration shim** (`compute_prd_sha_legacy` + `verify_prd_sha`). Before v0.6.1, `compute_prd_sha` did not normalize CRLF; Windows users with `autocrlf=true` who ran `/ql-plan` under v0.6.0 stored CRLF-era hashes. After upgrading to v0.6.1, the same PRD now hashes differently — every story's `prdSha` would be marked `stale` and force a full `/ql-plan` re-run. v0.6.2 adds a transparent migration: `verify_prd_sha` tries the new (LF-normalized) hash first; on mismatch, falls back to the legacy (v0.6.0) hash; if THAT matches, the orchestrator's Step 1.1 updates the stored value in-place with a single one-line "MIGRATE" log message and no re-plan. Real drift still marks the story stale as before. 3 new tests added (match / migrate / drift paths) + 1 orchestrator-wiring test.
+- **`.cursor-plugin/plugin.json` version catch-up bump 0.5.1 → 0.6.2** — the v0.6.0 + v0.6.1 cycle bumped `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json` but the Cursor manifest was missed. PR #58 established the convention of moving all three plugin manifests in lockstep on every release; `/soliton:pr-review` flagged this at score 100 on PR #61 but the fix landed here. Cursor marketplace consumers will now see v0.6.2 in sync with the Claude side.
+
+### Backward compatibility
+
+The migration path is transparent: existing v0.6.0/v0.6.1 `quantum.json` files load and run without operator action. The first orchestrator pass after upgrade silently rewrites legacy `prdSha` values to the new format. Stories without a `prdSha` field continue to behave exactly as before (back-compat warning logged once).
+
 ## [0.6.1] - 2026-04-26
 
 ### Fixed
