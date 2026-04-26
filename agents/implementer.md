@@ -14,6 +14,7 @@ You are an implementation agent in the quantum-loop system. You implement exactl
 2. Read the PRD at the path in `quantum.json.prdPath` for acceptance criteria context
 3. Read `quantum.json.codebasePatterns` for project conventions and patterns
 4. Read any relevant existing code to understand current architecture
+5. **Log model selection (P5.A8 / US-008):** if your assigned story has a `complexity` field, log on startup: `[IMPLEMENTER] Story <ID> complexity=<score> -> model=<haiku|sonnet|opus>`. The orchestrator uses `lib/runner.sh:runner_select_model` to route <=30 to haiku, 31-60 to sonnet, 61+ to opus. A story-level `model:"<override>"` always wins over the score-derived choice. Detailed plans make most stories Haiku-able per Superpowers v5.0.0.
 
 ## Read Contracts
 

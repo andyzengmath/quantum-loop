@@ -304,11 +304,70 @@ runner_parse_output() {
   return 0
 }
 
+# =============================================================================
+# P5.A8 / US-008 — Cheapest-capable-model routing per task.
+# =============================================================================
+#
+# compute_complexity(task_count, dependsOn_depth, has_security, filePaths_count)
+# Implements the dag-validator formula:
+#   min(100, task_count*10 + dependsOn_depth*15 + (security ? 30 : 0)
+#            + filePaths_count*2)
+# Echoes the computed integer score (0..100).
+compute_complexity() {
+  local tasks="${1:-0}"
+  local depth="${2:-0}"
+  local security="${3:-false}"
+  local files="${4:-0}"
+
+  # Coerce non-numeric inputs to 0 so we never blow up the arithmetic.
+  [[ "$tasks"  =~ ^-?[0-9]+$ ]] || tasks=0
+  [[ "$depth"  =~ ^-?[0-9]+$ ]] || depth=0
+  [[ "$files"  =~ ^-?[0-9]+$ ]] || files=0
+
+  local sec_bonus=0
+  case "$security" in
+    true|1|yes) sec_bonus=30 ;;
+  esac
+
+  local raw=$(( tasks * 10 + depth * 15 + sec_bonus + files * 2 ))
+  if (( raw > 100 )); then raw=100; fi
+  if (( raw < 0   )); then raw=0;   fi
+  printf '%d' "$raw"
+}
+
+# runner_select_model(complexity, [override])
+# Routes complexity score to model name:
+#   <=30 -> haiku, 31-60 -> sonnet, 61+ -> opus.
+# Story-level override (any non-empty value) wins. When complexity is
+# missing/empty/non-numeric, fall through to opus (preserves v0.5.x default
+# behavior; back-compat for stories without the new field).
+runner_select_model() {
+  local score="${1:-}"
+  local override="${2:-}"
+  if [[ -n "$override" ]]; then
+    printf '%s' "$override"
+    return 0
+  fi
+  if [[ -z "$score" || ! "$score" =~ ^-?[0-9]+$ ]]; then
+    printf 'opus'   # back-compat default
+    return 0
+  fi
+  if   (( score <= 30 )); then printf 'haiku'
+  elif (( score <= 60 )); then printf 'sonnet'
+  else                         printf 'opus'
+  fi
+}
+
 # runner_build_cmd(prompt)
 # Constructs the complete shell command for the loaded runner.
 # Supports flag, positional, and stdin prompt delivery methods.
 # Sources hook files and calls pre_spawn() if defined.
 # Echoes the command string to stdout.
+#
+# P5.A8 / US-008: when QL_STORY_COMPLEXITY env var is set, the orchestrator
+# can pre-select a model via runner_select_model and pass it through
+# QL_MODEL_OVERRIDE. The runner respects this override on the claude
+# binary (other binaries ignore it gracefully).
 runner_build_cmd() {
   local prompt="$1"
 
