@@ -1,0 +1,36 @@
+{
+  "$schema": "../schemas/runner.schema.json",
+  "name": "kiro",
+  "displayName": "Kiro CLI (AWS)",
+  "binary": "kiro",
+  "tier": "experimental",
+  "experimental": true,
+  "installHint": "Download from https://kiro.dev/download or `aws kiro install`. Requires AWS credentials configured via aws-cli.",
+  "version": ">=0.1.0",
+  "invocation": {
+    "promptDelivery": "flag",
+    "promptFlag": "--prompt",
+    "headlessFlags": [
+      "--headless"
+    ],
+    "autoApproveFlags": [
+      "--accept-all"
+    ],
+    "outputFlags": [],
+    "extraFlags": [],
+    "stdinPipe": false
+  },
+  "instructionFile": {
+    "native": "KIRO.md",
+    "fallbackFrom": "CLAUDE.md",
+    "autoGenerate": true
+  },
+  "signals": {
+    "preambleInjection": true,
+    "heuristicFallback": true
+  },
+  "quirks": {
+    "spec_first_workflow": true,
+    "notes": "Kiro is AWS's spec-first IDE/CLI; it expects a project-level spec before code generation. Quantum-loop's PRD-first flow aligns naturally; pass the prdPath via the spec field. AWS credentials must be configured."
+  }
+}

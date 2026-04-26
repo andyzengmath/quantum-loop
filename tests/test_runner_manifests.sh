@@ -81,6 +81,26 @@ for runner in copilot cursor gemini amp aider; do
   assert_eq "$runner tier" "experimental" "$(jq -r '.tier' "$RUNNERS_DIR/$runner.json")"
 done
 
+# ── P5.A4 / US-004: 5 new experimental runners ──
+echo "Test: us004_experimental_runners"
+for runner in opencode devin kiro goose cline; do
+  assert_eq "$runner manifest exists" "true" "$(test -f "$RUNNERS_DIR/$runner.json" && echo true || echo false)"
+  assert_eq "$runner tier" "experimental" "$(jq -r '.tier' "$RUNNERS_DIR/$runner.json")"
+  assert_eq "$runner has experimental:true" "true" "$(jq -r '.experimental // false' "$RUNNERS_DIR/$runner.json")"
+done
+
+# OpenCode: skill auto-discovery from .opencode/skills/ and .claude/skills/
+echo "Test: us004_opencode_skill_discovery"
+assert_true ".opencode/skills/ in opencode skill_discovery_paths" \
+  "$(jq -r '.quirks.skill_discovery_paths // [] | index(".opencode/skills/") != null' "$RUNNERS_DIR/opencode.json" 2>/dev/null)"
+assert_true ".claude/skills/ in opencode skill_discovery_paths" \
+  "$(jq -r '.quirks.skill_discovery_paths // [] | index(".claude/skills/") != null' "$RUNNERS_DIR/opencode.json" 2>/dev/null)"
+
+# Manifest count == 12
+echo "Test: us004_manifest_count"
+assert_eq "exactly 12 runner manifests" "12" \
+  "$(find "$RUNNERS_DIR" -maxdepth 1 -name '*.json' -type f | wc -l | tr -d ' ')"
+
 # ── Test: hook_files_exist ──
 echo "Test: hook_files_exist"
 assert_true "codex-hooks.sh exists" "$(test -f "$HOOKS_DIR/codex-hooks.sh" && echo true || echo false)"

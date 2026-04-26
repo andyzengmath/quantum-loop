@@ -1,0 +1,39 @@
+{
+  "$schema": "../schemas/runner.schema.json",
+  "name": "devin",
+  "displayName": "Devin CLI (Cognition AI)",
+  "binary": "devin",
+  "tier": "experimental",
+  "experimental": true,
+  "installHint": "Visit https://devin.ai/cli for install instructions; the Devin CLI is currently invite-only and requires DEVIN_API_KEY.",
+  "version": ">=0.1.0",
+  "invocation": {
+    "promptDelivery": "flag",
+    "promptFlag": "--task",
+    "headlessFlags": [
+      "--non-interactive"
+    ],
+    "autoApproveFlags": [
+      "--auto-approve"
+    ],
+    "outputFlags": [
+      "--json"
+    ],
+    "extraFlags": [],
+    "stdinPipe": false
+  },
+  "instructionFile": {
+    "native": "DEVIN.md",
+    "fallbackFrom": "CLAUDE.md",
+    "autoGenerate": true
+  },
+  "signals": {
+    "preambleInjection": true,
+    "heuristicFallback": true
+  },
+  "quirks": {
+    "cloud_only": true,
+    "requires_api_key": "DEVIN_API_KEY",
+    "notes": "Devin executes in Cognition's cloud sandbox; local file edits are streamed back via the API. Long-running tasks may exceed quantum-loop's per-story watchdog timeout (>30 min). Prefer for fan-out exploration tasks rather than tightly-scoped story implementation."
+  }
+}
