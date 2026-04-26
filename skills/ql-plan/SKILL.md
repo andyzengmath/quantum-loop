@@ -714,6 +714,28 @@ done < <(jq -r '.stories[].id' quantum.json)
 
 Inform the user: `[QL-PLAN] Wrote N sprint-contract files to .handoffs/sprint-*.json`. The contracts are consumed by `agents/implementer.md` (`read_sprint_contract`) and the spec-reviewer / quality-reviewer subagents.
 
+## Step 9: Post-exit plan-review (P5.B4 / US-008 / v0.6.3 — advisory)
+
+This step runs **after Step 7 (dag-validator) and Step 8 (sprint-contract write)** complete. Invoke the spec-reviewer in `plan-review` mode against the just-finalized `quantum.json` cross-referenced against the PRD. The review is **advisory** — findings emit to stderr; the skill does NOT abort.
+
+```bash
+JSON_PATH="quantum.json"
+PRD_PATH=$(jq -r '.prdPath' "$JSON_PATH" 2>/dev/null)
+
+# Opt-out gate: QL_SKIP_PRE_IMPL_REVIEW=plan (or comma-chain like design,prd,plan).
+SKIP_LIST="${QL_SKIP_PRE_IMPL_REVIEW:-}"
+if [[ -n "$PRD_PATH" ]] && \
+   ! printf '%s' "$SKIP_LIST" | tr ',' '\n' | grep -qx "plan"; then
+  echo "[QL-PLAN] Running spec-reviewer in plan-review mode (advisory)..." >&2
+  bash -c "MODE=plan-review JSON_PATH='$JSON_PATH' PRD_PATH='$PRD_PATH' \
+    claude --headless 'agents/spec-reviewer.md plan-review mode against \$JSON_PATH and \$PRD_PATH'" 2>&1 || true
+else
+  echo "[QL-PLAN] plan-review skipped (QL_SKIP_PRE_IMPL_REVIEW=plan or no PRD)" >&2
+fi
+```
+
+Step ordering reference: dag-validator (Step 7) -> sprint-contract write (Step 8) -> plan-review (Step 9). Findings stream to stderr in `FINDING_START..FINDING_END` blocks.
+
 ## Anti-Rationalization Guards
 
 | Excuse | Reality |

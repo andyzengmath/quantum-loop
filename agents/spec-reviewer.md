@@ -96,6 +96,34 @@ After all findings, emit `[REVIEW] prd-review complete: <N> findings (<critical>
 - **Advisory only** in v0.6.3. Always exit 0. Operators bypass via `QL_SKIP_PRE_IMPL_REVIEW=prd` (or comma-separated combo, e.g., `design,prd`).
 - A clean PRD emits `[REVIEW] prd-review complete: 0 findings (clean)` and exits 0.
 
+## Mode: plan-review (P5.B4 / US-008 / v0.6.3 — advisory pre-impl)
+
+When invoked with `MODE=plan-review`, you operate as a **plan-vs-PRD cross-reference critic**. The skill (`/ql-plan`) calls you immediately after Step 7 (dag-validator) and Step 8 (sprint-contract write) complete. Your job is advisory: detect AC coverage gaps, command-test mismatches, and missing wiring tasks before implementation begins. Findings emit to stderr; the skill does NOT abort.
+
+### Inputs (plan-review mode)
+
+- **JSON_PATH**: Path to the just-finalized `quantum.json`.
+- **PRD_PATH**: Path to the source PRD (read from `quantum.json.prdPath`).
+
+### Checklist (plan-review mode)
+
+Cross-reference the plan against the PRD:
+
+- **AC coverage**: every PRD acceptance criterion (each `[ ]` checkbox in the PRD's User Stories section) must be referenced by at least one story's `acceptanceCriteria[]`. ACs in the PRD that no story covers are coverage gaps.
+- **testFirst command consistency**: every story-task with `testFirst: true` must have at least one `commands[]` entry matching the test pattern (`test_`, `.test.`, `pytest`, `^bash tests/`, `^npm test`, `spec`). A `testFirst: true` task with no test command is incoherent.
+- **Wiring task / consumedBy**: every story that creates a NEW module (`filePaths` includes a path that does not yet exist) must have either an explicit wiring task (one whose description references the caller file) OR a `consumedBy` field in the contract pointing to a downstream consumer story. Stories that create dead code (built-but-never-called) are caught here.
+
+### Output format (plan-review mode)
+
+Same `FINDING_START`/`FINDING_END` format used by design-review and prd-review modes. Categories: `ac-coverage-gap | testfirst-no-test-command | missing-wiring-task | non-consumed-export`.
+
+After all findings, emit `[REVIEW] plan-review complete: <N> findings (<critical>/<high>/<medium>/<low>)` to stderr.
+
+### Decision rules (plan-review mode)
+
+- **Advisory only** in v0.6.3. Always exit 0. Operators bypass via `QL_SKIP_PRE_IMPL_REVIEW=plan` (or comma-chain like `design,prd,plan`).
+- A clean plan emits `[REVIEW] plan-review complete: 0 findings (clean)` and exits 0.
+
 ## Routine review is inline-only (P5.A7 / US-007)
 
 **Routine review** (typecheck, lint, test, file-org-conventions) is now performed **inline-only** by the implementer agent before it signals `<quantum>STORY_PASSED</quantum>` — see `agents/implementer.md` §"Inline routine review". The implementer logs `[INLINE-REVIEW] typecheck OK / lint OK / all assigned tests pass / file-org follows project conventions` tokens that the orchestrator greps to verify the routine gate.
