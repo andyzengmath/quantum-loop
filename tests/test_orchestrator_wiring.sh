@@ -80,12 +80,17 @@ check "non-blocking warning" "missing required trailers"
 # the lib name isn't gratuitously referenced inside the orchestrator
 # (which would suggest mis-wiring) — skills are the handoff producers.
 echo ""
-echo "Test 6: handoff.sh ownership is skill-side (orchestrator doesn't write)"
-if ! grep -qE "bash .*lib/handoff\.sh write" "$ORCH"; then
-  echo "  PASS: orchestrator does NOT write handoffs directly (skills do)"
+echo "Test 6: handoff.sh ownership is skill-side (orchestrator doesn't write stage handoffs)"
+# P5.A6 / US-006 carve-out: orchestrator MAY write sprint-contracts via
+# lib/handoff.sh write-sprint-contract (per-story decision context for
+# the implementer + reviewers). Stage handoffs (.handoffs/STAGE.md, the
+# original /ql-* phase handoffs) remain skill-side. Match `write` only
+# when followed by whitespace or end-of-line, not by `-sprint-contract`.
+if ! grep -qE "bash .*lib/handoff\.sh write([[:space:]]|$)" "$ORCH"; then
+  echo "  PASS: orchestrator does NOT write stage handoffs directly (skills do)"
   PASS=$((PASS + 1))
 else
-  echo "  FAIL: orchestrator is writing handoffs — should be skill-side"
+  echo "  FAIL: orchestrator is writing stage handoffs — should be skill-side"
   FAIL=$((FAIL + 1))
 fi
 TOTAL=$((TOTAL + 1))

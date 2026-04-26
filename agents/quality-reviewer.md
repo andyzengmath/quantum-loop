@@ -19,6 +19,10 @@ You will receive:
 
 ## Review Process
 
+### Step 0: Read the Sprint-Contract (P5.A6 / US-006)
+
+If `.handoffs/sprint-<STORY_ID>.json` exists, read it via `bash lib/handoff.sh read-sprint-contract <STORY_ID>` to learn the story's allowed `files` list and the `contracts` it consumes. This lets you flag scope-creep (changes outside the declared `files`) without re-reading the full PRD. Backward-compatible: if absent, proceed to Step 1.
+
 ### Step 1: Read the Diff
 
 ```bash

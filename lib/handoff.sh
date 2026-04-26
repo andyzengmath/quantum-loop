@@ -183,23 +183,95 @@ list_prior_stages() {
 }
 
 # ------------------------------------------------------------------------------
+# P5.A6 / US-006 — Sprint-Contract handoff format
+# ------------------------------------------------------------------------------
+#
+# write_sprint_contract(story_id, contract_json, [repo_root])
+# Writes a per-story Sprint-Contract JSON to .handoffs/sprint-<storyId>.json.
+# Required schema fields: storyId, prdSha, acs, contracts, files,
+# expectedTests, plannedBy, plannedAt. See references/sprint-contract.md.
+#
+# Mirrors Anthropic's 2026-03-24 Generator-Evaluator contract pattern: the
+# planner serializes its decision-context for the implementer + reviewers
+# so they don't re-read the entire PRD. Reduces handoff drift between
+# /ql-plan and /ql-execute / /ql-review.
+write_sprint_contract() {
+  local sid="${1:?write_sprint_contract: story_id required}"
+  local body="${2:?write_sprint_contract: contract_json body required}"
+  local root="${3:-.}"
+  local dir
+  dir=$(_handoff_dir "$root")
+
+  if [[ -z "$body" ]]; then
+    printf "ERROR: write_sprint_contract: empty body\n" >&2
+    return 1
+  fi
+
+  # Validate JSON
+  if ! printf '%s' "$body" | jq . >/dev/null 2>&1; then
+    printf "ERROR: write_sprint_contract: invalid JSON for %s\n" "$sid" >&2
+    return 1
+  fi
+
+  # Soft schema check — warn on missing required fields, but still write
+  # (per AC: "missing-file produces warning rather than crash" — same
+  # graceful-degradation philosophy applies to malformed input).
+  local missing=()
+  for key in storyId prdSha acs contracts files expectedTests plannedBy plannedAt; do
+    if ! printf '%s' "$body" | jq -e --arg k "$key" 'has($k)' >/dev/null 2>&1; then
+      missing+=("$key")
+    fi
+  done
+  if (( ${#missing[@]} > 0 )); then
+    printf "WARN: sprint-contract for %s is missing fields: %s\n" "$sid" "${missing[*]}" >&2
+  fi
+
+  mkdir -p "$dir"
+  local out_path="$dir/sprint-${sid}.json"
+  printf '%s' "$body" | jq . > "$out_path"
+  return $?
+}
+
+# read_sprint_contract(story_id, [repo_root])
+# Reads .handoffs/sprint-<storyId>.json and emits its JSON content on
+# stdout. Missing-file: emits {} and a one-line warning to stderr; does
+# NOT crash (per AC: graceful degradation).
+read_sprint_contract() {
+  local sid="${1:?read_sprint_contract: story_id required}"
+  local root="${2:-.}"
+  local dir
+  dir=$(_handoff_dir "$root")
+  local path="$dir/sprint-${sid}.json"
+  if [[ ! -f "$path" ]]; then
+    printf "WARN: sprint-contract not found for %s (expected at %s)\n" "$sid" "$path" >&2
+    printf '{}'
+    return 0
+  fi
+  cat "$path"
+}
+
+# ------------------------------------------------------------------------------
 # CLI entry
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   set -euo pipefail
   subcmd="${1:-}"
   shift || true
   case "$subcmd" in
-    write) write_handoff "$@" ;;
-    read)  read_handoff "$@" ;;
-    all)   read_all_handoffs "$@" ;;
-    prior) list_prior_stages "$@"; printf "\n" ;;
+    write)                  write_handoff "$@" ;;
+    read)                   read_handoff "$@" ;;
+    all)                    read_all_handoffs "$@" ;;
+    prior)                  list_prior_stages "$@"; printf "\n" ;;
+    write-sprint-contract)  write_sprint_contract "$@" ;;
+    read-sprint-contract)   read_sprint_contract "$@"; printf "\n" ;;
     *)
       cat >&2 <<USAGE
 Usage: bash lib/handoff.sh <subcmd> [args...]
-  write STAGE JSON_BODY [REPO_ROOT]     — write .handoffs/STAGE.md
-  read  STAGE [REPO_ROOT]               — parse frontmatter → JSON
-  all   [REPO_ROOT]                     — JSON array of all handoffs
-  prior STAGE                           — list prior stages
+  write STAGE JSON_BODY [REPO_ROOT]            — write .handoffs/STAGE.md
+  read  STAGE [REPO_ROOT]                      — parse frontmatter → JSON
+  all   [REPO_ROOT]                            — JSON array of all handoffs
+  prior STAGE                                  — list prior stages
+  write-sprint-contract STORY JSON [REPO]      — write .handoffs/sprint-<STORY>.json
+  read-sprint-contract  STORY [REPO]           — read .handoffs/sprint-<STORY>.json
 USAGE
       exit 2
       ;;

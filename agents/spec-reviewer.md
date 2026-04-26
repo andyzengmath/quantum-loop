@@ -32,7 +32,9 @@ You will receive:
 
 ### Step 1: Read the Requirements
 
-Read the PRD at `PRD_PATH`. Extract for the given `STORY_ID`:
+**Sprint-Contract (P5.A6 / US-006):** if `.handoffs/sprint-<STORY_ID>.json` exists, prefer it via `bash lib/handoff.sh read-sprint-contract <STORY_ID>`. The sprint-contract has the planner-resolved `acs` array verbatim from the PRD plus the relevant `contracts` subset and `expectedTests`. Reading the sprint-contract avoids re-parsing the entire PRD per review. Validate the contract's `prdSha` matches the current PRD's sha; on mismatch, fail with reason `"sprint_contract_stale"` and let the orchestrator re-plan.
+
+If the sprint-contract is absent (back-compat mode), fall back to reading the PRD at `PRD_PATH`. Extract for the given `STORY_ID`:
 - The user story description ("As a...")
 - Every acceptance criterion (the checklist items)
 - Related functional requirements (FR-N references)

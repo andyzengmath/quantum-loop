@@ -221,6 +221,34 @@ This prevents interface-changing stories from running in parallel with their con
 **If 1 eligible story** -> Sequential execution (Step 3A)
 **If 2+ eligible stories** -> Parallel execution (Step 3B)
 
+### Step 2.5: Sprint-Contract Emission (P5.A6 / US-006)
+
+For each eligible story (whether dispatched sequentially or in parallel), write its Sprint-Contract to `.handoffs/sprint-<storyId>.json` via `bash lib/handoff.sh write-sprint-contract <storyId> '<json>'`. The contract serializes the planner's decision-context — `acs`, the relevant `contracts` subset, allowed `files`, `expectedTests`, `prdSha`, `plannedBy`, `plannedAt` — so the implementer + reviewers can read it instead of re-parsing the full PRD. This mirrors Anthropic's 2026-03-24 Generator-Evaluator contract.
+
+```bash
+source "$REPO_ROOT/lib/handoff.sh"
+source "$REPO_ROOT/lib/json-atomic.sh"
+PRD_SHA=$(compute_prd_sha "$PRD_PATH")
+for sid in $ELIGIBLE_STORY_IDS; do
+  CONTRACT=$(jq -n --arg id "$sid" --arg sha "$PRD_SHA" --arg ts "$(date -u +%FT%TZ)" \
+    --slurpfile q "$JSON_PATH" '
+      ($q[0].stories[] | select(.id == $id)) as $story |
+      {
+        storyId: $id,
+        prdSha: $sha,
+        acs: ($story.acceptanceCriteria // []),
+        contracts: ($q[0].contracts // {}),
+        files: [($story.tasks // [])[].filePaths // []] | flatten | unique,
+        expectedTests: [($story.tasks // [])[].commands // []] | flatten,
+        plannedBy: "orchestrator",
+        plannedAt: $ts
+      }')
+  write_sprint_contract "$sid" "$CONTRACT"
+done
+```
+
+Schema is documented in `references/sprint-contract.md`.
+
 ## Step 3A: Sequential Execution
 
 For the highest-priority eligible story:
