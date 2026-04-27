@@ -1,8 +1,8 @@
-# IDEA_REPORT_v5 — what's still open after v0.7.0
+# IDEA_REPORT_v5 — what's still open after v0.6.4
 
 **Date:** 2026-04-27
-**Source:** v0.7.0-bundle dogfood retrospective (US-007)
-**Branch:** `ql/v0.7.0-bundle`
+**Source:** `ql/v0.7.0-bundle` dogfood retrospective (US-007). Retrospective filenames + design/PRD use the planning-time `v0.7.0` label; the release ships as `v0.6.4` per strict-semver patch-tier framing (additive instrumentation, no breaking changes, advisory mechanisms remain advisory). v5 → v0.6.4 is the actual mapping. Forward-references to v0.7.1 elsewhere in this doc should be read as v0.6.5.
+**Branch:** `ql/v0.7.0-bundle` (historical name; release tag `v0.6.4`)
 **Predecessor:** `idea-stage/IDEA_REPORT_v4.md`
 
 ## Closed in v0.7.0
