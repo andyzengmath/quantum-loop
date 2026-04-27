@@ -341,6 +341,19 @@ else
   FAIL=$((FAIL + 1))
 fi
 
+# 7h: G27 / US-002 (v0.6.5) — agents/spec-reviewer.md plan-review checklist
+# cites the canonical SPRINT_CONTRACT_TEST_REGEX constant. Closes the 5th
+# call site that v0.6.4's G14 missed (the plan-review checklist's testFirst
+# command-consistency rule still had its own inline pattern enumeration).
+TOTAL=$((TOTAL + 1))
+if grep -q 'SPRINT_CONTRACT_TEST_REGEX' "$REPO_ROOT/agents/spec-reviewer.md"; then
+  echo "  PASS: agents/spec-reviewer.md references SPRINT_CONTRACT_TEST_REGEX"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: agents/spec-reviewer.md missing SPRINT_CONTRACT_TEST_REGEX reference"
+  FAIL=$((FAIL + 1))
+fi
+
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 [[ $FAIL -eq 0 ]] || exit 1
