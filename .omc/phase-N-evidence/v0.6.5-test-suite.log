@@ -1,0 +1,4138 @@
+=== Phase 19 ambiguity-gate tests ===
+
+Test 1: score_ambiguity arithmetic
+  PASS: all 10s -> 0
+  PASS: all 0s -> 100
+  PASS: all 5s -> 50
+  PASS: goal only -> 60
+  PASS: constraints only -> 70
+  PASS: criteria only -> 70
+
+Test 2: score_ambiguity input validation
+  PASS: 11 rejected
+  PASS: -1 rejected
+  PASS: abc rejected
+
+Test 3: check_gate semantics
+  PASS: score 0 passes
+  PASS: score 19 passes
+  PASS: score 20 blocks
+  PASS: score 50 blocks
+  PASS: score 100 blocks
+  PASS: 30 < 50 passes
+  PASS: 60 >= 50 blocks
+
+Test 4: challenge_mode thresholds
+  PASS: round 1, score 100 -> normal
+  PASS: round 2, score 80  -> normal
+  PASS: round 3, score 45  -> contrarian
+  PASS: round 3, score 35  -> normal
+  PASS: round 4, score 35  -> simplifier
+  PASS: round 4, score 25  -> normal
+  PASS: round 5, score 25  -> ontologist
+  PASS: round 5, score 15  -> normal
+  PASS: round 6, score 50  -> ontologist
+
+Test 5: ontology_extract
+  PASS: extract tokens sorted+unique
+  PASS: empty -> empty
+  PASS: stopwords dropped
+
+Test 6: ontology_diff
+  PASS: 1 added
+  PASS: 1 removed
+  PASS: 2 carried
+  PASS: stability 0.50
+  PASS: identical stability 1.0
+  PASS: empty prior stability 0.00
+
+Test 7: CLI subcommands
+  PASS: CLI score 5 5 5 = 50
+  PASS: CLI gate 10 passes
+  PASS: CLI gate 25 blocks
+  PASS: CLI mode 5 30 = ontologist
+
+Test 8: ql-brainstorm wires lib/ambiguity.sh
+  PASS: Phase 0B ambiguity gate section
+  PASS: calls lib/ambiguity.sh score
+  PASS: calls lib/ambiguity.sh gate
+  PASS: calls lib/ambiguity.sh mode
+  PASS: ontology stability tracking
+  PASS: ontology diff call
+  PASS: contrarian mode described
+  PASS: simplifier mode described
+  PASS: ontologist mode described
+  PASS: thrashing ontology escalation
+  PASS: handoff records final_score
+
+=== Results: 49/49 passed, 0 failed ===
+=== US-005 / G2 lib/api-rename.sh tests ===
+
+Test 0: lib/api-rename.sh exists
+  PASS: lib/api-rename.sh present
+
+Test 1: function declarations
+  PASS: find_rename_targets declared
+  PASS: validate_rename_complete declared
+
+Test 2: 3-file fixture — find_rename_targets emits 3 occurrences
+  PASS: find_rename_targets emits 3 file:line lines
+  PASS: src/a.sh present in output
+  PASS: src/b.sh present in output
+  PASS: src/c.sh present in output
+
+Test 3: validate_rename_complete progressive migration
+  PASS: validate_rename_complete returns non-zero with 3 occurrences
+  PASS: validate_rename_complete still non-zero with 2 occurrences
+  PASS: validate_rename_complete still non-zero with 1 occurrence
+  PASS: validate_rename_complete returns 0 after full migration
+
+Test 4: --exclude flag
+  PASS: find_rename_targets finds historical reference (no exclude)
+  PASS: find_rename_targets excludes CHANGELOG.md when --exclude given
+  PASS: validate_rename_complete returns 0 when only excluded files have occurrences
+
+=== Results: 14/14 passed, 0 failed ===
+=== Phase 44 audit-flag tests ===
+
+Test 1: _audit_format_row OK shape
+  PASS: format_row OK shape
+
+Test 2: _audit_format_row FAIL shape
+  PASS: format_row FAIL shape with drill
+
+Test 3: _audit_format_row FAIL empty drill omits drill line
+  PASS: empty-drill FAIL = 1 line
+
+Test 4: do_audit stub happy path
+  PASS: do_audit exits 0
+  PASS: header + summary present
+
+Test 5: --audit clean repo exit 0
+  PASS: --audit clean repo exit 0
+
+Test 6: --audit exclusive
+  PASS: --audit exclusive exits 2 with clear error
+
+Test 7: _audit_branches_local OK on clean tmp repo
+  PASS: branches_local OK on clean repo
+
+Test 8: _audit_branches_local FAIL over threshold
+  PASS: branches_local FAIL with drill
+
+Test 9: _audit_branches_remote OK
+  PASS: branches_remote OK
+
+Test 10: _audit_readme_conflicts OK
+  PASS: readme_conflicts OK
+
+Test 11: _audit_readme_conflicts FAIL with markers
+  PASS: readme_conflicts FAIL with drill
+
+Test 12: env-override BRANCH_MAX
+  PASS: default BRANCH_MAX=10 → exit 1
+  PASS: override BRANCH_MAX=20 → exit 0
+
+Test 13: _audit_orphan_worktrees OK
+  PASS: orphan_worktrees OK on clean repo
+
+Test 14: _audit_orphan_worktrees FAIL
+  PASS: orphan_worktrees FAIL with drill
+
+Test 15: _audit_cpc_files FAIL
+  PASS: cpc_files FAIL with drill
+
+Test 16: _audit_test_suites OK
+  PASS: test_suites OK
+
+Test 17: _audit_test_suites FAIL
+  PASS: test_suites FAIL with drill
+
+Test 18: _audit_test_suites unknown (no evidence dir)
+  PASS: test_suites unknown (no evidence)
+
+Test 19: failure-path integration
+  PASS: failure-path exit 1 with drill-down
+
+Test 20: --help documents --audit
+  PASS: --help contains --audit line
+
+Test 21: format_row byte-exact OK regression
+  PASS: format_row OK byte-exact
+
+Test 22: format_row byte-exact FAIL regression
+  PASS: format_row FAIL line 1
+  PASS: format_row FAIL drill line
+
+Test 23: full-flow happy path 6/7 OK + 1 WARN
+  PASS: full-flow happy 6/7 OK + 1 WARN
+
+Test 24: full-flow all-fail
+  PASS: full-flow all-fail (rc=1, fail_count=5, all 5 metrics FAIL)
+
+Test 25: QL_AUDIT_TEST_GLOB validation
+  PASS: invalid TEST_GLOB rejected clean (no half-audit frame)
+
+Test 26: QL_AUDIT_TEST_GLOB filter
+  PASS: TEST_GLOB filter isolates logs correctly
+
+Test 27: phase-dir sort is numeric, not lexicographic
+  PASS: numeric sort picks phase-43 (not phase-9)
+
+=== v0.7.0 / G17 / US-005 pre-impl-review-coverage tests ===
+
+Test 28: pre-impl-review-coverage missing-csv → WARN
+  PASS: missing-csv → WARN
+  PASS: missing-csv drill mentions '(expected on first run'
+
+Test 29: pre-impl-review-coverage no-recent-runs → WARN
+  PASS: no-recent-runs → WARN
+
+Test 30: pre-impl-review-coverage partial-coverage → WARN
+  PASS: partial-coverage 2/3 → WARN
+
+Test 31: pre-impl-review-coverage full-coverage → OK
+  PASS: full-coverage 3/3 → OK
+
+Test 32: WARN never fails the audit (do_audit exit 0 with WARN row)
+  PASS: WARN row present + audit exit 0
+
+Test 33: do_audit emits 7 metric rows + split summary (G26 / v0.6.5)
+  PASS: 7 metric rows + split summary (6/7 OK, 1 WARN, 0 FAIL)
+
+Test 34: split summary all-OK fixture (G26)
+  PASS: 3-OK fixture → 'Summary: 3/3 OK, 0 WARN, 0 FAIL.' exit 0
+
+Test 35: split summary mixed-3-state fixture (G26)
+  PASS: mixed-3-state → 'Summary: 1/3 OK, 1 WARN, 1 FAIL.' exit 1
+
+=== Results: 39/39 passed, 0 failed ===
+=== T-025: TS/JS barrel regeneration and detect functions ===
+--- Test 1: TS barrel with Foo.ts, Bar.ts, Baz.ts produces 3 sorted exports ---
+  PASS: regenerate_barrel TS exits 0
+  PASS: TS barrel has exactly 3 export lines
+  PASS: TS barrel has Bar export
+  PASS: TS barrel has Baz export
+  PASS: TS barrel has Foo export
+--- Test 2: TS exports are sorted alphabetically ---
+  PASS: TS first sorted export is Bar
+  PASS: TS last sorted export is Foo
+--- Test 3: TS barrel excludes index.ts itself ---
+  PASS: TS barrel does not export index
+--- Test 4: detect_barrel_files finds nested barrel files ---
+  PASS: detect_barrel_files exits 0
+  PASS: finds nested TS index.ts
+  PASS: finds nested JS index.js
+  PASS: finds Python __init__.py
+  PASS: finds Rust mod.rs
+  PASS: Found at least 4 barrel files (got 4)
+--- Test 5: detect_barrel_files on empty dir returns empty ---
+  PASS: detect_barrel_files empty returns empty
+--- Test 6: should_regenerate returns 0 when barrel in conflict list ---
+  PASS: should_regenerate match returns 0
+--- Test 7: should_regenerate returns 1 when barrel NOT in conflict list ---
+  PASS: should_regenerate no-match returns 1
+--- Test 8: should_regenerate with empty conflict list returns 1 ---
+  PASS: should_regenerate empty conflict list returns 1
+--- Test 9: should_regenerate with empty barrel_path returns 1 ---
+  PASS: should_regenerate empty barrel path returns 1
+--- Test 10: JS barrel regeneration produces exports ---
+  PASS: JS barrel has api export
+  PASS: JS barrel has config export
+  PASS: JS barrel excludes index.js
+--- Test 11: regenerate_barrel logs timing and info ---
+  PASS: log has BARREL-REGEN tag
+  PASS: log has Regenerated
+  PASS: log has Completed in
+
+=== T-026: Python/Rust barrel regeneration ===
+--- Test 12: Python barrel with foo.py, bar.py produces sorted imports ---
+  PASS: regenerate_barrel Python exits 0
+  PASS: Python barrel has exactly 2 import lines
+  PASS: Python barrel has bar import
+  PASS: Python barrel has foo import
+--- Test 13: Python imports are sorted alphabetically ---
+  PASS: Python first sorted import is bar
+  PASS: Python last sorted import is foo
+--- Test 14: Python barrel excludes __init__.py itself ---
+  PASS: Python barrel does not import __init__
+--- Test 15: Python barrel skips __private.py files ---
+  PASS: Python barrel skips __private.py
+  PASS: Python barrel skips __hidden.py
+  PASS: Python barrel still has bar
+--- Test 16: Rust barrel with foo.rs, bar.rs produces sorted pub mod ---
+  PASS: regenerate_barrel Rust exits 0
+  PASS: Rust barrel has exactly 2 mod lines
+  PASS: Rust barrel has bar mod
+  PASS: Rust barrel has foo mod
+--- Test 17: Rust mods are sorted alphabetically ---
+  PASS: Rust first sorted mod is bar
+  PASS: Rust last sorted mod is foo
+--- Test 18: Rust barrel excludes mod.rs itself ---
+  PASS: Rust barrel does not include mod
+--- Test 19: Python barrel with 3 files still sorts correctly ---
+  PASS: Python 3-file barrel first import is admin
+--- Test 20: Rust barrel with 3 files still sorts correctly ---
+  PASS: Rust 3-file barrel first mod is api
+
+=== T-027: Edge cases: manual exports, non-pure, empty, idempotency ===
+--- Test 21: Manual preservation with '// manual' marker (TS) ---
+  PASS: Manual line preserved in TS barrel
+  PASS: Auto-gen export also present alongside manual
+--- Test 22: Manual preservation with '# manual' marker (Python) ---
+  PASS: Manual line preserved in Python barrel
+  PASS: Auto-gen import also present
+--- Test 23: Manual preservation with '// manual' marker (Rust) ---
+  PASS: Manual line preserved in Rust barrel
+  PASS: Auto-gen mod also present
+--- Test 24: Fallback preservation for non-matching export patterns ---
+  PASS: Non-matching export pattern preserved
+  PASS: Auto-gen export coexists with fallback
+--- Test 25: Non-pure barrel skip with log message (TS) ---
+  PASS: Non-pure TS barrel SKIP logged
+  PASS: Non-pure log mentions non-export logic
+  PASS: Non-pure TS barrel content unchanged
+--- Test 26: Non-pure barrel skip with log message (Python) ---
+  PASS: Non-pure Python barrel SKIP logged
+  PASS: Non-pure Python content preserved
+--- Test 27: Non-pure barrel skip with log message (Rust) ---
+  PASS: Non-pure Rust barrel SKIP logged
+  PASS: Non-pure Rust content preserved
+--- Test 28: Non-pure barrel returns exit code 0 ---
+  PASS: Non-pure barrel returns 0 (not error)
+--- Test 29: Empty directory produces '// No exports' comment (TS) ---
+  PASS: TS empty barrel has no-exports comment
+--- Test 30: Empty directory produces '# No exports' comment (Python) ---
+  PASS: Python empty barrel has no-exports comment
+--- Test 31: Empty directory produces '// No exports' comment (Rust) ---
+  PASS: Rust empty barrel has no-exports comment
+--- Test 32: Idempotency - TS two runs produce identical output ---
+  PASS: TS barrel idempotent: run 1 == run 2
+--- Test 33: Idempotency - Python two runs produce identical output ---
+  PASS: Python barrel idempotent: run 1 == run 2
+--- Test 34: Idempotency - Rust two runs produce identical output ---
+  PASS: Rust barrel idempotent: run 1 == run 2
+--- Test 35: Idempotency - JS two runs produce identical output ---
+  PASS: JS barrel idempotent: run 1 == run 2
+--- Test 36: Pure barrel is NOT skipped ---
+  PASS: Pure TS barrel is regenerated
+  PASS: Pure TS barrel was not skipped
+--- Test 37: BARREL_REGEN_LIB_DIR is set ---
+  PASS: BARREL_REGEN_LIB_DIR is set
+--- Test 38: regenerate_barrel with invalid language returns 1 ---
+  PASS: Invalid language returns 1
+--- Test 39: regenerate_barrel with missing file returns 1 ---
+  PASS: Missing file returns 1
+--- Test 40: regenerate_barrel with missing args returns 1 ---
+  PASS: Missing args returns 1
+--- Test 41: detect_barrel_files with missing arg returns 1 ---
+  PASS: detect_barrel_files missing arg returns 1
+--- Test 42: detect_barrel_files with nonexistent dir returns 1 ---
+  PASS: detect_barrel_files nonexistent dir returns 1
+
+=== Results: 75/75 passed, 0 failed ===
+=== v0.7.0 US-006 CHANGELOG-ownership convention tests ===
+
+Sanity: agent docs present
+  PASS: agents/dag-validator.md + agents/conflict-auditor.md exist
+
+Test 1: dag-validator.md documents the CHANGELOG ownership convention
+  PASS: CHANGELOG.md mentioned
+  PASS: consolidate-to-retrospective phrase
+
+Test 2: conflict-auditor.md gains the CHANGELOG severity rule
+  PASS: CHANGELOG.md mentioned
+  PASS: warning severity label
+
+Test 3: severity rule encodes the >1 stories trigger
+  PASS: CHANGELOG +>1 trigger condition
+
+Test 4: Health Report warning text
+  PASS: Health-Report warning text
+
+Test 5: rule documents the warning-not-none distinction
+  PASS: warning not none distinction
+
+Test 6: rule scopes warning to multi-story case (single-story = no warning)
+  PASS: single-story-ok scope
+
+Test 7: Step 4 sort enumeration covers all 5 severities (G25)
+  PASS: 5-severity sort enumeration
+
+=== Results: 10/10 passed, 0 failed ===
+=== Phase 5 Claim-Check Integration Tests ===
+
+Test 1: Clean output — exact signal, no hedge
+  PASS: signal result is STORY_PASSED
+  PASS: confidence stays exact
+  PASS: claim findings clean
+
+Test 2: Hedge phrase demotes confidence but keeps signal
+  PASS: signal still STORY_PASSED
+  PASS: confidence demoted to medium
+  PASS: claim findings mention hedge
+
+Test 3: Polite-stop phrase demotes confidence
+  PASS: signal still STORY_PASSED
+  PASS: confidence demoted to medium
+  PASS: polite-stop recorded
+
+Test 4: Stale-evidence phrase demotes confidence
+  PASS: signal still STORY_PASSED
+  PASS: confidence demoted to medium
+  PASS: stale recorded
+
+Test 5: exit_code=1 + hedge keeps FAILED, but records claim
+  PASS: signal FAILED
+  PASS: confidence demoted medium
+  PASS: hedge recorded
+
+Test 6: no signal, heuristics off, clean output
+  PASS: signal FAILED
+  PASS: claim findings clean
+
+=== Results: 17/17 passed, 0 failed ===
+=== Phase 14 P2.5 + P2.7 tests ===
+
+Test 1: P2.5 self-review checklist prompt
+  PASS: self-review checklist header
+  PASS: four categories Completeness
+  PASS: four categories Quality
+  PASS: four categories Discipline
+  PASS: four categories Testing
+  PASS: claim-check self-scan item
+  PASS: AC evidence line item
+  PASS: wiring_verification item
+  PASS: consumedBy item
+  PASS: don't modify tests reminder
+
+Test 2: P2.7 commit-trailer protocol
+  PASS: Commit Format (P2.7) header
+  PASS: Confidence trailer
+  PASS: Scope-risk trailer
+  PASS: Rejected trailer
+  PASS: Deslop trailer
+  PASS: Not-tested trailer
+  PASS: references lib/commit-trailers.sh
+  PASS: Rejected may repeat
+
+Test 3: parse_trailers — canonical message
+  PASS: Story US-042
+  PASS: Confidence high
+  PASS: Scope-risk contained
+  PASS: Not-tested populated
+  PASS: Rejected array has 2 entries
+  PASS: PRD path captured
+  PASS: Deslop captured
+
+Test 4: unknown trailer keys ignored
+  PASS: unknown MadeUpKey dropped
+  PASS: unknown Signed-off-by dropped
+
+Test 5: validate_trailers — well-formed passes
+  PASS: well-formed exits 0
+
+Test 6: validate_trailers — missing Story fails
+  PASS: missing Story exits non-zero
+
+Test 7: validate_trailers — low confidence without Rejected fails
+  PASS: Confidence: low without Rejected fails
+
+Test 8: validate_trailers — low confidence WITH Rejected passes
+  PASS: Confidence: low with Rejected passes
+
+Test 9: bad Scope-risk value rejected
+  PASS: Scope-risk whatever fails
+
+Test 10: CLI parse subcommand
+  PASS: CLI parse Story round-trips
+
+Test 11: extract_commit on a real commit
+  PASS: extract_commit produces JSON with Rejected key
+
+=== Results: 34/34 passed, 0 failed ===
+=== US-008 complexity routing tests ===
+
+Test 1: compute_complexity scoring
+  PASS: minimal story (2 tasks, 2 files) = 24
+  PASS: 5 tasks, 1 dep, 4 files = 73
+  PASS: 3 tasks + security = 66
+  PASS: huge story caps at 100
+  PASS: minimum = 0
+
+Test 2: runner_select_model thresholds
+  PASS: score 0 -> haiku
+  PASS: score 30 -> haiku
+  PASS: score 31 -> sonnet
+  PASS: score 60 -> sonnet
+  PASS: score 61 -> opus
+  PASS: score 100 -> opus
+
+Test 3: story-level model override
+  PASS: explicit override wins (override=opus, score=10)
+  PASS: explicit override wins (override=haiku, score=80)
+  PASS: empty override falls through to score
+
+Test 4: missing complexity field default behavior
+  PASS: empty complexity -> opus default
+  PASS: non-numeric complexity -> opus default
+
+Test 5: quantum.json.example documents complexity field
+  PASS: complexity field documented in quantum.json.example
+
+Test 6: dag-validator.md documents complexity formula
+  PASS: dag-validator captures complexity formula
+
+Test 7: implementer.md mentions model selection
+  PASS: implementer.md mentions model selection / complexity routing
+
+=== Results: 19/19 passed, 0 failed ===
+=== Phase 26 conflict-grade tests ===
+
+Test 1: whitespace-only → grade 1
+  PASS: single-ws diff
+  PASS: bracket-indent diff
+
+Test 2: comment-only → grade 2
+  PASS: line comment change
+  PASS: python-style comment change
+  PASS: block comment change
+
+Test 3: single-token rename → grade 2
+  PASS: single identifier rename
+
+Test 4: small body edit → grade 3
+  PASS: 3-line small body edit
+
+Test 5: moderate overlap → grade 4
+  PASS: 7-line overlap
+
+Test 6: structural reorg → grade 5
+  PASS: 2-function reorder
+  PASS: 2-def reorg (python)
+
+Test 7: split_conflict_hunks single
+  PASS: 1 conflict parsed
+  PASS: ours buffer captured
+  PASS: theirs buffer captured
+  PASS: start_line=2
+  PASS: end_line=7
+
+Test 8: split_conflict_hunks multiple
+  PASS: 2 conflicts parsed
+
+Test 9: grade_file end-to-end
+  PASS: 2 hunks graded
+  PASS: max_grade = 5 (structural)
+  PASS: first hunk grade 2 (comment)
+  PASS: second hunk grade 5 (structural)
+
+Test 10: grade_file clean file
+  PASS: clean file max_grade=0
+  PASS: clean file 0 hunks
+
+Test 11: routing_recommendation
+  PASS: grade 0 → none
+  PASS: grade 1 → auto-git
+  PASS: grade 2 → auto-git
+  PASS: grade 3 → diff3
+  PASS: grade 4 → llm-merge
+  PASS: grade 5 → escalate
+
+Test 12a: string literals not truncated at // or /*
+  PASS: identical URL lines → grade 1 (whitespace equiv)
+  PASS: URL preserved, comment-only change → grade 2
+  PASS: URL content changed (single-token) → grade 2
+
+Test 12: CLI subcommands
+  PASS: CLI grade single-word rename
+  PASS: CLI route 4 → llm-merge
+
+=== Results: 33/33 passed, 0 failed ===
+=== Phase 22 constitution tests ===
+
+Test 1: load_constitution
+  PASS: loads 2 rules
+  PASS: missing constitution -> empty
+  PASS: missing file -> empty
+  PASS: object form with .rule
+
+Test 2: check_no_secrets detects provider tokens
+  PASS: detects sk-live token
+  PASS: detects ghp_ token
+  PASS: ignores comment about passwords (no literal)
+
+Test 3: generic password/api_key literal
+  PASS: password= long literal flagged
+  PASS: api_key= long literal flagged
+  PASS: short literal not flagged
+
+Test 4: check_sql_injection
+  PASS: flags 2 SQL injections (template + concat)
+  PASS: parameterized query not flagged
+
+Test 5: check_input_validation
+  PASS: flags 2 unvalidated handler reads
+
+Test 6: check_commit_integrity
+  PASS: flags migration file
+  PASS: flags schema.prisma
+  PASS: flags .env.example
+  PASS: does NOT flag regular source file
+
+Test 7: enforce_constitution end-to-end
+  PASS: enforce finds 2 secret+sql findings
+  PASS: input-validation skipped when not active
+  PASS: input-validation active -> finds req.body
+  PASS: no constitution -> empty JSON array
+  PASS: unknown rule -> empty findings (warn only)
+
+Test 8: finding metadata
+  PASS: severity critical
+  PASS: description set
+  PASS: rule id set
+
+Test 9: CLI enforce
+  PASS: CLI enforce returns findings
+
+Test 10: quantum.json.example schema
+  PASS: constitution is array
+  PASS: quantum.json.example still valid JSON
+
+=== Results: 28/28 passed, 0 failed ===
+=== US-002 cross-provider critic CLI flag tests ===
+
+Test 1: --critic flag in quantum-loop.sh
+  PASS: quantum-loop.sh has --critic flag case
+  PASS: QL_CRITIC env var assignment
+  PASS: validates against enum
+
+Test 2: --critic flag in quantum-loop.ps1
+  PASS: quantum-loop.ps1 has Critic param
+  PASS: ps1 validates the enum
+
+Test 3: lib/deep-review.sh consumes QL_CRITIC env var
+  PASS: deep-review.sh references QL_CRITIC
+  PASS: deep-review.sh has critic-override block
+
+Test 4: --critic=none short-circuits
+  PASS: quantum-loop.sh handles 'none' value
+
+Test 5: availability check + degrade warning
+  PASS: WARN message when binary missing
+  PASS: falling back to none (critic role)
+  PASS: role-aware fallback comment
+
+Test 6: parse_role_arg sourceable + behaves (US-001 unified-fallback)
+  PASS: parse_critic_arg removed (dead code deleted)
+  PASS: parse_role_arg critic auto -> auto
+  PASS: parse_role_arg critic none -> none
+  PASS: critic codex absent -> 'none' on stdout (role-aware fallback)
+  PASS: critic codex absent emits role-aware WARN with 'falling back to none'
+  PASS: critic gemini absent -> 'none' on stdout
+  PASS: planner codex absent -> 'claude' on stdout (role-aware: planner/executor still claude)
+  PASS: planner codex absent emits 'falling back to claude'
+  PASS: executor gemini absent -> 'claude' on stdout (role-aware)
+
+=== Results: 20/20 passed, 0 failed ===
+=== Test 1: Basic eligible stories ===
+  PASS: US-002 is eligible
+  PASS: US-003 is eligible
+  PASS: US-004 is NOT eligible
+=== Test 2: in_progress exclusion ===
+  PASS: US-003 is eligible
+  PASS: US-002 (in_progress) is excluded
+=== Test 3: maxAttempts exclusion ===
+  PASS: US-003 (failed, retries remaining) is eligible
+  PASS: US-002 (maxAttempts reached) is excluded
+=== Test 4: COMPLETE detection ===
+  PASS: Returns COMPLETE when all passed
+=== Test 5: BLOCKED detection ===
+  PASS: Returns BLOCKED when stuck
+=== Test 6: Cycle detection ===
+  PASS: Cycle detected
+=== Test 7: No cycles ===
+  PASS: No cycles
+=== Test 8: All independent stories ===
+  PASS: US-001 eligible
+  PASS: US-002 eligible
+  PASS: US-003 eligible
+=== Test 9: filter_file_conflicts — filePaths overlap ===
+  PASS: US-001 included (highest priority)
+  PASS: US-002 excluded (shares src/b.ts with US-001)
+  PASS: US-003 included (no conflict)
+=== Test 10: filter_file_conflicts — fileConflicts entry ===
+  PASS: US-001 included
+  PASS: US-002 included (no conflict)
+  PASS: US-003 excluded (fileConflict with US-001)
+=== Test 11: filter_file_conflicts — empty filePaths ===
+  PASS: US-001 included (empty filePaths)
+  PASS: US-002 included (no tasks)
+=== Test 12: filter_file_conflicts — no conflicts ===
+  PASS: US-001 included
+  PASS: US-002 included
+  PASS: US-003 included
+=== Test 13: filter_file_conflicts — three-way conflict ===
+  PASS: US-001 included (highest priority)
+  PASS: US-002 excluded (conflict)
+  PASS: US-003 excluded (conflict)
+=== Test 14: filter_file_conflicts — null fileConflicts ===
+  PASS: US-001 with null fileConflicts
+  PASS: US-002 with null fileConflicts
+=== Test 15: filter_file_conflicts — transitive conflict chain ===
+  PASS: US-001 included (claims src/a.ts)
+  PASS: US-002 excluded (src/a.ts conflict with US-001)
+  PASS: US-003 included (src/b.ts unclaimed — US-002 was excluded)
+=== Test 16: filter_file_conflicts — similar-but-different paths ===
+  PASS: US-001 included
+  PASS: US-002 included (a.tsx != a.ts, exact match)
+
+=== Results: 35/35 passed, 0 failed ===
+=== Phase 33 dead-code tests ===
+
+Test 1: TS default import
+  PASS: TS: 1 unused import
+  PASS: TS: name=unused
+
+Test 2: TS named imports (only some unused)
+  PASS: TS: only 'beta' flagged (1)
+  PASS: TS: name=beta
+
+Test 3: TS rename alias
+  PASS: TS: alias tracks local binding (0 unused)
+
+Test 4: TS namespace
+  PASS: TS: namespace used (0 unused)
+
+Test 5: Python import
+  PASS: PY: 2 unused imports
+  PASS: PY: names = beta,unused_mod
+
+Test 6: PY rename alias
+  PASS: PY: alias tracked (0 unused)
+
+Test 7: Go imports
+  PASS: Go: 1 unused (strings)
+  PASS: Go: name=strings
+
+Test 8: Rust use
+  PASS: RS: 1 unused (File)
+  PASS: RS: name=File
+
+Test 9: TS private helpers
+  PASS: TS: 2 orphans flagged
+  PASS: TS: names = _orphan,_var_orphan
+
+Test 10: exported private NOT flagged
+  PASS: export _intentional not flagged
+
+Test 11: PY private helpers
+  PASS: PY: 1 orphan
+  PASS: PY: name=_orphan
+
+Test 12: scan_dead_code directory walk
+  PASS: aggregate imports=2
+  PASS: aggregate privates=2
+  PASS: aggregate total=4
+
+Test 13: clean file has 0 findings
+  PASS: clean: total=0
+
+Test 14: missing path handling
+  PASS: missing: total=0
+  PASS: missing: imports=[]
+
+Test 15: find_post_commit_dead git-diff driven
+  PASS: post-commit detected 2 dead (1 import + 1 private)
+
+Test 16: CLI subcommands
+  PASS: CLI imports count=1
+  PASS: CLI scan total=1
+
+Test 17: unknown extension
+  PASS: unknown ext imports=[]
+  PASS: unknown ext privates=[]
+
+=== Results: 29/29 passed, 0 failed ===
+=== Phase 8 ql-deep-review helper tests ===
+
+Test 1: tier_of_score mapping
+  PASS: 0 -> LOW
+  PASS: 30 -> LOW
+  PASS: 31 -> MEDIUM
+  PASS: 60 -> MEDIUM
+  PASS: 61 -> HIGH
+  PASS: 80 -> HIGH
+  PASS: 81 -> CRITICAL
+  PASS: 100 -> CRITICAL
+
+Test 2: compute_risk_score bounds
+  PASS: empty refs -> 0
+  PASS: intent drift contributes 10
+
+Test 3: actionability_filter
+  PASS: kept count
+  PASS: suppressed count
+  PASS: suppressed has reason
+
+Test 4: dedup_findings
+  PASS: dedup reduces 3 -> 2
+  PASS: merged agents count
+  PASS: kept max confidence
+
+Test 5: hallucination_check suppresses missing files
+  PASS: 1 file kept
+  PASS: 1 file suppressed as hallucination
+  PASS: suppressed reason
+
+Test 6: synthesize_verdict
+  PASS: empty -> APPROVE
+  PASS: only low -> APPROVE
+  PASS: medium 60 -> APPROVE_WITH_COMMENTS
+  PASS: high 75 -> REQUEST_CHANGES
+  PASS: critical 85 -> BLOCKS_MERGE
+  PASS: critical 50 (below threshold) -> APPROVE
+
+Test 7: quantum.json.example schema
+  PASS: reviews is object
+  PASS: quantum.json.example still valid JSON
+
+Test 8: ql-execute mentions the post-pipeline hook
+  PASS: post-pipeline hook header present
+  PASS: references lib/deep-review.sh
+
+Test 9: CLI subcommands work
+  PASS: CLI tier 50 -> MEDIUM
+  PASS: CLI tier 100 -> CRITICAL
+
+=== Results: 31/31 passed, 0 failed ===
+=== Test 1: detect_package_manager returns npm for package.json ===
+  PASS: detects npm
+=== Test 2: detect_package_manager returns yarn for yarn.lock ===
+  PASS: detects yarn
+=== Test 3: detect_package_manager returns pnpm for pnpm-lock.yaml ===
+  PASS: detects pnpm
+=== Test 4: detect_package_manager returns cargo for Cargo.toml ===
+  PASS: detects cargo
+=== Test 5: detect_package_manager returns pip for requirements.txt ===
+  PASS: detects pip
+=== Test 6: detect_package_manager returns poetry for poetry.lock+pyproject.toml ===
+  PASS: detects poetry
+=== Test 7: detect_package_manager returns go for go.mod ===
+  PASS: detects go
+=== Test 8: detect_package_manager returns empty for no manifests ===
+  PASS: empty for no manifests
+=== Test 9: detect_package_manager returns multiple managers ===
+  PASS: detects npm in multi
+  PASS: detects cargo in multi
+  PASS: detects go in multi
+=== Test 10: detect_package_manager with empty repo_root ===
+  PASS: empty repo_root returns error
+  PASS: error message for empty repo_root
+=== Test 11: detect_package_manager with nonexistent directory ===
+  PASS: nonexistent dir returns error
+=== Test 12: poetry requires BOTH poetry.lock and pyproject.toml ===
+  PASS: no poetry without pyproject.toml
+=== Test 13: pyproject.toml alone does not trigger poetry ===
+  PASS: no poetry without poetry.lock
+=== Test 14: protect_manifest protects known manifests ===
+  PASS: protect_manifest returns 1 for one manifest
+=== Test 15: protect_manifest with multiple manifests ===
+  PASS: protect_manifest returns 2 for two manifests
+=== Test 16: protect_manifest skips non-manifest files ===
+  PASS: protect_manifest returns 0 for non-manifest
+=== Test 17: protect_manifest with empty conflict_files ===
+  PASS: protect_manifest returns 0 for empty conflict list
+=== Test 18: protect_manifest with empty repo_root ===
+  PASS: protect_manifest empty repo_root returns error
+=== Test 19: protect_manifest with mixed manifest and non-manifest ===
+  PASS: protect_manifest counts only manifests
+=== Test 20: verify_lockfile finds non-empty package-lock.json ===
+  PASS: verify_lockfile npm returns 0
+=== Test 21: verify_lockfile fails for missing lockfile ===
+  PASS: verify_lockfile npm missing returns 1
+=== Test 22: verify_lockfile fails for empty lockfile ===
+  PASS: verify_lockfile npm empty returns 1
+=== Test 23: verify_lockfile for yarn ===
+  PASS: verify_lockfile yarn returns 0
+=== Test 24: verify_lockfile for pnpm ===
+  PASS: verify_lockfile pnpm returns 0
+=== Test 25: verify_lockfile for cargo ===
+  PASS: verify_lockfile cargo returns 0
+=== Test 26: verify_lockfile for pip (no lockfile concept) ===
+  PASS: verify_lockfile pip returns 0 with requirements.txt
+=== Test 27: verify_lockfile for poetry ===
+  PASS: verify_lockfile poetry returns 0
+=== Test 28: verify_lockfile for go ===
+  PASS: verify_lockfile go returns 0
+=== Test 29: verify_lockfile with empty repo_root ===
+  PASS: verify_lockfile empty repo_root returns 1
+=== Test 30: verify_lockfile with empty package_manager ===
+  PASS: verify_lockfile empty manager returns 1
+=== Test 31: verify_lockfile for unknown manager ===
+  PASS: verify_lockfile unknown manager returns 1
+=== Test 32: run_install with empty repo_root ===
+  PASS: run_install empty repo_root returns 1
+  PASS: run_install error for empty repo_root
+=== Test 33: run_install with empty package_manager ===
+  PASS: run_install empty manager returns 1
+=== Test 34: run_install with unknown manager ===
+  PASS: run_install unknown manager returns 1
+=== Test 35: run_install with npm runs npm install ===
+  PASS: run_install npm exits 0
+  PASS: run_install npm timing log
+  PASS: run_install npm completed message
+=== Test 36: run_install with cargo ===
+  PASS: run_install cargo exits 0
+  PASS: run_install cargo timing log
+=== Test 37: run_install with pip ===
+  PASS: run_install pip exits 0
+=== Test 38: run_install with poetry ===
+  PASS: run_install poetry exits 0
+=== Test 39: run_install with go ===
+  PASS: run_install go exits 0
+=== Test 40: run_install failure returns 1 but does not propagate ===
+  PASS: run_install failure returns 1
+=== Test 41: run_install timing log format ===
+  PASS: run_install yarn exits 0
+  PASS: timing format has ms
+=== Test 42: run_install with pnpm ===
+  PASS: run_install pnpm exits 0
+=== Test 43: protect_manifest with real merge conflict verifies --ours ===
+Auto-merging package.json
+CONFLICT (content): Merge conflict in package.json
+Automatic merge failed; fix conflicts and then commit the result.
+  PASS: protect_manifest resolves 1 conflict
+  PASS: resolved content has ours-modified
+  PASS: resolved content has no conflict markers
+  PASS: resolved content has no theirs version
+=== Test 44: protect_manifest ignores file not in conflict list ===
+  PASS: protect_manifest counts only listed manifests
+=== Test 45: detect_package_manager npm and pip together returns both ===
+  PASS: multi-detect includes npm
+  PASS: multi-detect includes pip
+  PASS: multi-detect returns 2 lines
+=== Test 46: run_install timeout kills long-running install ===
+  PASS: run_install timeout returns non-zero
+  PASS: timeout message logged
+=== Test 47: run_install failure with theirs recovery succeeds ===
+  PASS: run_install recovery succeeds
+  PASS: recovery timing log present
+=== Test 48: verify_lockfile returns 0 for existing non-empty lockfile ===
+  PASS: verify_lockfile existing non-empty returns 0
+=== Test 49: verify_lockfile returns 1 for missing lockfile ===
+  PASS: verify_lockfile missing Cargo.lock returns 1
+=== Test 50: run_install failure without recovery returns 1 ===
+  PASS: run_install double-failure returns 1
+  PASS: recovery failed message
+=== Test 51: multiple managers run independently ===
+  PASS: both detected: npm
+  PASS: both detected: pip
+  PASS: npm install ran successfully
+  PASS: pip install ran successfully
+  PASS: npm was invoked
+  PASS: pip was invoked
+=== Test 52: npm failure does not prevent pip from running ===
+  PASS: npm install failed
+  PASS: pip install still succeeded
+  PASS: pip was executed after npm failure
+=== Test 53: detect_package_manager with requirements-dev.txt detects pip ===
+  PASS: requirements-dev.txt does not trigger pip (only requirements.txt)
+
+=== Results: 76/76 passed, 0 failed ===
+=== Phase 9 ql-deslop helper tests ===
+
+Test 1: validate_scope
+  PASS: in-scope file accepted (exit 0)
+  PASS: out-of-scope file rejected (exit 1)
+
+Test 2: take_baseline snapshot shape
+  PASS: snapshot has test_exit
+  PASS: snapshot has lint_exit
+  PASS: snapshot has typecheck_exit
+  PASS: snapshot test_exit = 0
+
+Test 3: compare_baseline regression detection
+  PASS: matching baselines -> clean (exit 0)
+  PASS: test regression -> dirty (exit 1)
+  PASS: improvement -> clean (exit 0)
+
+Test 4: rollback_pass restores baseline content
+  PASS: pre-rollback content
+  PASS: post-rollback content
+
+Test 5: detect_language marker-file dispatch
+  PASS: empty dir -> unknown|skip
+  PASS: tsconfig.json -> typescript
+  PASS: package.json -> javascript
+  PASS: go.mod -> go
+  PASS: Cargo.toml -> rust
+
+Test 6: quantum.json.example schema
+  PASS: deslop is object
+  PASS: quantum.json.example still valid JSON
+
+Test 7: ql-execute mentions ql-deslop hook
+  PASS: slop-cleanup hook header present
+  PASS: references lib/deslop.sh
+  PASS: mentions DESLOP_ROLLED_BACK signal
+
+Test 8: CLI entrypoints
+  PASS: CLI detect-language typescript prefix
+
+=== Results: 22/22 passed, 0 failed ===
+=== US-003 deslop regex-fallback tests ===
+
+Test 1: TypeScript without ts-prune -> regex-fallback
+  PASS: ts without ts-prune -> typescript|regex-fallback
+
+Test 2: JavaScript without knip -> javascript|regex-fallback
+  PASS: js without knip -> javascript|regex-fallback
+
+Test 3: Python without vulture -> python|regex-fallback
+  PASS: py without vulture -> python|regex-fallback
+
+Test 4: Rust without cargo-udeps -> rust|regex-fallback
+  PASS: rust without cargo-udeps -> rust|regex-fallback
+
+Test 5: Go without staticcheck -> go|regex-fallback
+  PASS: go without staticcheck -> go|regex-fallback
+
+Test 6: _regex_fallback produces {file, line, kind, severity} schema
+  PASS: regex_fallback emits a JSON array
+  PASS: each item has {file, line, kind, severity}
+
+=== Results: 7/7 passed, 0 failed ===
+=== Phase 12 dispatch-set tests ===
+
+Test 1: dispatch_set cardinality per tier
+  PASS: LOW has 2 reviewers
+  PASS: MEDIUM has 4 reviewers
+  PASS: HIGH has 6 reviewers
+  PASS: CRITICAL has 7 reviewers
+
+Test 2: tier subset invariant
+  PASS: LOW ⊆ MEDIUM
+  PASS: MEDIUM ⊆ HIGH
+  PASS: HIGH ⊆ CRITICAL
+
+Test 3: core reviewers always present
+  PASS: LOW has code-reviewer
+  PASS: LOW has synthesizer
+  PASS: MEDIUM has code-reviewer
+  PASS: MEDIUM has synthesizer
+  PASS: HIGH has code-reviewer
+  PASS: HIGH has synthesizer
+  PASS: CRITICAL has code-reviewer
+  PASS: CRITICAL has synthesizer
+
+Test 4: CRITICAL tier includes cross-provider critic
+  PASS: CRITICAL has omc:ask-codex-critic
+  PASS: HIGH does NOT include cross-provider critic
+
+Test 5: unknown tier errors
+  PASS: unknown tier exits 1
+
+Test 6: risk_score_from_quantum extracts critical count
+  PASS: intent drift critical=1 contributes 10
+  PASS: missing quantum.json yields 0
+
+Test 7: prepare_review_context shape
+  PASS: context has base_sha
+  PASS: context has tier
+  PASS: context has verbatim intent
+  PASS: context has 1 changed file
+  PASS: context has evidence_requirements.must_cite with 3 entries
+
+Test 8: aggregate_reviews chain
+  PASS: aggregate kept 1 finding
+  PASS: aggregate suppressed 2 findings
+  PASS: verdict REQUEST_CHANGES (high ≥70)
+
+Test 9: CLI subcommands
+  PASS: CLI dispatch-set LOW -> 2
+
+=== Results: 29/29 passed, 0 failed ===
+=== Phase 10 dogfood end-to-end check ===
+
+Test 1: dogfood quantum.json parses
+  PASS: valid JSON
+
+Test 2: schema fields from Phases 7-9
+  PASS: userIntent.text present
+  PASS: userClarifications is array
+  PASS: intentDrift has entry
+  PASS: reviews has deepReview
+  PASS: deslop field present
+  PASS: codebasePatterns has entries
+  PASS: progress has entries
+
+Test 3: intent-drift gate semantics
+  PASS: NO_DRIFT gate allows merge
+
+Test 4: deep-review synthesize_verdict consumes the dogfood findings array
+  PASS: two HIGH confidence≥70 findings → REQUEST_CHANGES
+
+Test 5: dedup_findings idempotent on dogfood findings
+  PASS: dedup preserves 2-element unique set
+
+Test 6: plan retrospective — 10 stories all passed
+  PASS: 10 stories total
+  PASS: 10 stories passed
+
+Test 7: codebasePatterns contains real Phase-5 lesson
+  PASS: Phase-5 set-e lesson present
+
+Test 8: userIntent verbatim contains the original verbatim message
+  PASS: intent snapshot references IDEA_REPORT.md
+
+Test 9: companion PRD exists and references the dogfood artifact
+  PASS: PRD exists
+  PASS: PRD has AC-15 dogfood + references phase-10-evidence
+
+=== Results: 17/17 passed, 0 failed ===
+=== Phase 23 KBI-FAR far_filter tests ===
+
+Test 1: confidence cutoff
+  PASS: 1 kept (conf ≥60)
+  PASS: 2 suppressed (conf <60)
+  PASS: reason mentions confidence
+
+Test 2: agreement boost lifts across cutoff
+  PASS: agreement-boosted finding kept
+  PASS: confidence boosted 50 -> 65
+  PASS: original_confidence preserved
+  PASS: single-agent below-cutoff suppressed
+
+Test 3: confidence cap at 100
+  PASS: confidence capped at 100
+
+Test 4: knownFalsePositives regex suppression
+  PASS: genuine finding kept
+  PASS: 2 suppressed by regex
+  PASS: suppression reasons reference knownFalsePositives
+
+Test 5: missing quantum.json graceful fallback
+  PASS: finding kept with missing quantum.json
+
+Test 6: empty input
+  PASS: empty kept
+  PASS: empty suppressed
+
+Test 7: CLI subcommand
+  PASS: CLI far kept 1
+
+Test 8: aggregate_reviews wires far_filter
+  PASS: aggregate kept 1 real finding
+  PASS: aggregate suppressed 2 (cutoff + FP)
+  PASS: verdict REQUEST_CHANGES (high ≥70)
+  PASS: FP reason present
+
+Test 9: schema extension
+  PASS: knownFalsePositives is array
+
+=== Results: 20/20 passed, 0 failed ===
+=== Final Sweep Tests ===
+
+Test 1: Test suite failure blocks COMPLETE
+  PASS: failed test suite blocks COMPLETE
+
+Test 2: Test suite success allows COMPLETE
+  PASS: passing test suite allows COMPLETE
+
+Test 3: Import smoke test failure is warning only
+  PASS: import smoke test failure is warning
+  PASS: COMPLETE still allowed despite smoke test warning
+
+=== Results: 4/4 passed ===
+=== v0.7.0 US-002 finding-persist tests ===
+
+Test 1: snapshot creation + schema
+  PASS: snapshot file created at /tmp/tmp.LKxLp0Alf5/.handoffs/design-review-findings.json
+  PASS: snapshot.stage
+  PASS: snapshot.source_path
+  PASS: snapshot.summary.count
+  PASS: snapshot.findings|length
+  PASS: snapshot.timestamp non-empty
+
+Test 2: CSV header-once + data row
+  PASS: metrics/ auto-created + CSV present
+  PASS: CSV header
+  PASS: CSV total lines (header + 1 row)
+  PASS: CSV row1 matches schema (stage=design, count=4, 1/1/2/0)
+
+Test 3: idempotent snapshot overwrite + CSV append
+  PASS: snapshot timestamp updated on second write
+  PASS: snapshot source_path overwritten
+  PASS: CSV now header + 2 data rows
+
+Test 4: 3-stage end-to-end
+  PASS: 3 snapshot files
+  PASS: CSV header + 3 data rows
+  PASS: CSV contains row for stage=design
+  PASS: CSV contains row for stage=prd
+  PASS: CSV contains row for stage=plan
+
+Test 5: missing metrics/ dir auto-created on first call
+  PASS: pre-call: metrics/ does not exist
+  PASS: post-call: metrics/ auto-created
+
+Test 6: read_review_findings missing → {}
+  PASS: missing snapshot returns {}
+  PASS: stderr emits WARN on missing snapshot
+
+Test 7: read_review_findings on existing snapshot
+  PASS: round-trip stage
+  PASS: round-trip src
+  PASS: round-trip count
+
+Test 8: unknown stage rejected
+  PASS: bogus stage rejected (non-zero exit)
+
+Test 9: .gitignore wires
+  PASS: .gitignore ignores *-review-findings.json
+  PASS: .gitignore does NOT ignore metrics/
+
+Test 10: 3 SKILL.md files wire lib/finding-persist.sh
+  PASS: ql-brainstorm sources finding-synth.sh
+  PASS: ql-brainstorm sources finding-persist.sh
+  PASS: ql-brainstorm calls persist_review_findings design
+  PASS: ql-spec sources finding-synth.sh
+  PASS: ql-spec sources finding-persist.sh
+  PASS: ql-spec calls persist_review_findings
+  PASS: ql-plan sources finding-synth.sh
+  PASS: ql-plan sources finding-persist.sh
+  PASS: ql-plan calls persist_review_findings
+
+Test 11: header bootstrap inside lock — exactly one header on repeat call
+  PASS: header appears exactly once after 2 calls
+  PASS: both data rows present
+  PASS: total CSV lines = 3 (1 header + 2 rows)
+
+Test 12: jq failure aborts — no CSV row, no orphan tmp
+  PASS: malformed summary returns non-zero exit
+  PASS: stderr emits ERR/jq message
+  PASS: no CSV row written on jq failure
+  PASS: no orphan snap_tmp files left behind
+
+=== Results: 44/44 passed, 0 failed ===
+=== v0.7.0 US-004 finding-severity rubric tests ===
+
+Test 1: references/finding-severity.md exists
+  PASS: /c/Users/andyzeng/OneDrive - Microsoft/Documents/GitHub/quantum-loop/tests/../references/finding-severity.md exists
+
+Test 2: 3 mode section headers
+  PASS: ## design-review heading
+  PASS: ## prd-review heading
+  PASS: ## plan-review heading
+
+Test 3: each mode section has 4 severity rows
+  PASS: design-review section has all 4 severity rows (crit/high/med/low present)
+  PASS: prd-review section has all 4 severity rows (crit/high/med/low present)
+  PASS: plan-review section has all 4 severity rows (crit/high/med/low present)
+
+Test 4: severity row Examples are non-empty
+  PASS: design-review section: all 4 severity rows have non-empty Example column
+  PASS: prd-review section: all 4 severity rows have non-empty Example column
+  PASS: plan-review section: all 4 severity rows have non-empty Example column
+
+Test 5: spec-reviewer.md cross-link presence
+  PASS: design-review cross-link
+  PASS: prd-review cross-link
+  PASS: plan-review cross-link
+
+Test 6: cross-link anchors are kebab-case
+  PASS: all 3 anchors are kebab-case (design-review / prd-review / plan-review)
+
+=== Results: 14/14 passed, 0 failed ===
+=== v0.7.0 US-001 finding-synth tests ===
+
+Test 1: empty stdin produces empty array
+  PASS: empty stdin → []
+  PASS: empty summary count = 0
+  PASS: empty summary stage = design
+
+Test 2: single well-formed FINDING block
+  PASS: single block → length 1
+  PASS: category populated
+  PASS: severity populated
+  PASS: file populated
+  PASS: line populated
+  PASS: evidence populated
+  PASS: suggestion populated
+
+Test 3: four mixed-severity blocks
+  PASS: 4 blocks → length 4
+  PASS: summary count = 4
+  PASS: by_severity.critical = 1
+  PASS: by_severity.high = 1
+  PASS: by_severity.medium = 2
+  PASS: by_severity.low = 0
+  PASS: by_category.missing-section = 1
+
+Test 4: malformed block tolerance
+  PASS: malformed → at least 1 parsed
+  PASS: well-formed survived
+  PASS: malformed → stderr warning emitted
+
+Test 5: format_summary_line
+  PASS: format mentions stage
+  PASS: format mentions count
+  PASS: format mentions severities
+  PASS: format begins with [REVIEW]
+
+Test 6: zero-finding format
+  PASS: 0-find → (clean)
+  PASS: 0-find → plan-review
+
+Test 7: CLI parse subcommand
+  PASS: CLI parse → 1 element
+  PASS: CLI parse category
+
+Test 8: CLI summarize subcommand
+  PASS: CLI summarize count = 1
+  PASS: CLI summarize by_severity.high = 1
+
+Test 9: CLI parse empty stdin
+  PASS: CLI empty parse → []
+
+=== Results: 31/31 passed, 0 failed ===
+=== Phase 15 handoff-protocol tests ===
+
+Test 1: round-trip write → read
+  PASS: handoff file created
+  PASS: stage round-trips
+  PASS: decided[0] round-trips
+  PASS: rejected[1] round-trips
+  PASS: risks length 1
+  PASS: files[0]
+  PASS: remaining[0]
+  PASS: timestamp non-empty
+  PASS: sha non-empty
+
+Test 2: missing handoff returns empty object
+  PASS: missing handoff → {}
+
+Test 3: sparse body fills missing fields
+  PASS: decided kept
+  PASS: rejected empty []
+  PASS: risks empty []
+  PASS: files empty []
+  PASS: remaining empty []
+
+Test 4: read_all_handoffs canonical order
+  PASS: all returns 3 handoffs
+  PASS: order[0] is brainstorm
+  PASS: order[1] is spec
+  PASS: order[2] is plan
+
+Test 5: list_prior_stages
+  PASS: prior of brainstorm empty
+  PASS: prior of spec
+  PASS: prior of plan
+  PASS: prior of execute
+  PASS: prior of review
+  PASS: prior of verify
+
+Test 6: written file shape
+  PASS: stage line present
+  PASS: decided line present
+  PASS: files JSON serialized
+  PASS: frontmatter fences
+
+Test 7: CLI subcommands
+  PASS: CLI write+read round-trip
+  PASS: CLI prior plan
+
+Test 8: skills wire the handoff protocol
+  PASS: brainstorm writes handoff
+  PASS: spec reads prior handoffs
+  PASS: spec writes its handoff
+  PASS: plan reads prior handoffs
+  PASS: plan writes its handoff
+  PASS: spec references brainstorm.remaining
+  PASS: plan references spec.decided binding
+
+=== Results: 38/38 passed, 0 failed ===
+=== Phase 25 HyClone Stage-1 tests ===
+
+Test 1: alpha_normalize basics
+  PASS: whitespace-only renames x
+  PASS: extra whitespace collapsed
+  PASS: multiple identifiers numbered
+
+Test 2: repeated identifiers reuse placeholder
+  PASS: repeated identifier reuses placeholder
+
+Test 3: keywords preserved
+  PASS: keywords preserved
+
+Test 4: comments stripped
+  PASS: line comment // stripped
+  PASS: line comment # stripped
+  PASS: block comment stripped
+
+Test 5: string literals preserved
+  PASS: double-quoted string preserved
+  PASS: single-quoted string preserved
+
+Test 6: clone fingerprints match
+  PASS: different names → same fingerprint
+  PASS: different whitespace → same fingerprint
+
+Test 7: semantic difference → different fingerprints
+  PASS: operator difference changes fingerprint
+  PASS: while vs if different
+
+Test 8: find_clones detects a clone pair
+  PASS: finds 1 clone group
+  PASS: group has 2 members
+  PASS: fnA in clone group
+  PASS: fnB in clone group
+  PASS: fnC NOT in clone group
+
+Test 9: find_clones with all unique functions
+  PASS: no clone groups
+
+Test 10: find_clones with triple
+  PASS: 3-way clone grouped
+  PASS: triple has 3 members
+
+Test 11: CLI subcommands
+  PASS: CLI normalize
+  PASS: CLI fingerprint is 64 hex chars
+
+Test 12: comment markers inside string literals not treated as comments
+  PASS: URL preserved, trailing double-slash stripped
+  PASS: regex preserved, trailing hash stripped
+  PASS: block markers in string do not consume rest
+  PASS: escaped quotes do not terminate string
+  PASS: different URLs -> different fingerprints (Stage-2 would catch)
+
+Test 13: empty input handling
+  PASS: empty normalize -> empty
+  PASS: empty find_clones -> []
+
+=== Results: 31/31 passed, 0 failed ===
+=== Test 1: detect_environment returns no long_path/onedrive for short normal path ===
+  PASS: short normal path no long_path
+  PASS: short normal path no onedrive
+  PASS: short normal path no tmpdir issue
+=== Test 2: detect_environment detects long path (>150 chars) ===
+  PASS: long path detected
+=== Test 3: detect_environment detects OneDrive path (case insensitive) ===
+  PASS: OneDrive detected
+=== Test 4: detect_environment detects onedrive lowercase ===
+  PASS: onedrive lowercase detected
+=== Test 5: detect_environment detects ONEDRIVE uppercase ===
+  PASS: ONEDRIVE uppercase detected
+=== Test 6: detect_environment pipe-delimited with multiple codes ===
+  PASS: long_path in combined
+  PASS: onedrive in combined
+  PASS: pipe delimiter present in combined result
+=== Test 7: detect_environment detects Windows via uname/MSYSTEM ===
+  PASS: windows detected on Windows
+=== Test 8: detect_environment tmpdir writability check ===
+  PASS: writable tmpdir not flagged
+=== Test 9: detect_environment with empty path ===
+  PASS: empty path no long_path
+=== Test 10: detect_environment with exactly 150 chars ===
+  PASS: exactly 150 chars not flagged
+=== Test 11: detect_environment with 151 chars triggers long_path ===
+  PASS: 151 chars triggers long_path
+=== Test 12: warn_long_path with OneDrive path logs OneDrive warning ===
+  PASS: OneDrive warning logged
+  PASS: OneDrive warning mentions OneDrive
+  PASS: OneDrive warning has WARN
+=== Test 13: warn_long_path with non-OneDrive path logs generic warning ===
+  PASS: generic warning logged
+  PASS: generic warning has WARN
+  PASS: generic warning has char count
+=== Test 14: warn_long_path includes path length in message ===
+  PASS: path length in message
+=== Test 15: prune_stale_refs on a clean repo ===
+  PASS: prune_stale_refs exits 0 on clean repo
+  PASS: prune log has prefix
+=== Test 16: prune_stale_refs returns count on stdout ===
+  PASS: prune_stale_refs returns numeric count: 0
+=== Test 17: prune_stale_refs with stale worktree reference ===
+  PASS: prune with stale exits 0
+=== Test 18: prune_stale_refs with empty repo_root ===
+  PASS: prune with empty repo_root fails
+=== Test 19: cleanup_orphan_dirs removes clean orphan directory ===
+  PASS: cleanup_orphan_dirs exits 0
+  PASS: clean orphan removed
+=== Test 20: cleanup_orphan_dirs preserves dirty orphan (uncommitted changes) ===
+  PASS: cleanup_orphan_dirs with dirty exits 0
+  PASS: dirty orphan preserved
+=== Test 21: cleanup_orphan_dirs returns cleaned count ===
+  PASS: cleanup returns count of 2
+  PASS: clean1 removed
+  PASS: clean2 removed
+=== Test 22: cleanup_orphan_dirs with no .ql-wt dir ===
+  PASS: cleanup with no .ql-wt exits 0
+  PASS: cleanup with no .ql-wt returns 0
+=== Test 23: cleanup_orphan_dirs with empty repo_root ===
+  PASS: cleanup with empty repo_root fails
+=== Test 24: cleanup_orphan_dirs preserves real worktree ===
+  PASS: cleanup returns 1 (only orphan)
+  PASS: real worktree preserved
+  PASS: clean orphan removed
+=== Test 25: run_preflight writes execution.initGuard to quantum.json ===
+  PASS: run_preflight exits 0
+  PASS: initGuard field exists
+  PASS: ranAt exists in initGuard
+  PASS: warnings field exists
+  PASS: prunedWorktrees field exists
+  PASS: cleanedOrphans field exists
+=== Test 26: run_preflight is idempotent within 1 hour ===
+  PASS: run_preflight idempotent exits 0
+  PASS: idempotent run mentions skip
+=== Test 27: run_preflight runs again if ranAt is old ===
+  PASS: run_preflight re-runs after old ranAt
+  PASS: re-run does not skip
+=== Test 28: run_preflight sets forceSequential when tmpdir not writable ===
+  PASS: forceSequential is True when tmpdir not writable
+=== Test 29: run_preflight does NOT set forceSequential when tmpdir writable ===
+  PASS: forceSequential is False when tmpdir writable
+=== Test 30: run_preflight with empty repo_root ===
+  PASS: run_preflight with empty repo_root fails
+=== Test 31: run_preflight with empty json_path ===
+  PASS: run_preflight with empty json_path fails
+=== Test 32: run_preflight preserves existing execution fields ===
+  PASS: existing execution.mode preserved
+  PASS: existing execution.maxParallel preserved
+
+=== Results: 56/56 passed, 0 failed ===
+=== Phase 7 ql-intent-check wiring tests ===
+
+Test 1: quantum.json.example JSON validity
+  PASS: quantum.json.example is valid JSON
+
+Test 2: userIntent schema shape
+  PASS: userIntent.text populated
+  PASS: userIntent.timestamp populated
+
+Test 3: userClarifications + intentDrift containers
+  PASS: userClarifications is array
+  PASS: intentDrift is object
+
+Test 4: ql-intent-check skill content
+  PASS: skill file exists
+  PASS: references Rule 4 — Non-goals violated
+  PASS: references CRITICAL_DRIFT_BLOCKS_MERGE verdict
+  PASS: lists Rule 7 scope creep
+
+Test 5: ql-brainstorm Phase 4b references userIntent
+  PASS: mentions Phase 4b snapshot
+  PASS: references immutable snapshot
+  PASS: points at json-atomic helper
+
+Test 6: ql-verify treats CRITICAL_DRIFT_BLOCKS_MERGE as blocking
+  PASS: mentions intent-drift audit step
+  PASS: mentions CRITICAL verdict blocks PASSED
+  PASS: references claim-check signal too
+
+Test 7: jq gate reads intentDrift verdict correctly
+  PASS: critical verdict readable
+  PASS: gate blocks on critical
+  PASS: gate passes on NO_DRIFT
+
+Test 8: Missing intentDrift degrades gracefully
+  PASS: missing verdict returns sentinel
+
+=== Results: 19/19 passed, 0 failed ===
+=== Phase 32 intent-graph tests ===
+
+Test 1: function name decomposition
+  PASS: camelCase: getUserById
+  PASS: snake_case: create_order
+  PASS: mixed: fetch_data_v2
+  PASS: single: validate
+
+Test 2: verb detection
+  PASS: create is verb
+  PASS: delete is verb
+  PASS: hamburger not a verb (PASS=7)
+
+Test 3: extract intents from story description
+  PASS: extracted 6 intents (>=5 expected)
+  PASS: 'delete tokens' captured
+  PASS: 'create sessions' captured
+
+Test 4: source tagging
+  PASS: title source tagged
+  PASS: description source tagged
+  PASS: ac source tagged
+  PASS: task source tagged
+
+Test 5: extract code intents from TS
+  PASS: 3 verb-led functions found
+  PASS: verbs = create,delete,get
+
+Test 6: extract code intents from Python
+  PASS: 3 verb-led (xyz excluded)
+
+Test 7: dir walk across extensions
+  PASS: 3 intents across TS+PY+GO
+
+Test 8: match full overlap
+  PASS: matched count=1
+  PASS: unmatched_story=0
+  PASS: unmatched_code=0
+  PASS: jaccard=1
+
+Test 9: partial overlap - story says delete, code says filter
+  PASS: matched (create session)
+  PASS: unmatched_story verb=delete
+  PASS: unmatched_code verb=filter
+
+Test 10: object token order normalized
+  PASS: token-order-insensitive match
+
+Test 11: empty inputs
+  PASS: empty: matched=0
+  PASS: empty: jaccard=0
+  PASS: empty code: unmatched_story=1
+
+Test 12: end-to-end story→code match
+  PASS: end-to-end matched 2 intent(s)
+
+Test 13: CLI subcommands
+  PASS: CLI story count>=1
+  PASS: CLI code count=1
+  PASS: CLI match jaccard=1
+
+Test 14: non-action function name
+  PASS: no intents (no verb prefix)
+
+=== Results: 34/34 passed, 0 failed ===
+=== Test 1: write_quantum_json writes via tmp then renames ===
+  PASS: write exits 0
+  PASS: quantum.json exists after write
+  PASS: quantum.json.tmp removed after write
+  PASS: Content written correctly
+=== Test 2: cleanup_stale_tmp removes leftover .tmp ===
+  PASS: Stale .tmp removed
+  PASS: Original quantum.json untouched
+=== Test 3: cleanup_stale_tmp is no-op when no .tmp exists ===
+  PASS: cleanup exits 0 when no tmp
+=== Test 4: update_execution_field adds execution metadata ===
+  PASS: mode is parallel
+  PASS: maxParallel is 4
+  PASS: currentWave is 1
+  PASS: activeWorktrees starts empty
+=== Test 5: set_story_worktree sets worktree path on story ===
+  PASS: Story US-001 has worktree set
+  PASS: activeWorktrees has 1 entry
+=== Test 6: clear_story_worktree removes worktree from story ===
+  PASS: Story US-001 worktree cleared
+  PASS: activeWorktrees is empty
+=== Test 7: write_quantum_json validates JSON ===
+  PASS: write rejects invalid JSON
+  PASS: Original file unchanged after invalid write
+=== Test 8: Input validation ===
+  PASS: write_quantum_json rejects empty path
+  PASS: cleanup_stale_tmp rejects empty path
+
+=== Results: 19/19 passed, 0 failed ===
+=== Test T-014: detect_test_runner ===
+--- T-014a: detect jest from package.json ---
+  PASS: jest detected
+  PASS: jest command includes npx jest
+--- T-014b: detect vitest from package.json ---
+  PASS: vitest detected
+  PASS: vitest command includes npx vitest
+--- T-014c: detect pytest from pyproject.toml ---
+  PASS: pytest detected from pyproject.toml
+  PASS: pytest command
+--- T-014d: detect pytest from pytest.ini ---
+  PASS: pytest detected from pytest.ini
+--- T-014e: detect pytest from setup.cfg ---
+  PASS: pytest detected from setup.cfg
+--- T-014f: detect go test from go.mod ---
+  PASS: go detected
+  PASS: go test command
+--- T-014g: empty repo returns empty ---
+  PASS: empty repo returns empty
+--- T-014h: nonexistent directory returns empty ---
+  PASS: nonexistent dir returns empty
+--- T-014i: jest takes priority over vitest when both present ---
+  PASS: jest takes priority
+--- T-014j: package.json without test deps returns empty ---
+  PASS: package.json without test deps returns empty
+=== Test T-015: capture_baseline ===
+--- T-015a: capture_baseline with jest JSON output ---
+  PASS: jest baseline passCount
+  PASS: jest baseline failCount
+  PASS: jest baseline skipCount
+  PASS: jest current initialized from baseline
+  PASS: jest failing tests include test_b
+  PASS: jest failing tests include test_d
+  PASS: capture_baseline logs baseline
+--- T-015b: capture_baseline with pytest output ---
+  PASS: pytest baseline passCount
+  PASS: pytest baseline failCount
+  PASS: pytest baseline skipCount
+--- T-015c: capture_baseline with go test output ---
+  PASS: go baseline passCount
+  PASS: go baseline failCount
+  PASS: go baseline skipCount
+--- T-015d: capture_baseline with unparseable output falls back to regex ---
+  PASS: regex fallback passCount
+  PASS: regex fallback failCount
+--- T-015e: capture_baseline with no test runner returns gracefully ---
+  PASS: no runner: baseline is null
+=== Test T-016: capture_wave_snapshot ===
+--- T-016a: capture_wave_snapshot detects new failures ---
+  PASS: wave snapshot failCount
+  PASS: wave snapshot wave num
+  PASS: wave snapshot has new failure
+  PASS: wave snapshot keeps known failure
+  PASS: wave snapshot logs delta
+--- T-016b: capture_wave_snapshot detects resolved failures ---
+  PASS: resolved failure: failCount is 0
+  PASS: resolved failure: failingTests empty
+=== Test T-017: delta_check ===
+--- T-017a: delta_check with only known failures returns 0 ---
+  PASS: delta_check known failures returns 0
+  PASS: delta_check logs known failures
+--- T-017b: delta_check with new failure above threshold returns 1 ---
+  PASS: delta_check new failures returns 1
+  PASS: delta_check output includes new failure name
+--- T-017c: delta_check with new failure at threshold returns 0 ---
+  PASS: delta_check at flaky threshold returns 0
+  PASS: delta_check logs flaky threshold
+--- T-017d: delta_check logs timing ---
+  PASS: delta_check logs timing
+=== Test T-018: format_agent_context ===
+--- T-018a: format_agent_context with failing tests ---
+  PASS: format includes header
+  PASS: format includes test name
+  PASS: format includes wave info
+  PASS: format includes expected fix
+  PASS: format includes unknown fix
+  PASS: format includes not-your-fault
+  PASS: format includes new-failure warning
+--- T-018b: format_agent_context with no failing tests ---
+  PASS: format with no failures returns empty
+--- T-018c: format_agent_context with null knownFailures ---
+  PASS: format with null knownFailures returns empty
+--- T-018d: format_agent_context with missing knownFailures ---
+  PASS: format with missing knownFailures returns empty
+=== Test T-033: Additional detect_test_runner and capture_baseline ===
+--- T-033a: capture_baseline with clean suite (10 pass, 0 fail) ---
+  PASS: clean suite passCount
+  PASS: clean suite failCount
+  PASS: clean suite skipCount
+  PASS: clean suite failingTests empty
+  PASS: clean suite current passCount
+--- T-033b: capture_baseline with exactly 5 failures ---
+  PASS: 5 failures failCount
+  PASS: 5 failures failingTests has 5 entries
+  PASS: 5 fail includes test_b
+  PASS: 5 fail includes test_d
+  PASS: 5 fail includes test_f
+  PASS: 5 fail includes test_h
+  PASS: 5 fail includes test_j
+--- T-033c: capture_baseline with garbled output (both parses fail) ---
+  PASS: garbled output: baseline is null
+  PASS: garbled output logs tracking disabled or fallback
+=== Test T-034: Additional capture_wave_snapshot and delta_check ===
+--- T-034a: capture_wave_snapshot from 0 failures to 3 new failures ---
+  PASS: wave3 failCount is 3
+  PASS: wave3 failingTests has 3 entries
+  PASS: wave3 entries have failingSince=2
+--- T-034b: capture_wave_snapshot resolves 3 previous failures ---
+  PASS: resolve3 failCount is 0
+  PASS: resolve3 failingTests empty
+  PASS: resolve3 passCount is 5
+--- T-034c: capture_wave_snapshot with no change ---
+  PASS: nochange failCount stays 2
+  PASS: nochange failingTests still 2
+  PASS: nochange wave updated to 3
+--- T-034d: delta_check no regressions (baseline 5 failures, same 5) ---
+  PASS: delta_check 5 known failures returns 0
+  PASS: delta_check 5 known failures logged
+--- T-034e: delta_check with 0 failures (no regressions, clean run) ---
+  PASS: delta_check clean run returns 0
+  PASS: delta_check logs timing on clean
+=== Test T-035: Additional format_agent_context ===
+--- T-035a: format_agent_context with exactly 3 failures ---
+  PASS: fmt3 includes test_login
+  PASS: fmt3 includes test_create
+  PASS: fmt3 includes test_migrate
+  PASS: fmt3 includes US-007 fix
+  PASS: fmt3 includes US-009 fix
+  PASS: fmt3 includes Wave 1
+  PASS: fmt3 includes Wave 2
+  PASS: fmt3 includes Wave 3
+  PASS: fmt3 includes unknown for null fix
+--- T-035b: format_agent_context summary ---
+  (Summary included in final results below)
+
+=== Results: 90/90 passed, 0 failed ===
+=== Test 1: detect_language — TypeScript (tsconfig.json) ===
+  PASS: TypeScript detected via tsconfig.json
+=== Test 2: detect_language — Python (pyproject.toml) ===
+  PASS: Python detected via pyproject.toml
+=== Test 3: detect_language — Python (setup.py) ===
+  PASS: Python detected via setup.py
+=== Test 4: detect_language — Go (go.mod) ===
+  PASS: Go detected via go.mod
+=== Test 5: detect_language — Unknown (no config files) ===
+  PASS: Unknown when no config files
+=== Test 6: detect_language — Multiple config files (first match wins: typescript) ===
+  PASS: TypeScript wins when multiple config files present
+=== Test 7: detect_language — Python + Go (python wins over go) ===
+  PASS: Python wins over Go in priority
+=== Test 8: detect_language — Both pyproject.toml and setup.py ===
+  PASS: Python detected when both pyproject.toml and setup.py
+=== Test 9: detect_language — Empty string repo_root ===
+  PASS: Unknown for empty repo_root
+=== Test 10: detect_language — Nonexistent directory ===
+  PASS: Unknown for nonexistent directory
+
+--- infer_shared_types_dir() tests ---
+=== Test 11: infer_shared_types_dir — finds src/shared/types/ (highest priority) ===
+  PASS: src/shared/types/ found first (highest priority)
+=== Test 12: infer_shared_types_dir — finds src/types/ when src/shared/types/ missing ===
+  PASS: src/types/ found when src/shared/types/ absent
+=== Test 13: infer_shared_types_dir — finds src/interfaces/ ===
+  PASS: src/interfaces/ found
+=== Test 14: infer_shared_types_dir — finds types/ (project root) ===
+  PASS: types/ found at project root
+=== Test 15: infer_shared_types_dir — finds shared/ ===
+  PASS: shared/ found
+=== Test 16: infer_shared_types_dir — TypeScript fallback default ===
+  PASS: TypeScript default: src/shared/types
+=== Test 17: infer_shared_types_dir — Python fallback default ===
+  PASS: Python default: src/shared
+=== Test 18: infer_shared_types_dir — Go fallback default ===
+  PASS: Go default: internal/shared
+=== Test 19: infer_shared_types_dir — Unknown language fallback default ===
+  PASS: Unknown language default: src/shared/types
+=== Test 20: infer_shared_types_dir — does NOT create directories ===
+  PASS: Returns default path for TypeScript
+  PASS: Directory was NOT created (idempotent)
+=== Test 21: infer_shared_types_dir — empty repo_root ===
+  PASS: Empty repo_root defaults to src/shared/types
+=== Test 22: infer_shared_types_dir — nonexistent repo_root ===
+  PASS: Nonexistent repo_root defaults to Python default
+=== Test 23: infer_shared_types_dir — empty language string ===
+  PASS: Empty language defaults to src/shared/types
+=== Test 24: infer_shared_types_dir — priority order: src/shared/types > types > shared ===
+  PASS: src/shared/types/ wins regardless of language
+
+--- generate_definition_file() tests ---
+=== Test 25: generate_definition_file — writes definition verbatim when present ===
+  PASS: Definition written verbatim to definitionFile
+=== Test 26: generate_definition_file — generates TS interface from shape ===
+[MATERIALIZE] Wrote TaskStatus to src/types/TaskStatus.ts
+src/types/TaskStatus.ts  PASS: Generated TS interface from shape
+=== Test 27: generate_definition_file — generates Python Protocol from shape ===
+[MATERIALIZE] Wrote TaskStatus to src/shared/task_status.py
+src/shared/task_status.py  PASS: Generated Python Protocol from shape
+=== Test 28: generate_definition_file — generates Go interface from shape ===
+[MATERIALIZE] Wrote TaskStatus to internal/shared/taskstatus.go
+internal/shared/taskstatus.go  PASS: Generated Go interface from shape
+=== Test 29: generate_definition_file — skips when neither definition nor shape ===
+  PASS: File not created when neither definition nor shape
+=== Test 30: generate_definition_file — idempotent skip when file exists with same content ===
+  PASS: Idempotent: file with same content not modified
+=== Test 31: generate_definition_file — does NOT overwrite file with different content ===
+  PASS: File with different content NOT overwritten
+  PASS: [MATERIALIZE] SKIP logged for different content
+=== Test 32: generate_definition_file — creates parent directories ===
+[MATERIALIZE] Wrote Foo to deep/nested/dir/types/Foo.ts
+deep/nested/dir/types/Foo.ts  PASS: Parent directories created with mkdir -p
+=== Test 33: generate_definition_file — empty type_name ===
+  PASS: Empty type_name handled gracefully
+=== Test 34: generate_definition_file — empty JSON ===
+  PASS: Empty JSON handled with warning
+=== Test 35: generate_definition_file — TS shape with readonly properties ===
+[MATERIALIZE] Wrote ReadOnly to src/types/ReadOnly.ts
+src/types/ReadOnly.ts  PASS: Readonly property generated correctly in TS
+
+--- materialize_contracts() tests ---
+=== Test 36: materialize_contracts — materializes multi-consumer types ===
+  PASS: Both multi-consumer type files created
+=== Test 37: materialize_contracts — skips single-consumer types ===
+  PASS: Single-consumer type NOT materialized
+=== Test 38: materialize_contracts — skips types without consumers ===
+  PASS: Type without consumers NOT materialized
+=== Test 39: materialize_contracts — creates git commit ===
+Priority
+  PASS: Git commit created with correct message
+=== Test 40: materialize_contracts — updates execution.materializedContracts ===
+Priority
+  PASS: execution.materializedContracts updated
+=== Test 41: materialize_contracts — prints materialized names to stdout ===
+  PASS: Materialized names printed to stdout
+=== Test 42: materialize_contracts — reads discoveredContracts ===
+  PASS: Discovered contract materialized
+=== Test 43: materialize_contracts — no-op when no multi-consumer contracts ===
+  PASS: No git commit when nothing to materialize
+=== Test 44: materialize_contracts — empty json_path ===
+  PASS: Empty json_path returns error
+=== Test 45: materialize_contracts — nonexistent quantum.json ===
+  PASS: Nonexistent json_path returns error
+
+--- Additional edge-case tests (US-020) ---
+=== Test 46: materialize_contracts — mix of multi-consumer and single-consumer types ===
+  PASS: Multi-consumer materialized, single-consumer skipped
+=== Test 47: materialize_contracts — empty contracts object (no-op) ===
+  PASS: Empty contracts object is no-op (no commit, returns 0)
+=== Test 48: generate_definition_file — shape but no definition for Python ===
+[MATERIALIZE] Wrote Event to src/shared/event.py
+src/shared/event.py  PASS: Python Protocol class generated from shape (no definition)
+=== Test 49: generate_definition_file — shape but no definition for Go ===
+[MATERIALIZE] Wrote Event to internal/shared/event.go
+internal/shared/event.go  PASS: Go interface generated from shape (no definition)
+=== Test 50: Idempotent re-run — same content, file already exists -> skipped ===
+  PASS: Idempotent re-run skipped with SKIP message (same content)
+=== Test 51: Different content already exists -> NOT overwritten, warning logged ===
+  PASS: File with different content NOT overwritten
+  PASS: Warning logged for different content
+=== Test 52: discoveredContracts included alongside shared_types ===
+  PASS: Both shared_types and discoveredContracts materialized
+  PASS: Both names (Priority, Metric) printed to stdout
+=== Test 53: Git commit message format matches 'chore: materialize contracts for Wave N' ===
+Alpha
+  PASS: Commit message exactly matches 'chore: materialize contracts for Wave 5'
+=== Test 54: Git commit message for Wave 1 ===
+Beta
+  PASS: Commit message matches 'chore: materialize contracts for Wave 1'
+=== Test 55: infer_shared_types_dir — priority order: src/types > src/interfaces > types > shared ===
+  PASS: src/types wins when src/shared/types absent
+=== Test 56: infer_shared_types_dir — src/interfaces > types > shared ===
+  PASS: src/interfaces wins when src/shared/types and src/types absent
+=== Test 57: infer_shared_types_dir — types > shared ===
+  PASS: types wins when higher priority dirs absent
+=== Test 58: materialize_contracts — empty shared_types with no discoveredContracts ===
+  PASS: Empty shared_types object is no-op
+=== Test 59: generate_definition_file — Python shape with methods generates def ===
+[MATERIALIZE] Wrote Calculator to src/shared/calculator.py
+src/shared/calculator.py  PASS: Python method with params generated correctly
+=== Test 60: generate_definition_file — Go shape with params in methods ===
+[MATERIALIZE] Wrote Calc to internal/shared/calc.go
+internal/shared/calc.go  PASS: Go method with params generated correctly
+=== Test 61: materialize_contracts — discoveredContracts with single consumer skipped ===
+  PASS: Discovered contract with single consumer NOT materialized
+=== Test 62: materialize_contracts — empty repo_root returns error ===
+  PASS: Empty repo_root returns error
+=== Test 63: materialize_contracts — wave_num defaults to 1 when omitted ===
+Gamma
+  PASS: wave_num defaults to 1 when omitted
+=== Test 64: generate_definition_file — TS shape with methods that have params ===
+[MATERIALIZE] Wrote Service to src/types/Service.ts
+src/types/Service.ts  PASS: TS method with multiple params generated correctly
+=== Test 65: generate_definition_file — Python shape with no properties and no methods ===
+[MATERIALIZE] Wrote Marker to src/shared/marker.py
+src/shared/marker.py  PASS: Empty Python Protocol has ... placeholder
+=== Test 66: materialize_contracts — materializedContracts accumulates across calls ===
+TypeA
+  PASS: materializedContracts accumulates (ExistingType + TypeA)
+=== Test 67: generate_definition_file — infer fallback when definitionFile missing ===
+[MATERIALIZE] Inferred definitionFile for InferredWidget: src/shared/types/inferred-widget.ts
+[MATERIALIZE] Wrote InferredWidget to src/shared/types/inferred-widget.ts
+src/shared/types/inferred-widget.ts  PASS: Inferred definitionFile fallback wrote to correct path with correct content
+=== Test 68: generate_definition_file — infer fallback with existing src/types dir ===
+[MATERIALIZE] Inferred definitionFile for AppStatus: src/types/app-status.ts
+[MATERIALIZE] Wrote AppStatus to src/types/app-status.ts
+src/types/app-status.ts  PASS: Inferred fallback uses existing src/types dir
+=== Test 69: generate_definition_file — infer fallback for Python ===
+[MATERIALIZE] Inferred definitionFile for UserConfig: src/shared/user-config.py
+[MATERIALIZE] Wrote UserConfig to src/shared/user-config.py
+src/shared/user-config.py  PASS: Inferred fallback for Python writes to src/shared/user-config.py
+=== Test 70: generate_definition_file — path traversal with ../../../etc/passwd rejected ===
+  PASS: Path traversal definitionFile rejected (returns error)
+  PASS: Traversal file not written
+=== Test 71: generate_definition_file — normal path accepted ===
+  PASS: Normal definitionFile accepted and written
+
+--- US-006/US-014: fileConflicts-based materialization tests ---
+=== Test 72: materialize_contracts — single-consumer type IN fileConflicts is materialized ===
+  PASS: Single-consumer type in fileConflicts WAS materialized
+=== Test 73: materialize_contracts — fileConflicts materialization logs '(file-conflict prevention)' ===
+  PASS: Log contains '(file-conflict prevention)'
+=== Test 74: materialize_contracts — multi-consumer type logs '(multi-consumer)' ===
+  PASS: Multi-consumer type logs '(multi-consumer)'
+=== Test 75: materialize_contracts — single-consumer NOT in fileConflicts still skipped ===
+  PASS: Single-consumer type NOT in fileConflicts still skipped
+=== Test 76: materialize_contracts — mix of multi-consumer, fileConflict, and plain single ===
+  PASS: Mix of multi-consumer, fileConflict, and plain single handled correctly
+=== Test 77: materialize_contracts — no fileConflicts key in quantum.json (backward compat) ===
+  PASS: No fileConflicts key — single-consumer still skipped (backward compat)
+=== Test 78: materialize_contracts — empty fileConflicts array (backward compat) ===
+  PASS: Empty fileConflicts array — single-consumer still skipped
+
+=== Results: 83/83 passed, 0 failed ===
+=== Test 1: No conflict merge returns 0 ===
+  PASS: No conflict merge returns 0
+  PASS: Merged file exists on feature branch
+=== Test 2: Conflicting branches returns 1 with conflict files on stdout ===
+  PASS: Conflicting merge returns 1
+  PASS: Output includes conflict file name
+=== Test 3: After failed merge, working tree is clean ===
+  PASS: Working tree clean after conflict abort
+=== Test 4: Output format includes CONFLICT: prefix on file names ===
+  PASS: Returns 1 on conflict
+  PASS: Output has CONFLICT: prefix
+=== Test 5: Multiple files conflicting simultaneously ===
+  PASS: Multiple conflict merge returns 1
+  PASS: Output lists alpha.txt
+  PASS: Output lists beta.txt
+  PASS: Output lists gamma.txt
+  PASS: Working tree clean after multi-conflict abort
+=== Test 6: Merge with unrelated changes (different files) succeeds ===
+  PASS: Unrelated changes merge returns 0
+  PASS: Both files present after merge
+
+=== Results: 14/14 passed, 0 failed ===
+[MERGE-SEMANTIC] diff3=true, ts-morph=false, libcst=false
+=== T-001: Tooling detection and get_semantic_merge_status ===
+--- Test 1: DIFF3_AVAILABLE is defined ---
+  PASS: DIFF3_AVAILABLE is defined
+--- Test 2: TSMORPH_AVAILABLE is defined ---
+  PASS: TSMORPH_AVAILABLE is defined (false)
+--- Test 3: LIBCST_AVAILABLE is defined ---
+  PASS: LIBCST_AVAILABLE is defined (false)
+--- Test 4: get_semantic_merge_status returns comma-separated string ---
+  PASS: status contains diff3
+--- Test 5: get_semantic_merge_status format is backend names ---
+  PASS: status does not contain =
+=== T-002: can_semantic_merge ===
+--- Test 6: .ts files are supported ---
+  PASS: .ts file returns 0
+--- Test 7: .tsx files are supported ---
+  PASS: .tsx file returns 0
+--- Test 8: .py files are supported ---
+  PASS: .py file returns 0
+--- Test 9: .js files are supported ---
+  PASS: .js file returns 0
+--- Test 10: .sh files are supported ---
+  PASS: .sh file returns 0
+--- Test 11: Binary .png returns 1 ---
+  PASS: .png returns 1
+--- Test 12: Binary .jpg returns 1 ---
+  PASS: .jpg returns 1
+--- Test 13: Binary .wasm returns 1 ---
+  PASS: .wasm returns 1
+--- Test 14: Binary .exe returns 1 ---
+  PASS: .exe returns 1
+--- Test 15: Empty string returns 1 ---
+  PASS: empty string returns 1
+--- Test 16: File with no extension ---
+  PASS: no-extension file returns 0 (diff3)
+--- Test 17: Binary .gif returns 1 ---
+  PASS: .gif returns 1
+--- Test 18: Binary .ico returns 1 ---
+  PASS: .ico returns 1
+--- Test 19: .json files are supported ---
+  PASS: .json file returns 0
+=== T-003: semantic_merge with diff3 fallback ===
+--- Test 20: Clean merge returns 0 ---
+  PASS: clean merge returns 0
+--- Test 21: Output has both changes ---
+  PASS: output has ours change
+  PASS: output has theirs change
+--- Test 22: Input files not modified ---
+  PASS: base file unchanged
+  PASS: ours file unchanged
+  PASS: theirs file unchanged
+--- Test 23: Conflicting merge returns 1 ---
+  PASS: conflicting merge returns 1
+--- Test 24: Missing base file returns 1 ---
+  PASS: missing base returns 1
+--- Test 25: Missing ours file returns 1 ---
+  PASS: missing ours returns 1
+--- Test 26: Missing theirs file returns 1 ---
+  PASS: missing theirs returns 1
+--- Test 27: Empty args returns 1 ---
+  PASS: empty args returns 1
+--- Test 28: Identical files merge cleanly ---
+  PASS: identical files return 0
+  PASS: identical merge content
+=== T-004: TypeScript AST merge via ts-morph ===
+SKIP: ts-morph not available, testing .ts falls back to diff3
+--- Test 29: .ts files fall back to diff3 ---
+  PASS: .ts diff3 fallback returns 0
+  PASS: ts diff3 has ours
+  PASS: ts diff3 has theirs
+=== T-005: Python CST merge via libcst ===
+SKIP: libcst not available, testing .py falls back to diff3
+--- Test 31: .py files fall back to diff3 ---
+  PASS: .py diff3 fallback returns 0
+  PASS: py diff3 has ours
+  PASS: py diff3 has theirs
+
+==========================================
+=== Final Results: 38/38 passed, 0 failed ===
+==========================================
+=== T-036: Test classify_conflict for all rule categories ===
+--- Test 1: dependency_manifest pattern match ---
+  PASS: package.json -> dependency_manifest:ours:install
+--- Test 2: dependency_manifest pattern (package-lock.json) ---
+  PASS: package-lock.json -> dependency_manifest:ours:install
+--- Test 3: dependency_manifest pattern (Cargo.toml) ---
+  PASS: Cargo.toml -> dependency_manifest:ours:install
+--- Test 4: dependency_manifest pattern (pyproject.toml) ---
+  PASS: pyproject.toml -> dependency_manifest:ours:install
+--- Test 5: dependency_manifest pattern (go.mod) ---
+  PASS: go.mod -> dependency_manifest:ours:install
+--- Test 6: barrel_export pattern match ---
+  PASS: src/parsers/index.ts -> barrel_export:regenerate:
+--- Test 7: barrel_export pattern (__init__.py) ---
+  PASS: src/models/__init__.py -> barrel_export:regenerate:
+--- Test 8: barrel_export pattern (mod.rs) ---
+  PASS: src/handlers/mod.rs -> barrel_export:regenerate:
+--- Test 9: barrel_export pattern (index.js) ---
+  PASS: lib/utils/index.js -> barrel_export:regenerate:
+--- Test 10: new_story_file (file not on HEAD) ---
+  PASS: new file not on HEAD -> new_story_file:theirs:
+--- Test 11: shared_infrastructure (file in filesChanged) ---
+  PASS: file in filesChanged (on HEAD) -> shared_infrastructure:ours:
+--- Test 12: contract_stub (file in materializedContracts) ---
+  PASS: file in materializedContracts -> contract_stub:theirs:
+--- Test 13: no match -> escalate ---
+  PASS: no match -> unknown:escalate:
+--- Test 14: rule ordering - first match wins ---
+  PASS: first match wins: package.json -> dependency_manifest (not new_story_file)
+--- Test 15: rule ordering with reordered rules ---
+  PASS: first rule wins when both match
+--- Test 16: empty rules -> defaultAction ---
+  PASS: empty rules -> unknown:escalate:
+--- Test 17: custom defaultAction ---
+  PASS: custom defaultAction -> unknown:ours:
+--- Test 18: basename matching for package.json ---
+  PASS: basename package.json matches
+--- Test 19: pattern + condition - pattern checked first ---
+  PASS: pattern matches before condition checked
+--- Test 20: multiple files in filesChanged ---
+  PASS: README.md in multi-file filesChanged -> shared_infrastructure:ours:
+--- Test 21: multiple files in materializedContracts ---
+  PASS: README.md in materializedContracts -> contract_stub:theirs:
+--- Test 22: classify_conflict error on empty file_path ---
+  PASS: empty file_path returns error
+--- Test 23: classify_conflict error on empty context_file ---
+  PASS: empty context_file returns error
+--- Test 24: classify_conflict error on nonexistent context_file ---
+  PASS: nonexistent context_file returns error
+
+=== T-036 Results: 24/24 passed, 0 failed ===
+
+=== T-037: Test classify_and_merge with git scenarios ===
+--- Test 25: Clean merge - no conflicts ---
+  PASS: clean merge returns 0
+  PASS: merge commit created (commit count: 3)
+  PASS: clean merge logs timing
+--- Test 26: All-resolved merge with ours strategy ---
+  PASS: all-resolved merge returns 0
+  PASS: merge log mentions MERGE-STRATEGY
+  PASS: package.json kept ours version
+  PASS: config.json kept ours version
+--- Test 27: Escalation on unknown file conflict ---
+  PASS: escalation returns 1
+  PASS: CONFLICT line in output
+  PASS: CONFLICT mentions file.txt
+  PASS: merge aborted - main content preserved
+--- Test 28: Fallback - no mergeStrategy -> all escalate ---
+  PASS: no mergeStrategy -> escalation returns 1
+  PASS: fallback escalates with CONFLICT
+--- Test 29: Error handling for missing arguments ---
+  PASS: missing branch returns 1
+  PASS: missing repo_root returns 1
+  PASS: missing json_path returns 1
+--- Test 30: Mixed - some resolved, one escalates ---
+  PASS: mixed conflicts with escalation returns 1
+  PASS: file.txt in CONFLICT output
+  PASS: merge aborted, main content preserved
+--- Test 31: get_merge_context reads correctly ---
+  PASS: get_merge_context returns 0
+  PASS: context has defaultAction
+  PASS: context has filesChanged
+  PASS: context has materializedContracts
+  PASS: context has rules
+--- Test 32: get_merge_context error on missing file ---
+  PASS: get_merge_context on missing file returns 1
+--- Test 33: get_merge_context error on empty path ---
+  PASS: get_merge_context on empty path returns 1
+--- Test 34: get_merge_context with no mergeStrategy ---
+  PASS: get_merge_context returns 0 even without mergeStrategy
+  PASS: defaultAction is escalate
+  PASS: rules is empty array
+=== T-001: quantum.json backup/restore and stash exclusion ===
+--- Test 35: quantum.json dirty content preserved when branch modifies it ---
+  PASS: quantum.json has orchestrator content after merge
+  PASS: quantum.json does NOT have feature branch content
+--- Test 36: backup file cleaned up after merge ---
+  PASS: quantum.json.merge-bak cleaned up
+--- Test 37: quantum.json restored after merge abort ---
+  PASS: escalation returns 1
+  PASS: quantum.json restored after abort
+  PASS: quantum.json does NOT have feature branch content after abort
+  PASS: backup cleaned up after abort
+
+=== T-001 Results so far: 60/60 passed, 0 failed ===
+
+=== T-002: Semantic merge delegation in resolve_conflict ===
+--- Test 38: MERGE_SEMANTIC_AVAILABLE variable exists ---
+  PASS: MERGE_SEMANTIC_AVAILABLE is defined
+--- Test 39: Semantic merge delegates for ours conflict ---
+  PASS: MERGE_SEMANTIC_AVAILABLE true with mock
+Auto-merging package.json
+CONFLICT (content): Merge conflict in package.json
+Automatic merge failed; fix conflicts and then commit the result.
+  PASS: package.json is in conflict state
+  PASS: resolve_conflict with semantic merge succeeds
+  PASS: semantic merge result used instead of ours
+--- Test 40: Fallback to ours when semantic merge fails ---
+Auto-merging package.json
+CONFLICT (content): Merge conflict in package.json
+Automatic merge failed; fix conflicts and then commit the result.
+  PASS: resolve_conflict falls through to ours on semantic failure
+  PASS: ours version used after semantic fallback
+  PASS: semantic result NOT present
+--- Test 41: Theirs action delegates to semantic merge ---
+Auto-merging package.json
+CONFLICT (content): Merge conflict in package.json
+Automatic merge failed; fix conflicts and then commit the result.
+  PASS: theirs with semantic merge succeeds
+  PASS: semantic merge result used for theirs case
+--- Test 42: No semantic merge when unavailable ---
+  PASS: MERGE_SEMANTIC_AVAILABLE false without module
+Auto-merging package.json
+CONFLICT (content): Merge conflict in package.json
+Automatic merge failed; fix conflicts and then commit the result.
+  PASS: ours without semantic merge succeeds
+  PASS: ours version used when semantic unavailable
+--- Test 43: can_semantic_merge returns 1 - skip semantic ---
+Auto-merging package.json
+CONFLICT (content): Merge conflict in package.json
+Automatic merge failed; fix conflicts and then commit the result.
+  PASS: ours when can_semantic_merge returns 1
+  PASS: ours version used when can_semantic_merge fails
+  PASS: semantic_merge not called
+
+=== T-002 Results so far: 76/76 passed, 0 failed ===
+
+
+==========================================
+=== Final Results: 76/76 passed, 0 failed ===
+==========================================
+=== Test 1: detect_signal finds STORY_PASSED ===
+  PASS: Detects STORY_PASSED
+=== Test 2: detect_signal finds STORY_FAILED ===
+  PASS: Detects STORY_FAILED
+=== Test 3: detect_signal returns empty for no signal ===
+  PASS: No signal returns empty
+=== Test 4: detect_signal returns empty for nonexistent file ===
+  PASS: Nonexistent file returns empty
+=== Test 5: check_agent_status detects completed process with PASSED ===
+  PASS: Completed agent returns STORY_PASSED
+=== Test 6: check_agent_status returns RUNNING for active process ===
+  PASS: Running agent returns RUNNING
+=== Test 7: check_agent_status detects crash (no signal, process done) ===
+  PASS: Crashed agent returns CRASH
+=== Test 8: merge_worktree_branch merges commits into feature branch ===
+  PASS: merge_worktree_branch exits 0
+  PASS: Merged file exists on feature branch
+=== Test 9: merge_worktree_branch detects merge conflict ===
+CONFLICT: conflict.txt
+  PASS: merge_worktree_branch returns 1 on conflict
+  PASS: Working tree clean after conflict abort
+=== Test 10: Input validation ===
+  PASS: detect_signal empty file returns empty
+  PASS: check_agent_status empty PID returns error
+  PASS: merge_worktree_branch empty repo returns error
+  PASS: merge_worktree_branch empty branch returns error
+
+=== Results: 15/15 passed, 0 failed ===
+=== Test D1: Delegation on clean merge (merge-strategy available + quantum.json exists) ===
+  PASS: Delegation clean merge returns 0
+  PASS: Delegated merge brought file
+=== Test D2: Fallback when MERGE_STRATEGY_AVAILABLE=false ===
+  PASS: Fallback merge returns 0
+  PASS: Fallback merge brought file
+=== Test D3: Fallback when quantum.json does not exist ===
+  PASS: No quantum.json fallback returns 0
+  PASS: No quantum.json fallback brought file
+=== Test D3b: Resolvable conflict returns 0 when delegated (key behavioral difference) ===
+  PASS: Resolvable conflict via delegation returns 0
+  PASS: No CONFLICT lines on resolved merge
+  PASS: Theirs strategy applied (worktree content wins)
+=== Test D4: Delegation on conflict with escalation returns 1 with CONFLICT lines ===
+  PASS: Delegated escalation returns 1
+  PASS: Escalation has CONFLICT line
+  PASS: Working tree clean after delegated conflict abort
+=== Test D5: Fallback conflict also returns 1 with CONFLICT lines ===
+  PASS: Fallback conflict returns 1
+  PASS: Fallback conflict has CONFLICT line
+  PASS: Working tree clean after fallback conflict abort
+=== Test R1: RESILIENCE_AVAILABLE variable is set after sourcing monitor.sh ===
+  PASS: RESILIENCE_AVAILABLE is set
+  PASS: RESILIENCE_AVAILABLE is true when resilience.sh exists
+=== Test R2: squash_and_merge delegation when RESILIENCE_AVAILABLE=true ===
+  PASS: squash_and_merge called when RESILIENCE_AVAILABLE=true
+  PASS: squash_and_merge delegation returns 0
+  PASS: squash_and_merge receives branch
+  PASS: squash_and_merge receives story_id
+  PASS: squash_and_merge receives json_path
+=== Test R3: story_title extracted from quantum.json ===
+  PASS: story title delegation returns 0
+  PASS: squash_and_merge receives story title
+=== Test R4: Fallback to classify_and_merge when RESILIENCE_AVAILABLE=false ===
+  PASS: Classify_and_merge fallback returns 0
+  PASS: classify_and_merge fallback brought file
+=== Test R5: Fallback to bare merge when both RESILIENCE and MERGE_STRATEGY false ===
+  PASS: Bare git merge fallback returns 0
+  PASS: Bare fallback brought file
+=== Test D6: Function signature unchanged (still repo_root, worktree_branch) ===
+  PASS: Empty repo_root still returns 1
+  PASS: Empty repo_root error message
+  PASS: Empty branch still returns 1
+  PASS: Empty branch error message
+
+=== Results: 32/32 passed, 0 failed ===
+=== Observations Tests ===
+
+Test 1: Observations doc created
+  PASS: observations doc created
+
+Test 2: Doc contains expected sections
+  PASS: has header
+  PASS: has failure summary
+  PASS: has raw data
+
+Test 3: Doc committed to git
+  PASS: observations doc committed
+
+Test 4: GitHub issue not filed without user confirmation
+  PASS: NON_INTERACTIVE flag prevents prompt
+
+=== Results: 6/6 passed ===
+=== Phase 6 Observation-Generator Tests ===
+
+Test 1: Failed story -> populated Progress Log table
+  PASS: Progress Log header present
+  PASS: table column header
+  PASS: US-001 row emitted
+  PASS: typecheck phase noted
+  PASS: Type X error excerpt
+  PASS: no empty-log fallback
+
+Test 2: All-passed run -> explicit empty-log copy
+  PASS: empty-log copy shown
+  PASS: no stray table header
+
+Test 3: Generalizable lessons promoted into codebasePatterns
+  PASS: codebasePatterns grew by 1
+  PASS: lesson text promoted
+
+Test 4: Regression guard — no stub leaks into real docs/post-mortems/
+  PASS: real post-mortems dir unchanged
+
+=== Results: 11/11 passed, 0 failed ===
+=== Phase 17 orchestrator-wiring prompt tests ===
+
+Test 1: lib/wave-boundary.sh wired at wave boundary
+  PASS: 3C.NEG1 section present
+  PASS: references wave-boundary.sh scan
+  PASS: routes HIGH severity to fix-story
+
+Test 2: lib/watchdog.sh wired in monitor loop
+  PASS: watchdog tick header
+  PASS: references watchdog.sh poll
+  PASS: status-probe action branch
+  PASS: kill-and-requeue action branch
+  PASS: mark-failed action branch
+  PASS: circuit-breaker bump
+  PASS: circuit-breaker check
+
+Test 3: lib/deep-review.sh wired at full-feature review
+  PASS: 4B.5 deep-review section
+  PASS: score-from-quantum call
+  PASS: tier lookup
+  PASS: dispatch-set call
+  PASS: context preparation
+  PASS: aggregate pipe
+  PASS: BLOCKS_MERGE handled
+  PASS: REQUEST_CHANGES handled
+  PASS: persists into quantum.reviews
+
+Test 4: lib/deslop.sh wired between review-pass and commit
+  PASS: 3A.5B deslop section
+  PASS: validate_scope gate
+  PASS: baseline snapshot before
+  PASS: compare_baseline call
+  PASS: rollback on regression
+  PASS: DESLOP_ROLLED_BACK signal
+  PASS: opt-out via story.deslop.skip
+
+Test 5: lib/commit-trailers.sh validation gate
+  PASS: commit-trailers reference
+  PASS: non-blocking warning
+
+Test 6: handoff.sh ownership is skill-side (orchestrator doesn't write stage handoffs)
+  PASS: orchestrator does NOT write stage handoffs directly (skills do)
+
+Test 7: all wirings carry a Phase-17 attribution comment
+  PASS: 5 Phase-17 attributions
+
+Test 8: deslop wiring uses DESLOP_AVAILABLE + BASE_SHA
+  PASS: DESLOP_AVAILABLE guard present
+  PASS: DESLOP_AVAILABLE file check
+  PASS: Fallback skip branch
+  PASS: scope loop uses BASE_SHA
+  PASS: rollback uses BASE_SHA
+  PASS: no active STORY_BASE_SHA refs in 3A.5B
+
+Test 9: RUNNER_EXTRA_FLAGS validated after pre_spawn()
+  PASS: RUNNER_EXTRA_FLAGS validation present
+  PASS: blocklist present (regex form varies)
+
+Test 10: runner_build_cmd rejects injection via RUNNER_EXTRA_FLAGS
+  PASS: injection payload rejected with clear error
+
+Test 10b: lib/reground.sh wired at Step 1C
+  PASS: reground source line present
+  PASS: REGROUND_AVAILABLE fallback flag
+  PASS: Step 1C header present
+  PASS: should_reground invoked
+  PASS: build_reground_context invoked
+  PASS: mark_grounded invoked
+  PASS: reground block path stable
+
+Test 10c: lib/tracecoder.sh wired at Step 3A.3
+  PASS: tracecoder source line present
+  PASS: TRACECODER_AVAILABLE fallback flag
+  PASS: observe primitive invoked
+  PASS: should_repair gate check
+  PASS: build_analysis_context call
+  PASS: opaque-failure bypass documented
+
+Test 10d: lib/dead-code.sh wired at Step 3A.5C
+  PASS: dead-code source line present
+  PASS: DEAD_CODE_AVAILABLE fallback flag
+  PASS: 3A.5C header present
+  PASS: find_post_commit_dead invoked
+  PASS: advisory trailer generated
+  PASS: clean-case trailer
+  PASS: side-file path for progress attach
+  PASS: non-blocking by design documented
+
+Test 10e: lib/intent-graph.sh wired at Step 3A.5D
+  PASS: intent-graph source line present
+  PASS: INTENT_GRAPH_AVAILABLE fallback flag
+  PASS: 3A.5D header present
+  PASS: extract_story_intents invoked
+  PASS: extract_code_intents invoked
+  PASS: match_intents invoked
+  PASS: intent trailer form
+  PASS: bidirectional drift documented
+  PASS: side-file path
+
+Test 10f: lib/skeleton.sh wired at 3A.1 + 3A.5E
+  PASS: skeleton source line present
+  PASS: SKELETON_AVAILABLE fallback flag
+  PASS: 3A.1 pre-skeleton preview step
+  PASS: pre-skeleton side-file
+  PASS: skeleton_text invoked in pre
+  PASS: 3A.5E header present
+  PASS: skeleton_diff invoked
+  PASS: trailer form has added/removed/changed
+  PASS: post-task side-file
+
+Test 10g: lib/trajectory.sh wired in Step 3B.3
+  PASS: trajectory source line present
+  PASS: TRAJECTORY_AVAILABLE fallback flag
+  PASS: Trajectory tick header
+  PASS: parse_trajectory invoked
+  PASS: should_early_kill gate
+  PASS: classify_trajectory for log category
+  PASS: agent log uses spawn.sh convention
+  PASS: reap_agent integration (Phase 20)
+  PASS: failureLog phase=trajectory-$cls
+
+Test 10h: lib/conflict-grade.sh wired in merge-strategy.sh
+  PASS: conflict-grade source line
+  PASS: CONFLICT_GRADE_AVAILABLE fallback
+  PASS: grade_file invoked per conflict
+  PASS: routing_recommendation logged
+  PASS: grade 5 short-circuit to escalate
+
+Test 10i: lib/hyclone.sh wired at Step 3C.NEG0
+  PASS: hyclone source line present
+  PASS: HYCLONE_AVAILABLE fallback flag
+  PASS: 3C.NEG0 header present
+  PASS: find_clones invoked
+  PASS: uses WAVE_BASE_SHA diff
+  PASS: persists for deep-review
+  PASS: advisory not blocking documented
+
+Test 10j: 3A.6 commit consumes advisory trailer vars
+  PASS: COMMIT_MSG bootstrap
+  PASS: DESLOP_TRAILER appended
+  PASS: DEAD_CODE_TRAILER appended
+  PASS: INTENT_TRAILER appended
+  PASS: SKELETON_TRAILER appended
+  PASS: git commit uses COMMIT_MSG
+
+Test 11: lib/watchdog.sh doc comment corrected
+  PASS: watchdog threshold comment matches code (>30 min = timed-out)
+
+Test 12: P5.A7 inline checklist tokens
+  PASS: implementer.md mentions 'typecheck OK'
+  PASS: implementer.md mentions 'lint OK'
+  PASS: implementer.md mentions 'all assigned tests pass'
+  PASS: implementer.md mentions 'file-org follows project conventions'
+  PASS: spec-reviewer.md marks routine path inline-only
+  PASS: spec-reviewer.md reserves adversarial dispatch
+  PASS: ql-verify SKILL.md documents inline-vs-adversarial split
+
+=== Results: 113/113 passed, 0 failed ===
+=== Phase 13 over-building hunter prompt tests ===
+
+Test 1: Step 5 header upgrade
+  PASS: Step 5 renamed to Over-building Audit
+  PASS: Mentions Superpowers v4 borrow
+  PASS: Acknowledges the missing-vs-extra asymmetry
+
+Test 2: Sub-checks 5a–5d all present
+  PASS: 5a Scope creep retained
+  PASS: 5b Non-goals cross-check
+  PASS: 5c Exported-symbol justification
+  PASS: 5d Single-caller abstraction
+
+Test 3: JSON output schema extensions
+  PASS: nonGoalsViolated array in schema
+  PASS: overBuilding array in schema
+  PASS: sample kind unjustified-export
+  PASS: sample kind single-caller-abstraction
+
+Test 4: Decision-rule updates
+  PASS: PASS requires nonGoalsViolated empty
+  PASS: PASS blocks HIGH overBuilding
+
+Test 5: Cross-skill references are correct
+  PASS: references ql-intent-check Rule 4
+  PASS: references ql-deep-review complementary scope
+  PASS: test-only exports exempted
+
+Test 6: Exception paths documented
+  PASS: consumedBy exemption
+  PASS: PRD-mandated refinement exemption
+  PASS: info finding when PRD has no §5
+
+Test 7: Severity levels on each detector
+  PASS: non-goal violation is CRITICAL
+  PASS: unjustified-export is HIGH
+  PASS: single-caller is MEDIUM
+
+=== Results: 22/22 passed, 0 failed ===
+=== US-009 per-role provider routing tests ===
+
+Test 1: 3 per-role flags in quantum-loop.sh
+  PASS: --planner flag in shell
+  PASS: --critic flag in shell
+  PASS: --executor flag in shell
+
+Test 2: 3 per-role params in quantum-loop.ps1
+  PASS: Planner param
+  PASS: Critic param
+  PASS: Executor param
+
+Test 3: lib/runner.sh resolve_routing helper
+  PASS: resolve_routing helper defined
+  PASS: snapshot writes quantum.json.routing
+  PASS: per-role dispatch table
+
+Test 4: resolve_routing emits well-shaped JSON
+  PASS: resolve_routing emits {planner,critic,executor,resolvedAt,versions}
+
+Test 5: per-role fallback to claude on missing binary
+  PASS: missing binaries trigger fallback warnings
+
+Test 6: lib/deep-review.sh references routing.critic
+  PASS: deep-review references routing.critic OR QL_CRITIC
+
+Test 7: orchestrator.md mentions routing snapshot
+  PASS: orchestrator references routing
+
+Test 8: quantum.json.example documents routing snapshot
+  PASS: example documents routing
+
+Test 9-10: snapshot persisted to quantum.json.routing
+  PASS: routing snapshot persisted to quantum.json
+  PASS: critic=none persisted
+
+Test 11-12: replay reads snapshot when flags absent
+  PASS: read_routing_snapshot returns planner field
+  PASS: missing snapshot returns {} or empty
+
+Test 13-15: per-role override semantics
+  PASS: explicit planner=claude resolves to claude
+  PASS: explicit critic=claude resolves to claude
+  PASS: explicit executor=claude resolves to claude
+
+Test 16-20: shell flag arg-parsing sets per-role env vars
+  PASS: parse_role_arg(planner, auto) -> auto
+  PASS: parse_role_arg(critic, auto) -> auto
+  PASS: parse_role_arg(executor, auto) -> auto
+  PASS: parse_role_arg(planner, claude) -> claude
+  PASS: parse_role_arg(critic, none) -> none
+
+Test 21: G11 write_routing_snapshot validation gate + composition
+  PASS: write_routing_snapshot rejects invalid JSON (rc=2)
+  PASS: quantum.json untouched after invalid routing JSON
+  PASS: write_routing_snapshot composes with write_quantum_json
+
+=== Results: 29/29 passed, 0 failed ===
+=== US-009 per-role routing integration test ===
+  PASS: planner persisted as claude
+  PASS: executor persisted as claude
+  PASS: critic resolved to codex or fallback claude (got [codex])
+  PASS: resolvedAt is ISO 8601
+  PASS: versions contains claude
+  PASS: replay reads complete snapshot from disk
+
+=== Results: 6/6 passed, 0 failed ===
+=== Phase 18 phase-skip tests ===
+
+Test 1: artifact_hash basics
+  PASS: hash stable across calls
+  PASS: hash is 64 hex chars
+  PASS: missing file -> empty hash
+
+Test 2: artifact_hash differs on content change
+  PASS: hashes differ
+
+Test 3: artifact_hash_inline
+  PASS: inline hash stable
+  PASS: inline hash differs on content change
+
+Test 4: record + read round-trip
+  PASS: stage round-trips
+  PASS: artifact count
+  PASS: sha256 round-trips
+  PASS: recorded_at non-empty
+
+Test 5: read_fingerprint on missing file
+  PASS: missing -> {}
+
+Test 6: should_skip_stage when all artifacts fresh
+  PASS: all-fresh -> skip (exit 0)
+
+Test 7: should_skip_stage after content change
+  PASS: content changed -> re-run (exit 1)
+
+Test 8: should_skip_stage without any record
+  PASS: no record -> re-run (exit 1)
+
+Test 9: artifact count mismatch rejects
+  PASS: count mismatch -> re-run (exit 1)
+
+Test 10: inline: escape class
+  PASS: inline matches -> skip
+  PASS: inline mismatches -> re-run
+
+Test 11: CLI subcommands
+  PASS: CLI hash matches lib hash
+  PASS: CLI inline matches lib inline
+
+Test 12: skills reference lib/phase-skip.sh
+  PASS: brainstorm Phase 0 section
+  PASS: brainstorm calls phase-skip skip
+  PASS: brainstorm records fingerprint
+  PASS: spec Phase 0 section
+  PASS: spec calls phase-skip skip
+  PASS: spec records fingerprint
+  PASS: plan Phase 0 section
+  PASS: plan calls phase-skip skip
+  PASS: plan records fingerprint
+
+=== Results: 28/28 passed, 0 failed ===
+=== US-005 PRD hash-pinning tests ===
+
+Test 1: compute_prd_sha produces stable sha256
+  PASS: compute_prd_sha helper defined
+  PASS: compute_prd_sha is deterministic
+  PASS: sha is 64-hex-char sha256
+  PASS: trailing whitespace ignored
+  PASS: content change yields different hash
+
+Test 2: mismatched prdSha -> story marked 'stale'
+  PASS: US-001 with stale hash -> stale
+  PASS: US-002 with null prdSha -> pending (back-compat)
+
+Test 3: matching prdSha -> story executes normally
+  PASS: matching prdSha -> still pending
+
+Test 4: orchestrator.md describes Step 1.1 hash-check
+  PASS: orchestrator references compute_prd_sha
+  PASS: orchestrator references prdSha or stale state
+
+Test 5: dag-validator.md mentions prdSha emission
+  PASS: dag-validator references prdSha
+
+Test 6: quantum.json.example documents prdSha field
+  PASS: quantum.json.example documents prdSha
+
+Test 7: verify_prd_sha — match path
+  PASS: verify_prd_sha returns 'match' when stored == current
+
+Test 8: verify_prd_sha — migrate path (v0.6.0 CRLF legacy hash)
+  PASS: legacy and new hashes differ for CRLF input
+  PASS: verify_prd_sha returns 'migrate <new>' for legacy stored sha
+
+Test 9: verify_prd_sha — drift path
+  PASS: unrelated sha returns non-zero (drift)
+
+Test 10: orchestrator.md Step 1.1 wires verify_prd_sha + migrate case
+  PASS: orchestrator references verify_prd_sha + migrate
+
+=== Results: 17/17 passed, 0 failed ===
+=== G20 / US-006 README self-modifying-execution tests ===
+
+Sanity: README.md present
+  PASS: README.md exists
+
+Test 1: ## Self-modifying execution heading
+  PASS: section heading
+
+Test 2: 'self-modifying' phrase present
+  PASS: self-modifying phrase
+
+Test 3: previous-release reference
+  PASS: previous release reference
+
+Test 4: concrete v0.6.4 example
+  PASS: v0.6.4 concrete example
+
+Test 5: 'after the bundle merges' phrase
+  PASS: after-the-bundle-merges phrase
+
+Test 6: cross-link to PIPELINE_REPORT_v5 or equivalent
+  PASS: PIPELINE_REPORT cross-link
+
+=== Results: 7/7 passed, 0 failed ===
+=== Phase 20 reaper + spawn exec-capture tests ===
+
+Test 1: detect_platform recognizes current environment
+  PASS: platform is valid enum
+  (detected: msys)
+
+Test 2: _msys_to_winpid handles current PID
+  PASS: numeric winpid (67488)
+
+Test 3: write + read pidfile round-trip
+  PASS: pidfile exists
+  PASS: msys_pid round-trips
+  PASS: cmd round-trips
+  PASS: missing pidfile -> {}
+
+Test 4: is_agent_alive tracks liveness
+  PASS: alive while running
+  PASS: dead after kill
+
+Test 5: is_agent_alive on missing pidfile
+  PASS: missing pidfile -> not alive
+
+Test 6: reap_agent on already-dead process cleans pidfile
+  PASS: reap exits 0
+  PASS: pidfile removed
+
+Test 7: reap_agent terminates a live process
+  PASS: reap_agent exits 0
+  PASS: process not alive
+  PASS: pidfile removed
+
+Test 8: reap_orphans cleans stale pidfiles only
+  PASS: no stale-orphans reaped
+  PASS: dead pidfile removed
+  PASS: live pidfile kept
+
+Test 9: reap_orphans safe on missing/empty dir
+  PASS: missing dir -> 0
+  PASS: empty dir -> 0
+
+Test 10: lib/spawn.sh contains the exec-replacement fix
+  PASS: exec prepended to claude invocation
+  PASS: runner-path uses eval "exec $cmd"
+  PASS: spawn writes pidfile
+
+Test 11: quantum-loop.sh trap uses reaper
+  PASS: cleanup_on_exit calls reap_agent
+  PASS: startup calls reap_orphans
+
+Test 13: _proc_start_epoch is per-process (not a constant)
+  PASS: distinct processes have distinct start epochs (341150318 vs 341151389)
+
+Test 14: cleanup_on_exit uses parallel reap pattern
+  PASS: cleanup_on_exit parallelizes reap_agent calls
+
+Test 15: timeout branch uses reap_agent on Git Bash
+  PASS: TIMED_OUT branch prefers reap_agent
+
+Test 12: CLI subcommands work
+  PASS: CLI platform output: msys
+
+=== Results: 28/28 passed, 0 failed ===
+=== Phase 28 re-grounding tests ===
+
+Test 1: should_reground at interval
+  PASS: iter=5, last=0, interval=5 -> 0
+
+Test 2: below interval
+  PASS: iter=3, last=0, interval=5 -> 1
+
+Test 3: past interval (delta 6)
+  PASS: iter=10, last=4, interval=5 -> 0
+
+Test 4: just-grounded state
+  PASS: iter=5, last=5 -> 1
+
+Test 5: missing lastGroundedIteration defaults to 0
+  PASS: no state field, iter=5 -> 0
+
+Test 6: REGROUND_INTERVAL override
+  PASS: interval=3, delta=3 -> 0
+  PASS: interval=10, delta=3 -> 1
+
+Test 7: stdin input
+  PASS: stdin trigger
+
+Test 8: build_reground_context shape
+  PASS: header with iteration
+  PASS: branch rendered
+  PASS: progress counts
+  PASS: goal reminder
+
+Test 9: next pending stories listed
+  PASS: pending stories S3, S5 listed
+  PASS: only pending stories in next-up
+
+Test 10: PRD head included when file exists
+  PASS: PRD head rendered
+
+Test 11: missing PRD handled
+  PASS: missing PRD skipped cleanly
+
+Test 12: empty stories array
+  PASS: empty progress rendered
+
+Test 13: mark_grounded updates state
+  PASS: lastGroundedIteration = 7
+  PASS: other state preserved
+
+Test 14: mark_grounded creates state if absent
+  PASS: state created, lastGroundedIteration = 3
+
+Test 15: mark_grounded missing file
+  PASS: missing file -> exit 1
+
+Test 16: mark_grounded resets the should_reground signal
+  PASS: before mark: should -> 0
+  PASS: after mark: should -> 1
+
+Test 17: CLI subcommands
+  PASS: CLI should -> 0
+  PASS: CLI context
+  PASS: CLI mark updates field
+
+=== Results: 26/26 passed, 0 failed ===
+=== wip_commit tests ===
+--- Test: wip_commit with changed files creates commit ---
+  PASS: wip_commit with changes exits 0
+  PASS: commit message format
+  PASS: working directory is clean after commit
+--- Test: wip_commit with no changes and short duration returns 1 ---
+  PASS: wip_commit no changes short duration returns 1
+--- Test: wip_commit with no changes but long duration creates empty commit ---
+  PASS: wip_commit no changes long duration exits 0
+  PASS: empty commit created
+  PASS: empty commit message format
+--- Test: wip_commit logs RESILIENCE prefix ---
+  PASS: logs RESILIENCE prefix
+=== get_completed_tasks tests ===
+--- Test: returns task IDs from WIP commits ---
+  PASS: contains T-001
+  PASS: contains T-002
+--- Test: returns empty for no WIP commits ---
+  PASS: no tasks found returns empty
+--- Test: only returns tasks for specified story_id ---
+  PASS: contains T-001
+  PASS: contains T-002
+  PASS: does not contain US-002 tasks in output
+--- Test: returns unique task IDs ---
+  PASS: T-001 appears only once
+=== squash_and_merge tests ===
+--- Test: single commit uses --no-ff merge ---
+  PASS: single commit squash_and_merge exits 0
+  PASS: feature.txt exists on main
+--- Test: multiple commits uses squash merge ---
+  PASS: multi commit squash_and_merge exits 0
+  PASS: all files exist on main
+  PASS: squash commit message
+--- Test: squash_and_merge logs RESILIENCE ---
+  PASS: logs RESILIENCE prefix
+=== recover_orphaned_worktrees tests ===
+--- Test: removes orphaned worktree directories ---
+  PASS: recover_orphaned_worktrees exits 0
+  PASS: US-001 worktree dir removed
+  PASS: US-002 worktree dir removed
+--- Test: resets in_progress stories to pending ---
+  PASS: US-001 reset to pending
+  PASS: US-002 still passed
+  PASS: US-003 still pending
+--- Test: clears activeWorktrees array ---
+  PASS: activeWorktrees is empty
+--- Test: removes worktree field from recovered stories ---
+  PASS: US-001 worktree field removed
+--- Test: backward compat -- no-op when no execution field ---
+  PASS: no execution field exits 0
+--- Test: no-op when activeWorktrees is empty ---
+  PASS: empty activeWorktrees exits 0
+--- Test: input validation -- missing json_path ---
+  PASS: empty json_path returns error
+--- Test: input validation -- missing repo_root ---
+  PASS: empty repo_root returns error
+--- Test: handles worktree dirs that already disappeared ---
+  PASS: missing dir still exits 0
+  PASS: US-001 reset even if dir missing
+--- Test: warning message includes count ---
+  PASS: warning includes count
+  PASS: warning mentions orphaned
+=== detect_resumable_work tests ===
+--- Test: returns fresh when no worktree exists ---
+  PASS: no worktree returns fresh
+--- Test: returns fresh when worktree exists but no WIP commits ---
+  PASS: no WIP commits returns fresh
+--- Test: returns resumable with SHA and tasks when WIP commits exist ---
+  PASS: starts with resumable
+  PASS: contains T-001
+  PASS: contains T-002
+--- Test: detect_resumable_work logs RESILIENCE ---
+  PASS: logs RESILIENCE
+
+=== Results: 43/43 passed, 0 failed ===
+=== G28 / US-004 risk-mitigation-language doc tests ===
+
+Test 1: references/risk-mitigation-language.md exists
+  PASS: doc file present
+
+Test 2-4: required section headers
+  PASS: section: Risk-mitigation prose
+  PASS: section: Concurrency checklist
+  PASS: section: Other risk-mitigation
+
+Test 5-8: concurrency checklist enumerates 4 requirements
+  PASS: checklist: shared mutable state
+  PASS: checklist: observably-coupled ops
+  PASS: checklist: race window without
+  PASS: checklist: race window with
+
+Test 9-10: cautionary tale cites c89ba13 + soliton
+  PASS: citation: commit c89ba13
+  PASS: citation: soliton finding
+
+=== Results: 10/10 passed, 0 failed ===
+Test: runner_load_valid (claude)
+  PASS: load claude exits 0
+  PASS: RUNNER_NAME
+  PASS: RUNNER_TIER
+Test: runner_load_missing
+  PASS: missing exits 1
+  PASS: lists available
+Test: runner_load_invalid_schema
+  PASS: invalid exits 1
+  PASS: missing required
+Test: runner_build_cmd_claude
+  PASS: claude binary
+  PASS: print flag
+  PASS: auto-approve
+  PASS: prompt flag -p
+  PASS: prompt text
+  PASS: no preamble for Claude
+Test: runner_build_cmd_codex (positional)
+  PASS: codex binary
+  PASS: headless -q
+  PASS: approval-mode
+  PASS: has preamble
+Test: runner_build_cmd_stdin (amp)
+  PASS: uses printf pipe
+  PASS: amp binary
+  PASS: auto-approve
+Test: runner_ensure_instructions_creates
+  PASS: creates AGENTS.md
+  PASS: has ql-generated marker
+Test: runner_ensure_instructions_no_overwrite
+  PASS: preserves user content
+Test: runner_ensure_instructions_idempotent
+  PASS: idempotent: same output
+Test: runner_build_cmd_copilot_hook
+  PASS: copilot hook injects --autopilot
+  PASS: copilot hook injects --no-ask-user
+  PASS: pre_spawn not leaked to claude
+Test: runner_ensure_instructions_no_fallback
+  PASS: returns 1 when fallback missing
+  PASS: error mentions file
+Test: runner_build_cmd_unknown_delivery
+  PASS: unknown delivery returns 1
+  PASS: error mentions Unknown promptDelivery
+Test: runner_inject_preamble_missing_file
+  PASS: returns prompt unchanged when preamble missing
+Test: runner_load_invalid_tool_name
+  PASS: path traversal rejected
+  PASS: error mentions Invalid runner name
+Test: runner_load_unsafe_binary_name
+  PASS: unsafe binary rejected
+  PASS: error mentions Invalid binary name
+Test: runner_load_unsafe_manifest_flags
+  PASS: unsafe headlessFlag rejected
+  PASS: error mentions Unsafe characters
+
+=== Results: 38/38 passed, 0 failed ===
+Test: all_manifests_accepted
+  PASS: runner_load claude succeeds
+  PASS: runner_load codex succeeds
+  PASS: runner_load copilot succeeds
+  PASS: runner_load cursor succeeds
+  PASS: runner_load gemini succeeds
+  PASS: runner_load amp succeeds
+  PASS: runner_load aider succeeds
+Test: unknown_rejected
+  PASS: unknown runner rejected
+  PASS: lists available runners
+Test: default_is_claude
+  PASS: default runner is claude
+  PASS: default tier is guaranteed
+Test: banner_shows_runner
+  PASS: banner runner name
+  PASS: banner binary
+  PASS: banner tier
+Test: experimental_warning
+  PASS: copilot is experimental
+  PASS: experimental warning triggers for copilot
+Test: no_warning_noninteractive
+  PASS: experimental runner loads without blocking
+Test: claude_command_regression
+  PASS: has claude binary
+  PASS: has --print
+  PASS: has -p flag
+  PASS: has prompt
+  PASS: no preamble
+  PASS: no heuristic
+Test: codex_end_to_end
+  PASS: codex name
+  PASS: codex binary
+  PASS: codex tier
+  PASS: codex delivery
+  PASS: codex headless -q
+  PASS: codex approval-mode
+  PASS: codex preamble enabled
+  PASS: codex heuristic enabled
+  PASS: codex native instruction
+  PASS: codex fallback
+  PASS: codex cmd has binary
+  PASS: codex cmd has -q
+  PASS: codex cmd has approval-mode
+  PASS: codex cmd has preamble
+  PASS: codex cmd has prompt
+  PASS: codex cmd no -p flag
+  PASS: codex hook sandbox warning
+  PASS: codex AGENTS.md generated from CLAUDE.md
+  PASS: codex AGENTS.md has marker
+  PASS: codex AGENTS.md has original content
+  PASS: codex heuristic commit+tests → PASSED
+  PASS: codex heuristic confidence=high
+
+=== Results: 45/45 passed, 0 failed ===
+Test: runner_load_valid_claude
+  PASS: runner_load claude exits 0
+  PASS: RUNNER_NAME is claude
+  PASS: RUNNER_BINARY is claude
+  PASS: RUNNER_TIER is guaranteed
+  PASS: RUNNER_PROMPT_DELIVERY is flag
+  PASS: RUNNER_PROMPT_FLAG is -p
+  PASS: RUNNER_HEADLESS_FLAGS contains --print
+  PASS: RUNNER_AUTO_APPROVE_FLAGS contains skip-permissions
+  PASS: RUNNER_STDIN_PIPE is false
+  PASS: RUNNER_INSTRUCTION_NATIVE is CLAUDE.md
+  PASS: RUNNER_PREAMBLE_INJECTION is false
+  PASS: RUNNER_HEURISTIC_FALLBACK is false
+  PASS: RUNNER_EXTRA_FLAGS is empty
+  PASS: RUNNER_OVERRIDE_SIGNAL is empty
+Test: runner_load_missing_manifest
+  PASS: runner_load nonexistent exits 1
+  PASS: error mentions unknown runner
+  PASS: error lists available runners
+Test: runner_load_missing_binary
+  PASS: runner_load missing binary exits 1
+  PASS: error mentions binary not found
+  PASS: error shows install hint
+
+=== Results: 20/20 passed, 0 failed ===
+Test: all_manifests_valid_json
+  PASS: aider is valid JSON
+  PASS: amp is valid JSON
+  PASS: claude is valid JSON
+  PASS: cline is valid JSON
+  PASS: codex is valid JSON
+  PASS: copilot is valid JSON
+  PASS: cursor is valid JSON
+  PASS: devin is valid JSON
+  PASS: gemini is valid JSON
+  PASS: goose is valid JSON
+  PASS: kiro is valid JSON
+  PASS: opencode is valid JSON
+Test: all_manifests_have_required_fields
+  PASS: aider has required fields
+  PASS: amp has required fields
+  PASS: claude has required fields
+  PASS: cline has required fields
+  PASS: codex has required fields
+  PASS: copilot has required fields
+  PASS: cursor has required fields
+  PASS: devin has required fields
+  PASS: gemini has required fields
+  PASS: goose has required fields
+  PASS: kiro has required fields
+  PASS: opencode has required fields
+Test: tier_assignments
+  PASS: claude tier
+  PASS: codex tier
+  PASS: copilot tier
+  PASS: cursor tier
+  PASS: gemini tier
+  PASS: amp tier
+  PASS: aider tier
+Test: us004_experimental_runners
+  PASS: opencode manifest exists
+  PASS: opencode tier
+  PASS: opencode has experimental:true
+  PASS: devin manifest exists
+  PASS: devin tier
+  PASS: devin has experimental:true
+  PASS: kiro manifest exists
+  PASS: kiro tier
+  PASS: kiro has experimental:true
+  PASS: goose manifest exists
+  PASS: goose tier
+  PASS: goose has experimental:true
+  PASS: cline manifest exists
+  PASS: cline tier
+  PASS: cline has experimental:true
+Test: us004_opencode_skill_discovery
+  PASS: .opencode/skills/ in opencode skill_discovery_paths
+  PASS: .claude/skills/ in opencode skill_discovery_paths
+Test: us004_manifest_count
+  PASS: exactly 12 runner manifests
+Test: hook_files_exist
+  PASS: codex-hooks.sh exists
+  PASS: copilot-hooks.sh exists
+
+=== Results: 51/51 passed, 0 failed ===
+Test: exact_signal_passed
+  PASS: SIGNAL_RESULT is STORY_PASSED
+  PASS: SIGNAL_CONFIDENCE is exact
+Test: exact_signal_failed
+  PASS: SIGNAL_RESULT is STORY_FAILED
+  PASS: SIGNAL_CONFIDENCE is exact
+Test: relaxed_whitespace
+  PASS: SIGNAL_RESULT is STORY_PASSED
+  PASS: SIGNAL_CONFIDENCE is exact
+Test: crash_exit_code
+  PASS: exit_code=1 → STORY_FAILED
+  PASS: exit_code=1 → confidence=high
+Test: both_signals_last_wins
+  PASS: last signal wins: STORY_FAILED
+  PASS: confidence is exact
+Test: heuristic_commit_and_tests
+  PASS: commit+tests → STORY_PASSED
+  PASS: commit+tests → confidence=high
+Test: heuristic_no_commit
+  PASS: no_commit → STORY_FAILED
+  PASS: no_commit → confidence=high
+Test: heuristic_commit_with_errors
+  PASS: commit+errors → STORY_FAILED
+  PASS: commit+errors → confidence=high
+Test: heuristic_commit_no_tests
+  PASS: commit-only → STORY_PASSED
+  PASS: commit-only → confidence=medium
+Test: heuristic_skipped_for_claude
+  PASS: heuristics disabled → STORY_FAILED
+  PASS: heuristics disabled → confidence=high
+Test: runner_parse_output_exact_signal_over_exit_code
+  PASS: exact signal wins over nonzero exit
+  PASS: confidence is exact (not high)
+
+=== Results: 22/22 passed, 0 failed ===
+=== Phase 31 skeleton tests ===
+
+Test 1: TS signatures
+  PASS: TS: 6 entries
+  PASS: TS: function add
+  PASS: TS: function sub
+  PASS: TS: class Adder
+  PASS: TS: interface IAdder
+  PASS: TS: type Pair
+  PASS: TS: enum Color
+
+Test 2: Python signatures
+  PASS: PY: 5 entries
+  PASS: PY: function add
+  PASS: PY: async fetch_data
+  PASS: PY: class Adder
+  PASS: PY: 2 methods (__init__, add)
+
+Test 3: Go signatures
+  PASS: GO: 4 entries
+  PASS: GO: func Add
+  PASS: GO: method Sum
+  PASS: GO: struct Adder
+  PASS: GO: interface Summer
+
+Test 4: Rust signatures
+  PASS: RS: 5 entries
+  PASS: RS: pub fn add
+  PASS: RS: async fn fetch
+  PASS: RS: struct Adder
+  PASS: RS: trait Summer
+  PASS: RS: enum Color
+
+Test 5: empty / missing file handling
+  PASS: missing file -> []
+  PASS: empty file -> []
+
+Test 6: unknown extension
+  PASS: unknown ext -> []
+  PASS: unknown ext + LANG=ts picks up foo
+
+Test 7: skeleton_text output shape
+  PASS: function sig present
+  PASS: trailing { stripped from output
+
+Test 8: skeleton_diff basic matching
+  PASS: added count=1
+  PASS: added name=mul
+  PASS: removed count=1
+  PASS: removed name=sub
+  PASS: changed count=1
+  PASS: changed name=add
+
+Test 9: body-only change → no skeleton drift
+  PASS: body-only: 0 added
+  PASS: body-only: 0 removed
+  PASS: body-only: 0 changed
+
+Test 10: Python rename detected as remove+add
+  PASS: py rename: 1 added
+  PASS: py rename: 1 removed
+  PASS: py added=compute
+  PASS: py removed=calculate
+
+Test 11: return-type preserved in signature
+  PASS: return type 'string' preserved
+
+Test 12: CLI subcommands
+  PASS: CLI extract count=1
+  PASS: CLI text contains name
+  PASS: CLI diff added=1
+
+Test 13: call sites are not signatures
+  PASS: no false positives from call sites
+
+=== Results: 47/47 passed, 0 failed ===
+=== Test 1: build_agent_prompt includes story ID ===
+  PASS: Prompt contains story ID
+  PASS: Prompt contains implement instruction
+=== Test 2: build_agent_prompt includes worktree warning ===
+  PASS: Prompt warns about quantum.json
+=== Test 3: build_agent_prompt includes PYTHONPATH instruction ===
+  PASS: Prompt warns against pip install -e .
+  PASS: Prompt includes PYTHONPATH
+  PASS: Prompt covers src-layout
+  PASS: Prompt covers flat-layout
+=== Test 4: build_autonomous_command generates correct command ===
+  PASS: Command includes worktree path
+  PASS: Command includes story ID
+  PASS: Command uses claude
+=== Test 5: Input validation - empty story_id ===
+  PASS: Empty story_id returns error
+=== Test 6: Input validation - invalid story_id format ===
+  PASS: Invalid story_id returns error
+=== Test 7: build_autonomous_command validates inputs ===
+  PASS: Empty story_id in command returns error
+  PASS: Empty worktree_path in command returns error
+=== Test 8: spawn_autonomous rejects empty story_id ===
+  PASS: spawn_autonomous empty story_id returns error
+  PASS: spawn_autonomous empty story_id error message
+=== Test 9: spawn_autonomous rejects empty worktree_path ===
+  PASS: spawn_autonomous empty worktree_path returns error
+  PASS: spawn_autonomous empty worktree_path error message
+=== Test 10: spawn_autonomous rejects nonexistent worktree_path ===
+  PASS: spawn_autonomous nonexistent worktree_path returns error
+  PASS: spawn_autonomous nonexistent path error message
+=== Test 11: spawn_autonomous returns PID with mock claude ===
+  PASS: spawn_autonomous with mock returns 0
+  PASS: spawn_autonomous returns a PID
+  PASS: Output file created at expected path
+  PASS: Output file contains mock output
+=== Test 12: AGENT_OUTPUT_FILENAME constant is defined ===
+  PASS: AGENT_OUTPUT_FILENAME value
+=== Test 13: Multiple agents run concurrently ===
+  PASS: Agent 1 got a PID
+  PASS: Agent 2 got a PID
+  PASS: Agent 3 got a PID
+  PASS: All 3 agents running concurrently
+=== Test 14: build_agent_prompt without completed_tasks has no skip section ===
+  PASS: Prompt without completed_tasks has no skip section
+=== Test 15: build_agent_prompt with empty completed_tasks has no skip section ===
+  PASS: Prompt with empty completed_tasks has no skip section
+=== Test 16: build_agent_prompt with completed_tasks includes skip section ===
+  PASS: Prompt contains Previously completed tasks
+  PASS: Prompt contains task list
+  PASS: Prompt contains skip instruction
+  PASS: Prompt contains start instruction
+=== Test 17: build_agent_prompt with single completed task ===
+  PASS: Prompt contains single task
+  PASS: Prompt contains skip section for single task
+
+=== Results: 37/37 passed, 0 failed ===
+=== US-006 / P5.B4-design tests ===
+
+Test 1: spec-reviewer.md has design-review mode
+  PASS: design-review mode header present
+  PASS: checklist references all 8 design sections (line-by-line)
+  PASS: scans for TBD/FIXME markers
+  PASS: scans for hedge phrases
+  PASS: checks for missing non-goals
+
+Test 2: FINDING output format declared
+  PASS: FINDING_START format
+  PASS: FINDING_END format
+
+Test 3: ql-brainstorm SKILL post-exit invocation
+  PASS: design-review invocation
+  PASS: spec-reviewer reference
+  PASS: QL_SKIP_PRE_IMPL_REVIEW env var honored
+  PASS: advisory: emits to stderr
+
+Test 4: behavioral — synthetic design doc with 1 TBD + 1 hedge phrase
+  PASS: synthetic design doc yields >=2 expected findings (TBD=1 hedge=1)
+
+Test 5: QL_SKIP_PRE_IMPL_REVIEW=design opt-out
+  PASS: ql-brainstorm SKILL gates on QL_SKIP_PRE_IMPL_REVIEW=design
+  PASS: gate logic handles comma-separated env-var values
+
+=== Results: 14/14 passed, 0 failed ===
+=== US-008 / P5.B4-plan tests ===
+
+Test 1: spec-reviewer.md has plan-review mode
+  PASS: plan-review mode header
+  PASS: AC coverage check
+  PASS: test-command consistency check
+  PASS: wiring-task / consumedBy check
+
+Test 2: ql-plan SKILL post-exit invocation
+  PASS: plan-review mode reference
+  PASS: spec-reviewer reference
+  PASS: QL_SKIP_PRE_IMPL_REVIEW gate
+  PASS: stderr emission
+
+Test 3: ordering documented
+  PASS: plan-review section appears after Step 8 (sprint-contract) — line 724 > 678
+
+Test 4: behavioral synthetic plan vs PRD
+  PASS: synthetic plan flags >=1 missing AC (got 1)
+  PASS: testFirst story has matching test command (count=1)
+
+Test 5: QL_SKIP_PRE_IMPL_REVIEW=plan opt-out
+  PASS: ql-plan SKILL gates on QL_SKIP_PRE_IMPL_REVIEW=plan
+  PASS: csv parser identifies 'plan' in 'design,prd,plan'
+
+=== Results: 13/13 passed, 0 failed ===
+=== US-007 / P5.B4-PRD tests ===
+
+Test 1: spec-reviewer.md has prd-review mode
+  PASS: prd-review mode header
+  PASS: prd-review checklist references all 9 PRD sections
+  PASS: machine-verifiable AC criterion
+  PASS: FR measurement-method check
+  PASS: success metrics quantifiable
+
+Test 2: ql-spec SKILL post-exit invocation
+  PASS: prd-review reference
+  PASS: spec-reviewer reference
+  PASS: QL_SKIP_PRE_IMPL_REVIEW gate
+  PASS: stderr emission documented
+
+Test 3: csv env-var skip chaining
+  PASS: ql-spec SKILL gate parses csv-form env var
+
+Test 4: behavioral synthetic PRD
+  PASS: synthetic PRD yields >=2 expected findings (vague=1 fr-no-metric=1)
+
+Test 5: QL_SKIP_PRE_IMPL_REVIEW=prd opt-out
+  PASS: ql-spec SKILL gates on QL_SKIP_PRE_IMPL_REVIEW=prd
+  PASS: csv parser correctly identifies 'prd' in 'design,prd'
+
+=== Results: 13/13 passed, 0 failed ===
+=== US-006 Sprint-Contract handoff tests ===
+
+Test 1: write/read round-trip
+  PASS: write_sprint_contract helper defined
+  PASS: read_sprint_contract helper defined
+  PASS: round-trip preserves storyId
+  PASS: round-trip preserves prdSha
+  PASS: round-trip preserves acs array length
+
+Test 2: file path .handoffs/sprint-US-001.json
+  PASS: sprint contract written to .handoffs/sprint-US-001.json
+
+Test 3: missing-file warning behavior
+  PASS: read_sprint_contract did not crash on missing file
+  PASS: missing-file output is valid JSON or warning text
+
+Test 4: schema validation
+  PASS: malformed input handled (emitted warning or wrote anyway)
+
+Test 5: schema doc references/sprint-contract.md
+  PASS: references/sprint-contract.md exists
+  PASS: schema doc lists required fields
+
+Test 6: G9 expectedTests filter + otherCommands schema split
+  PASS: orchestrator.md Step 2.5 declares both expectedTests and otherCommands
+  PASS: only-test-cmds story -> expectedTests=3 otherCommands=0
+  PASS: mixed story -> expectedTests=2 (test cmds) otherCommands=2 (typecheck+lint)
+  PASS: only-typecheck-lint story -> expectedTests=0 otherCommands=2
+  PASS: references/sprint-contract.md documents otherCommands as optional string[]
+
+Test 7: SPRINT_CONTRACT_TEST_REGEX single source of truth
+  PASS: lib/handoff.sh defines readonly SPRINT_CONTRACT_TEST_REGEX
+  PASS: SPRINT_CONTRACT_TEST_REGEX value matches canonical regex
+  PASS: agents/orchestrator.md references SPRINT_CONTRACT_TEST_REGEX
+  PASS: skills/ql-plan/SKILL.md references SPRINT_CONTRACT_TEST_REGEX
+  PASS: agents/orchestrator.md has 0 inline test-regex literals
+  PASS: skills/ql-plan/SKILL.md has 0 inline test-regex literals
+  PASS: references/sprint-contract.md documents SPRINT_CONTRACT_TEST_REGEX
+  PASS: agents/spec-reviewer.md references SPRINT_CONTRACT_TEST_REGEX
+
+=== Results: 24/24 passed, 0 failed ===
+=== US-004 / G3 sprint-contract /ql-plan exit step tests ===
+
+Test 1: skills/ql-plan/SKILL.md ships the exit step
+  PASS: Sprint-Contract write step header
+  PASS: iterates stories in quantum.json
+  PASS: calls write_sprint_contract
+  PASS: sources lib/handoff.sh
+  PASS: step ordered after dag-validator
+  PASS: writes per-story handoff path
+
+Test 2: 3-story fixture round-trip
+  PASS: 3 sprint-contract files created (one per story)
+  PASS: US-A sprint-contract has all required fields (incl. otherCommands)
+  PASS: US-B sprint-contract has all required fields (incl. otherCommands)
+  PASS: US-C sprint-contract has all required fields (incl. otherCommands)
+  PASS: US-B otherCommands has 1 entry (tsc --noEmit, the non-test cmd)
+  PASS: US-A expectedTests has 1 entry
+
+Test 3: idempotency
+  PASS: re-run produces valid sprint-contract (idempotent, no error)
+
+=== Results: 13/13 passed, 0 failed ===
+=== Stale Detection Tests ===
+
+Test 1: Stale story resets to failed
+  PASS: stale story status is failed
+  PASS: startedAt is cleared
+  PASS: retry count incremented
+
+Test 2: maxAttempts exhausted triggers blocked
+  PASS: exhausted story status is blocked
+
+Test 3: Non-stale stories untouched
+  PASS: non-stale story stays in_progress
+
+Test 4: Configurable threshold
+  PASS: custom threshold read from quantum.json
+
+=== Results: 6/6 passed ===
+=== startedAt Tests ===
+
+Test 1: startedAt written in ISO 8601 format
+  PASS: startedAt is ISO 8601
+
+Test 2: startedAt cleared on passed
+  PASS: startedAt is null after passed
+
+Test 3: startedAt cleared on failed
+  PASS: startedAt is null after failed
+
+=== Results: 3/3 passed ===
+=== Test 1: DEFAULT_AGENT_TIMEOUT is defined ===
+  PASS: DEFAULT_AGENT_TIMEOUT is 900
+=== Test 2: check_agent_timeout returns false for recent start ===
+  PASS: Recent start is not timed out
+=== Test 3: check_agent_timeout returns true for old start ===
+  PASS: Old start is timed out
+=== Test 4: check_agent_timeout with custom timeout ===
+  PASS: 5 seconds ago with 3s timeout is timed out
+  PASS: 5 seconds ago with 10s timeout is not timed out
+=== Test 5: kill_agent_process kills a running process ===
+  PASS: Process running before kill
+  PASS: kill_agent_process exits 0
+  PASS: Process dead after kill
+=== Test 6: kill_agent_process is no-op for dead process ===
+  PASS: kill_agent_process on dead process exits 0
+=== Test 7: check_agent_timeout input validation ===
+  PASS: Empty start_time returns error
+  PASS: Empty timeout returns error
+=== Test 8: Other agents unaffected by one kill ===
+  FAIL: Agent A still running after B killed
+    expected: 1
+    actual:   0
+  PASS: Agent C still running after B killed
+
+=== Results: 12/13 passed, 1 failed ===
+=== Phase 27 TraceCoder tests ===
+
+Test 1: observe a passing command
+  PASS: exit=0
+  PASS: name=greeting
+  PASS: tail contains hello
+
+Test 2: observe a failing command
+  PASS: exit=1
+
+Test 3: observe merges stderr
+  PASS: both streams in tail
+
+Test 4: extract tsc-style markers
+  PASS: 1 marker parsed
+  PASS: file=src/app.ts
+  PASS: line=42
+  PASS: message captured
+
+Test 5: extract python traceback
+  PASS: 1 marker parsed
+  PASS: python file
+  PASS: python line
+
+Test 6: extract node stack
+  PASS: node stack parsed
+  PASS: node file
+  PASS: node line
+
+Test 7: multiple markers + URL noise filtering
+  PASS: 2 real markers (URL filtered)
+
+Test 8: empty tail
+  PASS: empty tail -> []
+
+Test 9: build_analysis_context shape
+  PASS: header present
+  PASS: exit code visible
+  PASS: tail section present
+
+Test 10: context includes markers
+  PASS: marker rendered in context
+
+Test 11: should_repair semantics
+  PASS: failure + markers -> 0
+  PASS: pass -> no repair (1)
+  PASS: opaque failure -> no repair (1)
+
+Test 12: tail truncates to TRACECODER_TAIL_LINES
+  PASS: tail is 10 lines
+  PASS: tail starts at line_191
+
+Test 13: CLI subcommands
+  PASS: CLI observe exit=0
+  PASS: CLI markers count=1
+  PASS: CLI should-repair exits 0
+
+=== Results: 29/29 passed, 0 failed ===
+=== Phase 24 trajectory-kill tests ===
+
+Test 1: parse on missing file
+  PASS: exists=false
+  PASS: total=0
+
+Test 2: parse counts tools
+  PASS: reads=5
+  PASS: greps=3
+  PASS: edits=2
+  PASS: writes=1
+  PASS: bashes=4
+  PASS: total=15
+  PASS: read_pct=53
+  PASS: edit_pct=20
+
+Test 3: productive trajectory
+  PASS: classify productive
+  PASS: productive -> no kill (exit 1)
+
+Test 4: searching trajectory
+  PASS: classify searching (below thrash min)
+  PASS: searching -> no kill
+
+Test 5: thrashing trajectory
+  PASS: classify thrashing
+  PASS: thrashing -> kill (exit 0)
+
+Test 6: stuck trajectory
+  PASS: classify stuck
+  PASS: stuck -> kill (exit 0)
+
+Test 7: env-var overrides take effect
+  PASS: default: searching
+  PASS: override THRASH_MIN=5: thrashing
+
+Test 8: empty file handling
+  PASS: empty file total=0
+  PASS: empty file classify=productive (no signal)
+
+Test 9: CLI subcommands
+  PASS: CLI parse total=26
+  PASS: CLI classify thrashing
+  PASS: CLI kill exits 0 for thrashing
+
+Test 10: classify reads stdin
+  PASS: stdin classify productive
+
+=== Results: 26/26 passed, 0 failed ===
+=== Test 1: TypeScript duplicate — two files define same interface ===
+  PASS: TS duplicate detected (array length 1)
+  PASS: TS duplicate name is Foo
+  PASS: TS duplicate has 2 files
+=== Test 2: Python Protocol duplicate ===
+  PASS: Python Protocol duplicate detected (array length 1)
+  PASS: Python Protocol duplicate name is Bar
+=== Test 3: Go interface duplicate ===
+  PASS: Go interface duplicate detected (array length 1)
+  PASS: Go interface duplicate name is Handler
+=== Test 4: No duplicates — each type defined once ===
+  PASS: No duplicates returns empty array
+=== Test 5: Scoped to file list only — ignores files not in list ===
+  PASS: Scoped scan ignores files not in list
+=== Test 6: Cross-file only — same name in same file not flagged ===
+  PASS: Same-file duplicate not flagged (cross-file only)
+=== Test 7: Edge case — empty file list ===
+  PASS: Empty file list returns empty array
+=== Test 8: Edge case — empty repo root ===
+  PASS: Empty repo root returns empty array
+=== Test 9: Edge case — Python BaseModel duplicate ===
+  PASS: Python BaseModel duplicate detected
+  PASS: Python BaseModel duplicate name is Config
+=== Test 10: Edge case — nonexistent files in list ===
+  PASS: Nonexistent files return empty array
+=== Test 11: Edge case — Go struct duplicate ===
+  PASS: Go struct duplicate detected
+  PASS: Go struct duplicate name is Config
+=== Test 12: Edge case — TS export type duplicate ===
+  PASS: TS export type duplicate detected
+  PASS: TS export type duplicate name is Result
+=== Test 13: audit_wave_types — no duplicates logs skip and returns 0 ===
+  PASS: audit_wave_types returns 0 when no duplicates
+  PASS: audit_wave_types logs skip message
+=== Test 14: audit_wave_types — duplicates returns count and logs ===
+  PASS: audit_wave_types returns 1 (duplicate count) when duplicates found
+  PASS: audit_wave_types logs duplicate name UserConfig
+=== Test 15: audit_wave_types — empty repo root returns 0 ===
+  PASS: audit_wave_types with empty repo_root returns 0
+=== Test 16: audit_wave_types — builds type-auditor prompt on stdout ===
+  PASS: audit_wave_types outputs auditor prompt on stdout
+=== Test 17: audit_wave_types — checks contract shapes ===
+  PASS: audit_wave_types includes contract shape in prompt
+=== Test 18: audit_wave_types — missing json_path returns 0 ===
+  PASS: audit_wave_types with empty json_path returns 0
+=== Test 19: audit_wave_types — nonexistent repo_root returns 0 ===
+  PASS: audit_wave_types with nonexistent repo_root returns 0
+=== Test 20: audit_wave_types — multiple duplicates returns correct count ===
+  PASS: audit_wave_types returns 2 for two duplicate types
+=== Test 21: audit_wave_types — wave_num defaults to 1 ===
+  PASS: audit_wave_types defaults wave_num to 1
+=== Test 22: update_contracts_for_next_wave — adds entry to discoveredContracts ===
+[CONTRACTS] Added discovered contract: UserConfig (wave 2)
+  PASS: update_contracts_for_next_wave returns 0
+  PASS: discoveredContracts.UserConfig exists
+  PASS: discoveredInWave is 2
+  PASS: consolidated is true
+  PASS: consolidatedFile is correct
+  PASS: sourceFiles has 2 entries
+=== Test 23: update_contracts_for_next_wave — initializes discoveredContracts if absent ===
+[CONTRACTS] Added discovered contract: Config (wave 3)
+  PASS: update_contracts_for_next_wave returns 0 with missing discoveredContracts
+  PASS: discoveredContracts was initialized
+  PASS: Config.discoveredInWave is 3
+=== Test 24: update_contracts_for_next_wave — preserves existing entries ===
+[CONTRACTS] Added discovered contract: NewType (wave 2)
+  PASS: update_contracts_for_next_wave returns 0 preserving existing
+  PASS: ExistingType preserved
+  PASS: NewType added
+=== Test 25: update_contracts_for_next_wave — empty type_name returns error ===
+  PASS: update_contracts_for_next_wave with empty type_name returns 1
+=== Test 26: update_contracts_for_next_wave — empty json_path returns error ===
+  PASS: update_contracts_for_next_wave with empty json_path returns 1
+=== Test 27: update_contracts_for_next_wave — JSON remains valid after write ===
+  PASS: quantum.json remains valid JSON after update
+=== Test 28: update_contracts_for_next_wave — no execution field initializes it ===
+[CONTRACTS] Added discovered contract: Widget (wave 1)
+  PASS: update_contracts_for_next_wave returns 0 with no execution field
+  PASS: Widget.discoveredInWave is 1
+=== Test 29: Mixed language files — TS + Python in same scan ===
+  PASS: Mixed TS+Python: detects SharedConfig as duplicate across 3 files
+  PASS: Mixed TS+Python: duplicate name is SharedConfig
+  PASS: Mixed TS+Python: duplicate has 3 files (2 TS + 1 Python)
+=== Test 30: Mixed language — TS + Python both define same name cross-file ===
+  PASS: Mixed TS+Python cross-lang duplicate detected
+  PASS: Mixed TS+Python cross-lang duplicate name is Widget
+  PASS: Mixed TS+Python cross-lang duplicate has 2 files
+=== Test 31: Type name appears in 3+ files — single entry with all files ===
+  PASS: 3-file duplicate: exactly 1 entry in result array
+  PASS: 3-file duplicate: name is ApiResponse
+  PASS: 3-file duplicate: files array has 3 entries
+=== Test 32: Type name in 4 files — still one entry ===
+  PASS: 4-file duplicate: exactly 1 entry in result array
+  PASS: 4-file duplicate: files array has 4 entries
+=== Test 33: Empty file list (whitespace-only string) returns empty array ===
+  PASS: Whitespace-only file list returns empty array
+=== Test 34: Files with syntax errors — grep still extracts type names ===
+  PASS: Files with syntax errors: grep still finds duplicates
+  PASS: Files with syntax errors: duplicate name is Broken
+=== Test 35: Same-file duplicate with multiple type defs — not flagged ===
+  PASS: Same-file Python duplicate not flagged (cross-file only)
+=== Test 36: Same-file TS class duplicate — not flagged as cross-file ===
+  PASS: Same-file TS triple definition not flagged as cross-file
+=== Test 37: update_contracts_for_next_wave — appends to existing discoveredContracts, not replaces ===
+[CONTRACTS] Added discovered contract: Gamma (wave 2)
+  PASS: Append third contract returns 0
+  PASS: Alpha still exists after append
+  PASS: Beta still exists after append
+  PASS: Gamma was appended
+  PASS: Total discoveredContracts entries is 3
+[CONTRACTS] Added discovered contract: Delta (wave 3)
+  PASS: Append fourth contract returns 0
+  PASS: Total discoveredContracts entries is 4 after second append
+  PASS: Alpha consolidatedFile unchanged
+  PASS: Alpha sourceFiles unchanged (2 entries)
+=== Test 38: update_contracts_for_next_wave — nonexistent json_path returns error ===
+  PASS: update_contracts_for_next_wave with nonexistent json_path returns 1
+=== Test 39: update_contracts_for_next_wave — wave_num defaults when omitted ===
+[CONTRACTS] Added discovered contract: NoWave (wave 1)
+  PASS: update_contracts_for_next_wave with empty wave_num returns 0
+  PASS: Default wave_num is 1 when empty string
+=== Test 40: Mixed TS + Go files in same scan ===
+  PASS: Mixed TS+Go: Router detected as cross-file duplicate
+  PASS: Mixed TS+Go: duplicate name is Router
+  PASS: Mixed TS+Go: duplicate has 2 files
+=== Test 41: File with no type definitions — returns empty ===
+  PASS: Files with no type definitions return empty array
+=== Test 42: Binary/unreadable content in file — grep handles gracefully ===
+  PASS: Binary content does not crash grep_duplicate_definitions
+=== Test 43: Python @dataclass duplicate detection ===
+  PASS: Python @dataclass duplicate detected (array length 1)
+  PASS: Python @dataclass duplicate name is Foo
+  PASS: Python @dataclass duplicate has 2 files
+
+=== Results: 83/83 passed, 0 failed ===
+=== Test 1: No typecheckCommand, no language files -> skip, return 0 ===
+  PASS: No config skip returns 0
+  PASS: Logs skip message
+=== Test 2: Explicit typecheckCommand in JSON -> uses it ===
+  PASS: Explicit command returns 0
+=== Test 3: Auto-detect TypeScript (tsconfig.json) -> tsc --noEmit ===
+  PASS: Auto-detect TS returns 0
+  PASS: Logs auto-detect
+=== Test 4: Command not on allowlist -> rejected, returns 1 ===
+  PASS: Non-allowlisted command returns 1
+  PASS: Logs rejection
+=== Test 5: Baseline not set -> initialize baseline, return 0 ===
+  PASS: Baseline init returns 0
+  PASS: Logs baseline initialized
+  PASS: Baseline value written to JSON
+=== Test 6: Error count <= baseline -> return 0 ===
+  PASS: Errors <= baseline returns 0
+  PASS: Logs PASS
+=== Test 7: Error count > baseline -> revert merge, return 1 ===
+  PASS: Errors > baseline returns 1
+  PASS: Logs FAIL and revert
+  PASS: Revert commit created (HEAD changed)
+=== Test 8: Timeout behavior (command that sleeps > timeout) ===
+  PASS: Timeout returns 0 (graceful)
+  PASS: Logs timeout warning
+=== Test 9: Multiple auto-detect options (tsconfig.json takes priority over go.mod) ===
+  PASS: tsconfig.json priority returns 0
+  PASS: Uses tsc (TypeScript detected)
+=== Test 10: Typecheck with warnings but zero errors passes ===
+  PASS: Warnings-only returns 0
+  PASS: Logs PASS for zero errors
+=== Test 11: Injection — typecheckCommand with semicolon rejected ===
+  PASS: Semicolon injection returns 1
+  PASS: Logs rejection for semicolon
+=== Test 12: Injection — typecheckCommand with pipe rejected ===
+  PASS: Pipe injection returns 1
+  PASS: Logs rejection for pipe
+=== Test 13: Injection — typecheckCommand with redirect > rejected ===
+  PASS: Redirect injection returns 1
+  PASS: Logs rejection for redirect
+=== Test 14: Injection — typecheckCommand with backtick rejected ===
+  PASS: Backtick injection returns 1
+  PASS: Logs rejection for backtick
+=== Test 15: Injection — typecheckCommand with embedded newline rejected ===
+  PASS: Newline injection returns 1
+  PASS: Logs rejection for newline
+=== Test 16: Allowlist — tsc --noEmit accepted ===
+  PASS: Allowed tsc --noEmit returns 0
+  PASS: Logs running for tsc
+
+=== Results: 33/33 passed, 0 failed ===
+=== Phase 16 watchdog + circuit-breaker tests ===
+
+Test 1: classify_age thresholds
+  PASS: 0s -> fresh
+  PASS: 300s -> fresh
+  PASS: 301s -> stale-check
+  PASS: 600s -> stale-check
+  PASS: 601s -> stale-reassign
+  PASS: 1200s -> stale-reassign
+  PASS: 1201s -> stale-reassign
+  PASS: 1800s -> stale-reassign
+  PASS: 1801s -> timed-out
+  PASS: 7200s -> timed-out
+
+Test 2: watchdog_poll on empty state
+  PASS: missing quantum.json -> []
+
+Test 3: watchdog_poll fresh in_progress story
+  PASS: only the in_progress story returned
+  PASS: story_id is US-001
+  PASS: fresh -> continue
+  PASS: classification fresh
+
+Test 4: watchdog_poll stale-check (~400s old)
+  PASS: 400s -> stale-check
+  PASS: stale-check -> status-probe
+
+Test 5: watchdog_poll timed-out (>30min old)
+  PASS: 2400s -> timed-out
+  PASS: timed-out -> mark-failed
+
+Test 6: error_counter_bump same signature increments
+  PASS: first bump count 1
+  PASS: second bump count 2
+  PASS: third bump count 3
+
+Test 7: different signature resets counter
+  PASS: sig-A count reaches 2
+  PASS: sig-B resets to 1
+  PASS: sig-B next bump is 2
+
+Test 8: should_circuit_break crosses threshold
+  PASS: count=1, threshold=3 -> no break (exit 1)
+  PASS: count=3, threshold=3 -> BREAK (exit 0)
+  PASS: count=3, threshold=10 -> no break
+
+Test 9: error_counter_reset
+  PASS: after reset, no break
+  PASS: count after reset=1
+
+Test 10: CLI subcommands
+  PASS: CLI classify 500 -> stale-check
+  PASS: CLI bump first -> 1
+
+=== Results: 32/32 passed, 0 failed ===
+=== US-001 watchdog orchestrator wiring tests ===
+
+Test 1: 3 explicit watchdog calls in Step 3B.3
+  PASS: Step 3B.3 monitor-loop section header
+  PASS: age-tier check via watchdog poll
+  PASS: circuit-breaker check via watchdog circuit
+  PASS: circuit-breaker reset on success
+  PASS: explicit reset comment refers to STORY_PASSED
+
+Test 2: watchdog block migrated kill_agent_process -> reap_agent
+  PASS: watchdog block references reap_agent
+  PASS: watchdog block no longer references kill_agent_process
+
+Test 3: lib/watchdog.sh comments migrated to reap_agent
+  PASS: lib/watchdog.sh references reap_agent
+  PASS: lib/watchdog.sh no longer references kill_agent_process
+
+=== Results: 9/9 passed, 0 failed ===
+=== Phase 11 wave-boundary helper tests ===
+
+Test 1: canonicalize
+  PASS: google stays google
+  PASS: google-api-key -> google
+  PASS: GOOGLE_API_KEY -> google
+  PASS: openai-token -> openai
+  PASS: slack_secret -> slack
+  PASS: database-url -> database
+  PASS: user_id -> user
+  PASS: my-token -> my (token suffix stripped)
+
+Test 2: divergent constants flagged
+  PASS: one finding emitted
+  PASS: canonical is google
+  PASS: 2 variants recorded
+  PASS: severity is medium (2 distinct literals)
+  PASS: gate exits 0 when divergent
+
+Test 3: clean case — same literal reused
+  PASS: clean case has no findings
+  PASS: gate exits 1 when clean
+
+Test 4: three distinct variants → severity high
+  PASS: severity is high (3 distinct literals)
+
+Test 5: single-file divergence not flagged
+  PASS: single-file divergence not flagged
+
+Test 6: short and sentence-style literals filtered
+  PASS: short/sentence literals don't spurious-match
+
+Test 7: CLI canonicalize subcommand
+  PASS: CLI canonicalize slack-api-token -> slack
+
+=== Results: 19/19 passed, 0 failed ===
+=== Test 1: Create worktree at correct path ===
+Preparing worktree (new branch 'ql-wt/US-001')
+  PASS: create_worktree exits 0
+  PASS: Worktree directory created
+=== Test 2: Worktree has feature branch content ===
+  PASS: Feature file exists in worktree
+=== Test 3: List worktrees includes the new worktree ===
+  PASS: US-001 worktree listed
+=== Test 4: Remove worktree cleans up ===
+Deleted branch ql-wt/US-001 (was 428c00d).
+  PASS: remove_worktree exits 0
+  PASS: Worktree directory removed
+=== Test 5: List worktrees after removal ===
+  PASS: US-001 not listed after removal
+=== Test 6: Remove nonexistent worktree is idempotent ===
+  PASS: remove_worktree for nonexistent exits 0
+=== Test 7: _resolve_repo_root from main repo returns itself ===
+  PASS: _resolve_repo_root main repo is identity
+=== Test 8: _resolve_repo_root from inside worktree returns main root ===
+  PASS: _resolve_repo_root from worktree returns main root
+=== Test 9: create_worktree from nested path roots at top level ===
+  PASS: US-inner under main root
+  PASS: US-inner NOT nested inside US-outer
+=== Test 10: _short_path_base is deterministic ===
+  PASS: _short_path_base deterministic
+  PASS: _short_path_base has ql-wt prefix
+=== Test 11: _short_path_base differs per repo root ===
+  PASS: Different repos get different short paths
+=== Test 12: register_worktree adds entry to quantum.json ===
+[WORKTREE] Registered US-001 at /tmp/tmp.FX27rfLcuq/.ql-wt/US-001
+  PASS: register_worktree exits 0
+  PASS: register_worktree sets storyId
+  PASS: register_worktree sets branch
+  PASS: register_worktree sets wave
+  PASS: register_worktree sets createdAt
+=== Test 13: register_worktree validates story_id ===
+  PASS: register_worktree rejects empty story_id
+  PASS: register_worktree rejects invalid story_id
+=== Test 14: register_worktree appends to existing entries ===
+[WORKTREE] Registered US-002 at /tmp/tmp.FX27rfLcuq/.ql-wt/US-002
+  PASS: register_worktree appends (count=2)
+=== Test 15: register_worktree creates worktreeTracking if absent ===
+[WORKTREE] Registered US-010 at /tmp/tmp.FX27rfLcuq/.ql-wt/US-010
+  PASS: register_worktree creates tracking from scratch
+  PASS: register_worktree has 1 entry after fresh create
+=== Test 16: register_worktree requires all parameters ===
+  PASS: register_worktree rejects empty path
+  PASS: register_worktree rejects empty json_path
+=== Test 17: cleanup_stale_worktrees removes passed story worktrees ===
+  PASS: US-STALE1 worktree exists before cleanup
+  PASS: US-STALE2 worktree exists before cleanup
+Deleted branch ql-wt/US-STALE1 (was 428c00d).
+[WORKTREE] Cleaned 1 stale worktrees
+  PASS: cleanup_stale_worktrees exits 0
+  PASS: US-STALE1 worktree removed (passed story)
+  PASS: US-STALE2 worktree kept (in_progress story)
+  PASS: cleanup_stale leaves 1 active worktree
+  PASS: cleanup_stale increments cleanedThisSession
+=== Test 18: cleanup_stale_worktrees also removes failed story worktrees ===
+Deleted branch ql-wt/US-FAIL1 (was 428c00d).
+[WORKTREE] Cleaned 1 stale worktrees
+  PASS: US-FAIL1 worktree removed (failed story)
+=== Test 19: cleanup_stale_worktrees fallback when worktreeTracking absent ===
+  PASS: US-NOTRACK exists before fallback cleanup
+Deleted branch ql-wt/US-NOTRACK (was 428c00d).
+[WORKTREE] Cleaned 1 stale worktrees
+  PASS: cleanup_stale_worktrees fallback exits 0
+  PASS: US-NOTRACK removed by fallback cleanup
+=== Test 20: cleanup_stale_worktrees with no stale worktrees ===
+[WORKTREE] No stale worktrees found
+  PASS: cleanup_stale with empty list exits 0
+=== Test 21: cleanup_merged_worktrees removes specified story worktrees ===
+  PASS: US-MERGE1 exists
+  PASS: US-MERGE2 exists
+  PASS: US-MERGE3 exists
+Deleted branch ql-wt/US-MERGE1 (was 428c00d).
+Deleted branch ql-wt/US-MERGE2 (was 428c00d).
+[WORKTREE] Removing 2 merged worktrees from Wave 1
+  PASS: cleanup_merged_worktrees exits 0
+  PASS: US-MERGE1 removed by cleanup_merged
+  PASS: US-MERGE2 removed by cleanup_merged
+  PASS: US-MERGE3 untouched by cleanup_merged
+  PASS: cleanup_merged leaves 1 active worktree
+=== Test 22: cleanup_merged_worktrees with empty IDs ===
+[WORKTREE] No merged worktrees to clean
+  PASS: cleanup_merged_worktrees with empty IDs exits 0
+=== Test 23: pre_spawn_check returns 0 when under limit ===
+  PASS: pre_spawn_check under limit returns 0
+=== Test 24: pre_spawn_check returns 1 when at limit with no stale ===
+[WORKTREE] No stale worktrees found
+  PASS: pre_spawn_check at limit (no stale) returns 1
+=== Test 25: pre_spawn_check cleans stale and returns 0 ===
+Deleted branch ql-wt/US-PSTALE (was 428c00d).
+[WORKTREE] Cleaned 1 stale worktrees
+  PASS: pre_spawn_check cleans stale then returns 0
+  PASS: US-PSTALE cleaned by pre_spawn_check
+=== Test 26: pre_spawn_check requires parameters ===
+  PASS: pre_spawn_check rejects empty json_path
+  PASS: pre_spawn_check rejects empty max_worktrees
+
+=== Results: 54/54 passed, 0 failed ===
+=== Test 1: register_worktree records correct path in activeWorktrees ===
+[WORKTREE] Registered US-R01 at /tmp/tmp.Wok7cCvzqW/wt/US-R01
+  PASS: register_worktree exits 0
+  PASS: register_worktree stores path with correct suffix
+  PASS: register_worktree stores non-empty path
+=== Test 2: register_worktree stores correct storyId, branch, wave ===
+  PASS: register_worktree storyId
+  PASS: register_worktree branch
+  PASS: register_worktree wave
+=== Test 3: register_worktree createdAt is valid ISO 8601 ===
+  PASS: register_worktree createdAt is valid ISO
+=== Test 4: register_worktree with wave=0 boundary ===
+[WORKTREE] Registered US-R02 at /tmp/tmp.Wok7cCvzqW/wt/US-R02
+  PASS: register_worktree wave=0 exits 0
+  PASS: register_worktree stores wave=0
+=== Test 5: register_worktree with large wave number ===
+[WORKTREE] Registered US-R03 at /tmp/tmp.Wok7cCvzqW/wt/US-R03
+  PASS: register_worktree wave=99 exits 0
+  PASS: register_worktree stores wave=99
+=== Test 6: register_worktree preserves existing entries ===
+  PASS: register_worktree accumulated 3 entries
+=== Test 7: register_worktree sets default maxWorktrees and cleanedThisSession ===
+  PASS: register_worktree sets default maxWorktrees=4
+  PASS: register_worktree sets default cleanedThisSession=0
+=== Test 8: register_worktree with nonexistent json file ===
+  PASS: register_worktree with bad json_path returns 1
+=== Test 9: register_worktree preserves existing stories data ===
+  PASS: register_worktree preserves stories array
+=== Test 10: register_worktree with duplicate storyId appends (no dedup) ===
+[WORKTREE] Registered US-R01 at /tmp/tmp.Wok7cCvzqW/another/path
+  PASS: register_worktree allows duplicate storyId
+=== Test 11: register_worktree preserves existing worktreeTracking structure ===
+[WORKTREE] Registered US-X1 at /tmp/tmp.Wok7cCvzqW/new/path
+  PASS: register_worktree preserves existing maxWorktrees=8
+  PASS: register_worktree preserves existing cleanedThisSession=5
+  PASS: register_worktree appends to existing entries
+=== Test 12: cleanup_stale with 2 stale worktrees (both passed) ===
+  PASS: US-ST1 exists before cleanup
+  PASS: US-ST2 exists before cleanup
+  PASS: cleanup_stale with 2 stale exits 0
+  PASS: cleanup_stale removes both entries from activeWorktrees
+  PASS: cleanup_stale cleanedThisSession >= 1 (got 1)
+  PASS: cleanup_stale logs Cleaned
+=== Test 13: cleanup_stale single passed story worktree ===
+  PASS: US-SP1 exists before cleanup
+  PASS: cleanup_stale single passed exits 0
+  PASS: US-SP1 removed
+  PASS: cleanup_stale single cleanedThisSession=1
+  PASS: cleanup_stale single logs Cleaned 1
+=== Test 14: cleanup_stale with 0 stale (all in_progress) ===
+  PASS: US-IP1 exists
+  PASS: US-IP2 exists
+  PASS: cleanup_stale 0 stale exits 0
+  PASS: US-IP1 still exists after cleanup
+  PASS: US-IP2 still exists after cleanup
+  PASS: cleanup_stale preserves 2 in_progress entries
+  PASS: cleanup_stale logs no stale found
+=== Test 15: cleanup_stale removes failed story worktree ===
+Deleted branch ql-wt/US-F1 (was 0ab7a0b).
+[WORKTREE] Cleaned 1 stale worktrees
+  PASS: US-F1 (failed) removed
+  PASS: cleanup_stale failed cleanedThisSession=1
+=== Test 16: cleanup_stale preserves pending story worktrees ===
+[WORKTREE] No stale worktrees found
+  PASS: US-PD1 (pending) preserved
+  PASS: cleanup_stale pending: entry still in tracking
+=== Test 17: cleanup_stale validates parameters ===
+  PASS: cleanup_stale rejects empty json_path
+  PASS: cleanup_stale rejects empty repo_root
+  PASS: cleanup_stale rejects nonexistent json file
+=== Test 18: cleanup_merged removes all 3 specified worktrees ===
+  PASS: US-CM1 exists
+  PASS: US-CM2 exists
+  PASS: US-CM3 exists
+  PASS: cleanup_merged exits 0
+  PASS: US-CM1 removed
+  PASS: US-CM2 removed
+  PASS: US-CM3 removed
+  PASS: cleanup_merged all 3 removed from activeWorktrees
+  PASS: cleanup_merged logs count
+=== Test 19: cleanup_merged preserves unspecified worktrees ===
+Deleted branch ql-wt/US-CM4 (was 0ab7a0b).
+[WORKTREE] Removing 1 merged worktrees from Wave 1
+  PASS: US-CM4 removed
+  PASS: US-CM5 preserved
+  PASS: cleanup_merged preserves US-CM5 entry
+=== Test 20: cleanup_merged validates parameters ===
+  PASS: cleanup_merged rejects empty json_path
+  PASS: cleanup_merged rejects empty repo_root
+  PASS: cleanup_merged rejects nonexistent json file
+=== Test 21: cleanup_merged with empty IDs is no-op ===
+  PASS: cleanup_merged with empty IDs exits 0
+  PASS: cleanup_merged empty logs no merged
+=== Test 22: cleanup_merged with nonexistent story ID is graceful ===
+[WORKTREE] Removing 1 merged worktrees from Wave 0
+  PASS: cleanup_merged with nonexistent ID exits 0
+=== Test 23: pre_spawn_check returns 0 when 2 active, max=4 ===
+  PASS: pre_spawn_check 2/4 returns 0
+=== Test 24: pre_spawn_check returns 1 when 4 active, max=4 (no stale) ===
+[WORKTREE] No stale worktrees found
+  PASS: pre_spawn_check 4/4 (no stale) returns 1
+=== Test 25: pre_spawn_check at limit triggers cleanup, returns 0 if slot freed ===
+Deleted branch ql-wt/US-PCS1 (was 0ab7a0b).
+[WORKTREE] Cleaned 1 stale worktrees
+  PASS: pre_spawn_check frees slot by cleaning stale, returns 0
+  PASS: US-PCS1 cleaned by pre_spawn_check
+=== Test 26: pre_spawn_check with 0 active (empty tracking) returns 0 ===
+  PASS: pre_spawn_check 0/4 returns 0
+=== Test 27: pre_spawn_check with max_worktrees=1 boundary ===
+[WORKTREE] No stale worktrees found
+  PASS: pre_spawn_check 1/1 (no stale) returns 1
+=== Test 28: pre_spawn_check with missing worktreeTracking ===
+  PASS: pre_spawn_check with no worktreeTracking returns 0 (0 active)
+=== Test 29: pre_spawn_check validates parameters ===
+  PASS: pre_spawn_check rejects empty json_path
+  PASS: pre_spawn_check rejects empty max_worktrees
+=== Test 30: cleanup_stale fallback uses git worktree list ===
+  PASS: US-FB1 exists for fallback test
+  PASS: cleanup_stale fallback exits 0
+  PASS: US-FB1 removed by fallback
+  PASS: cleanup_stale fallback logs cleaned
+=== Test 31: cleanup_stale fallback preserves in_progress worktree ===
+  PASS: US-FB2 preserved by fallback
+  PASS: cleanup_stale fallback logs no stale
+=== Test 32: cleanup_stale fallback with no worktrees at all ===
+  PASS: cleanup_stale fallback with no worktrees exits 0
+  PASS: cleanup_stale fallback no worktrees logs no stale
+=== Test 33: cleanup_stale handles worktree already removed from disk ===
+[WORKTREE] Cleaned 1 stale worktrees
+  PASS: cleanup_stale with ghost entry exits 0
+  PASS: cleanup_stale removes ghost entry from tracking
+=== Test 34: cleanup_merged with already-removed worktree is graceful ===
+[WORKTREE] Removing 1 merged worktrees from Wave 1
+  PASS: cleanup_merged with already-removed worktree exits 0
+
+=== Results: 83/83 passed, 0 failed ===
