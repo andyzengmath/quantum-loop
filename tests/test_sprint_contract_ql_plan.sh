@@ -121,6 +121,7 @@ while IFS= read -r sid; do
   sid="${sid%$'\r'}"
   [[ -z "$sid" ]] && continue
   CONTRACT=$(jq -n --arg id "$sid" --arg sha "$PRD_SHA" --arg ts "$(date -u +%FT%TZ)" \
+    --arg pattern "$SPRINT_CONTRACT_TEST_REGEX" \
     --slurpfile q quantum.json '
       ($q[0].stories[] | select(.id == $id)) as $story |
       ($story.tasks // []) as $tasks |
@@ -130,8 +131,8 @@ while IFS= read -r sid; do
         acs: ($story.acceptanceCriteria // []),
         contracts: ($q[0].contracts // {}),
         files: [$tasks[].filePaths // []] | flatten | unique,
-        expectedTests: ([$tasks[].commands // []] | flatten | map(select(test("(test_|\\.test\\.|spec|pytest|^bash tests/|^npm test)")))),
-        otherCommands: ([$tasks[].commands // []] | flatten | map(select(test("(test_|\\.test\\.|spec|pytest|^bash tests/|^npm test)") | not))),
+        expectedTests: ([$tasks[].commands // []] | flatten | map(select(test($pattern)))),
+        otherCommands: ([$tasks[].commands // []] | flatten | map(select(test($pattern) | not))),
         plannedBy: "ql-plan",
         plannedAt: $ts
       }')
@@ -203,6 +204,7 @@ while IFS= read -r sid; do
   sid="${sid%$'\r'}"
   [[ -z "$sid" ]] && continue
   CONTRACT=$(jq -n --arg id "$sid" --arg sha "$PRD_SHA" --arg ts "$(date -u +%FT%TZ)" \
+    --arg pattern "$SPRINT_CONTRACT_TEST_REGEX" \
     --slurpfile q quantum.json '
       ($q[0].stories[] | select(.id == $id)) as $story |
       ($story.tasks // []) as $tasks |
@@ -212,8 +214,8 @@ while IFS= read -r sid; do
         acs: ($story.acceptanceCriteria // []),
         contracts: ($q[0].contracts // {}),
         files: [$tasks[].filePaths // []] | flatten | unique,
-        expectedTests: ([$tasks[].commands // []] | flatten | map(select(test("(test_|\\.test\\.|spec|pytest|^bash tests/|^npm test)")))),
-        otherCommands: ([$tasks[].commands // []] | flatten | map(select(test("(test_|\\.test\\.|spec|pytest|^bash tests/|^npm test)") | not))),
+        expectedTests: ([$tasks[].commands // []] | flatten | map(select(test($pattern)))),
+        otherCommands: ([$tasks[].commands // []] | flatten | map(select(test($pattern) | not))),
         plannedBy: "ql-plan",
         plannedAt: $ts
       }')

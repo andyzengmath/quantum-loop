@@ -267,7 +267,9 @@ This prevents interface-changing stories from running in parallel with their con
 
 For each eligible story (whether dispatched sequentially or in parallel), write its Sprint-Contract to `.handoffs/sprint-<storyId>.json` via `bash lib/handoff.sh write-sprint-contract <storyId> '<json>'`. The contract serializes the planner's decision-context — `acs`, the relevant `contracts` subset, allowed `files`, `expectedTests`, `otherCommands`, `prdSha`, `plannedBy`, `plannedAt` — so the implementer + reviewers can read it instead of re-parsing the full PRD. This mirrors Anthropic's 2026-03-24 Generator-Evaluator contract.
 
-**G9 / US-002 (v0.6.3):** the per-task `commands` array is split into two siblings. `expectedTests` contains only test-pattern commands (regex `(test_|\.test\.|spec|pytest|^bash tests/|^npm test)`); the rest (typecheck, lint, build, install, etc.) go into `otherCommands`. This lets the implementer wave-end gate run `expectedTests` as the test-suite check and `otherCommands` as the auxiliary-quality gate without conflating them. Backward-compat: existing readers that ignore unknown fields are unaffected.
+**G9 / US-002 (v0.6.3):** the per-task `commands` array is split into two siblings. `expectedTests` contains only test-pattern commands (regex `SPRINT_CONTRACT_TEST_REGEX` defined in `lib/handoff.sh`); the rest (typecheck, lint, build, install, etc.) go into `otherCommands`. This lets the implementer wave-end gate run `expectedTests` as the test-suite check and `otherCommands` as the auxiliary-quality gate without conflating them. Backward-compat: existing readers that ignore unknown fields are unaffected.
+
+**G14 / US-003 (v0.7.0):** the regex value is sourced from `lib/handoff.sh::SPRINT_CONTRACT_TEST_REGEX` (single source of truth) and passed to jq via `--arg pattern`.
 
 ```bash
 source "$REPO_ROOT/lib/handoff.sh"
@@ -275,6 +277,7 @@ source "$REPO_ROOT/lib/json-atomic.sh"
 PRD_SHA=$(compute_prd_sha "$PRD_PATH")
 for sid in $ELIGIBLE_STORY_IDS; do
   CONTRACT=$(jq -n --arg id "$sid" --arg sha "$PRD_SHA" --arg ts "$(date -u +%FT%TZ)" \
+    --arg pattern "$SPRINT_CONTRACT_TEST_REGEX" \
     --slurpfile q "$JSON_PATH" '
       ($q[0].stories[] | select(.id == $id)) as $story |
       ($story.tasks // []) as $tasks |
@@ -284,8 +287,8 @@ for sid in $ELIGIBLE_STORY_IDS; do
         acs: ($story.acceptanceCriteria // []),
         contracts: ($q[0].contracts // {}),
         files: [$tasks[].filePaths // []] | flatten | unique,
-        expectedTests: ([$tasks[].commands // []] | flatten | map(select(test("(test_|\\.test\\.|spec|pytest|^bash tests/|^npm test)")))),
-        otherCommands: ([$tasks[].commands // []] | flatten | map(select(test("(test_|\\.test\\.|spec|pytest|^bash tests/|^npm test)") | not))),
+        expectedTests: ([$tasks[].commands // []] | flatten | map(select(test($pattern)))),
+        otherCommands: ([$tasks[].commands // []] | flatten | map(select(test($pattern) | not))),
         plannedBy: "orchestrator",
         plannedAt: $ts
       }')

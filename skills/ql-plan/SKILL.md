@@ -681,6 +681,8 @@ This step runs **after dag-validator** completes (and after any stub flesh-out i
 
 The step is **idempotent** — re-running `/ql-plan` overwrites existing sprint-contract files with the latest content (only `plannedAt` will differ). Backward-compat: if `lib/handoff.sh::write_sprint_contract` is unavailable (older repos), skip the step with a one-line warning.
 
+**G14 / US-003 (v0.7.0):** the test-pattern regex is sourced from `lib/handoff.sh::SPRINT_CONTRACT_TEST_REGEX` (single source of truth) and passed to jq via `--arg pattern`.
+
 ```bash
 source "$REPO_ROOT/lib/handoff.sh"
 source "$REPO_ROOT/lib/json-atomic.sh"  # Mandatory: compute_prd_sha must produce the same
@@ -698,6 +700,7 @@ while IFS= read -r sid; do
   sid="${sid%$'\r'}"
   [[ -z "$sid" ]] && continue
   CONTRACT=$(jq -n --arg id "$sid" --arg sha "$PRD_SHA" --arg ts "$(date -u +%FT%TZ)" \
+    --arg pattern "$SPRINT_CONTRACT_TEST_REGEX" \
     --slurpfile q quantum.json '
       ($q[0].stories[] | select(.id == $id)) as $story |
       ($story.tasks // []) as $tasks |
@@ -707,8 +710,8 @@ while IFS= read -r sid; do
         acs: ($story.acceptanceCriteria // []),
         contracts: ($q[0].contracts // {}),
         files: [$tasks[].filePaths // []] | flatten | unique,
-        expectedTests: ([$tasks[].commands // []] | flatten | map(select(test("(test_|\\.test\\.|spec|pytest|^bash tests/|^npm test)")))),
-        otherCommands: ([$tasks[].commands // []] | flatten | map(select(test("(test_|\\.test\\.|spec|pytest|^bash tests/|^npm test)") | not))),
+        expectedTests: ([$tasks[].commands // []] | flatten | map(select(test($pattern)))),
+        otherCommands: ([$tasks[].commands // []] | flatten | map(select(test($pattern) | not))),
         plannedBy: "ql-plan",
         plannedAt: $ts
       }')
