@@ -34,6 +34,8 @@ Then scan the entire document for:
 - **Hedge phrases**: phrases like `should work`, `probably`, `might be`, `seems correct`, `TODO` — these signal unfinished thinking
 - **Missing non-goals**: every design doc should explicitly state what is OUT of scope; if no `## Non-Goals` (or equivalent) section exists, flag it
 
+> See [references/finding-severity.md](../references/finding-severity.md#design-review) for severity calibration.
+
 ### Output format (design-review mode)
 
 Emit one block per finding to **stderr**, framed by literal `FINDING_START`/`FINDING_END` markers so downstream synthesizers can parse the stream:
@@ -85,6 +87,8 @@ Then audit each user-story acceptance criterion and each functional requirement:
 - **FR measurement method**: every functional requirement must cite a measurement method (e.g., `measured by latency p99 < 200ms`, `verified by tests/test_<name>.sh`). FRs without measurement are vacuous.
 - **Success metrics quantifiable**: every metric in §8 must be quantifiable (numeric threshold, count, ratio). Reject narrative metrics like `users will be happy`.
 
+> See [references/finding-severity.md](../references/finding-severity.md#prd-review) for severity calibration.
+
 ### Output format (prd-review mode)
 
 Use the same `FINDING_START`/`FINDING_END` format as design-review mode, with `category` from: `missing-section | non-testable-ac | vague-fr | non-quantifiable-metric | missing-measurement`.
@@ -112,6 +116,8 @@ Cross-reference the plan against the PRD:
 - **AC coverage**: every PRD acceptance criterion (each `[ ]` checkbox in the PRD's User Stories section) must be referenced by at least one story's `acceptanceCriteria[]`. ACs in the PRD that no story covers are coverage gaps.
 - **testFirst command consistency**: every story-task with `testFirst: true` must have at least one `commands[]` entry matching the test pattern (`test_`, `.test.`, `pytest`, `^bash tests/`, `^npm test`, `spec`). A `testFirst: true` task with no test command is incoherent.
 - **Wiring task / consumedBy**: every story that creates a NEW module (`filePaths` includes a path that does not yet exist) must have either an explicit wiring task (one whose description references the caller file) OR a `consumedBy` field in the contract pointing to a downstream consumer story. Stories that create dead code (built-but-never-called) are caught here.
+
+> See [references/finding-severity.md](../references/finding-severity.md#plan-review) for severity calibration.
 
 ### Output format (plan-review mode)
 
