@@ -7,6 +7,15 @@
     Each iteration spawns a fresh Claude Code instance with CLAUDE.md instructions.
     No bash, no WSL, no Git Bash required.
 
+    PS1/SH PARITY DIVERGENCE (v0.7.0 / G17 / US-005):
+    quantum-loop.sh ships a `--audit` flag that emits 7 maintenance metrics
+    (branches-local, branches-remote, orphan-worktrees, readme-conflicts,
+    cpc-files, test-suites, pre-impl-review-coverage). The PS1 shim does NOT
+    implement `--audit` — the diagnostic is bash-only. Operators on Windows
+    who want the audit output should run `bash quantum-loop.sh --audit` from
+    Git Bash / WSL. This divergence is intentional and tracked as acceptable
+    per the v0.7.0 PRD (US-005 / T-004 PS1 parity is optional).
+
 .PARAMETER MaxIterations
     Maximum iterations before stopping (default: 20)
 
