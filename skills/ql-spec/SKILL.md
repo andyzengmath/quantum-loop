@@ -251,16 +251,16 @@ The `decided` array MUST NOT contradict `brainstorm.decided`; any re-negotiation
 After the handoff is written, run the spec-reviewer in `prd-review` mode against the just-saved PRD. The review is **advisory** in v0.6.3 — findings emit to stderr; the skill does NOT abort regardless of what's flagged.
 
 ```bash
-PRD_PATH=$(jq -r '.files[0]' .handoffs/spec.md 2>/dev/null \
-  || ls tasks/prd-*.md 2>/dev/null | tail -1)
+PRD_PATH=$(bash lib/handoff.sh read spec 2>/dev/null | jq -r '.files[0] // empty' 2>/dev/null)
+[[ -z "$PRD_PATH" || "$PRD_PATH" == "null" ]] && PRD_PATH=$(ls tasks/prd-*.md 2>/dev/null | tail -1)
 
 # Opt-out gate: QL_SKIP_PRE_IMPL_REVIEW=prd (or comma-separated, e.g. design,prd).
 SKIP_LIST="${QL_SKIP_PRE_IMPL_REVIEW:-}"
 if [[ -n "$PRD_PATH" ]] && \
    ! printf '%s' "$SKIP_LIST" | tr ',' '\n' | grep -qx "prd"; then
   echo "[QL-SPEC] Running spec-reviewer in prd-review mode (advisory)..." >&2
-  bash -c "MODE=prd-review PRD_PATH='$PRD_PATH' \
-    claude --headless 'agents/spec-reviewer.md prd-review mode against \$PRD_PATH'" 2>&1 || true
+  MODE=prd-review PRD_PATH="$PRD_PATH" \
+    claude --headless "agents/spec-reviewer.md prd-review mode against $PRD_PATH" 2>&1 || true
 else
   echo "[QL-SPEC] prd-review skipped (QL_SKIP_PRE_IMPL_REVIEW=prd or no PRD)" >&2
 fi

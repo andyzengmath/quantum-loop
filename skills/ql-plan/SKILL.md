@@ -683,10 +683,14 @@ The step is **idempotent** — re-running `/ql-plan` overwrites existing sprint-
 
 ```bash
 source "$REPO_ROOT/lib/handoff.sh"
-source "$REPO_ROOT/lib/json-atomic.sh" 2>/dev/null || true
+source "$REPO_ROOT/lib/json-atomic.sh"  # Mandatory: compute_prd_sha must produce the same
+                                        # LF-normalized hash that the orchestrator's Step 1.1
+                                        # validates against. A `sha256sum` fallback would yield
+                                        # a divergent format and mark every story stale on first
+                                        # orchestrator run.
 
 PRD_PATH=$(jq -r '.prdPath' quantum.json)
-PRD_SHA=$(compute_prd_sha "$PRD_PATH" 2>/dev/null || sha256sum "$PRD_PATH" | awk '{print $1}')
+PRD_SHA=$(compute_prd_sha "$PRD_PATH")
 
 # Iterate stories[]. Strip CRLF defensively (CLAUDE.md Platform Notes: heredocs
 # on Git Bash/MSYS produce CRLF; jq -r preserves them in some configurations).
@@ -727,8 +731,8 @@ SKIP_LIST="${QL_SKIP_PRE_IMPL_REVIEW:-}"
 if [[ -n "$PRD_PATH" ]] && \
    ! printf '%s' "$SKIP_LIST" | tr ',' '\n' | grep -qx "plan"; then
   echo "[QL-PLAN] Running spec-reviewer in plan-review mode (advisory)..." >&2
-  bash -c "MODE=plan-review JSON_PATH='$JSON_PATH' PRD_PATH='$PRD_PATH' \
-    claude --headless 'agents/spec-reviewer.md plan-review mode against \$JSON_PATH and \$PRD_PATH'" 2>&1 || true
+  MODE=plan-review JSON_PATH="$JSON_PATH" PRD_PATH="$PRD_PATH" \
+    claude --headless "agents/spec-reviewer.md plan-review mode against $JSON_PATH and $PRD_PATH" 2>&1 || true
 else
   echo "[QL-PLAN] plan-review skipped (QL_SKIP_PRE_IMPL_REVIEW=plan or no PRD)" >&2
 fi

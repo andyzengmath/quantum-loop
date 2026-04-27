@@ -43,7 +43,7 @@ export QL_ROLE_CRITIC=$(printf '%s' "$ROUTING" | jq -r '.critic')
 export QL_ROLE_EXECUTOR=$(printf '%s' "$ROUTING" | jq -r '.executor')
 ```
 
-If a role's provider becomes unavailable on replay, `_availability_check` falls back to `claude` and emits a one-line WARN. Replay determinism: when no CLI flags are passed, the orchestrator re-uses the prior snapshot's choices verbatim (modulo availability).
+If a role's provider becomes unavailable on replay, `_availability_check` falls back per role: `claude` for `planner` / `executor` (substitute a different model), `none` for `critic` (downgrade the review gate rather than substitute). Each fallback emits a one-line WARN. Replay determinism: when no CLI flags are passed, the orchestrator re-uses the prior snapshot's choices verbatim (modulo availability).
 
 ### Step 1.1: PRD Hash-Check (P5.A5 / US-005)
 

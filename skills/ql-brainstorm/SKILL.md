@@ -218,8 +218,8 @@ if [[ -n "$DESIGN_PATH" ]] && \
   # Findings are emitted to stderr in FINDING_START..FINDING_END format.
   # The skill continues regardless of what's reported — set QL_SKIP_PRE_IMPL_REVIEW=design
   # to disable this stage entirely.
-  bash -c "MODE=design-review DESIGN_PATH='$DESIGN_PATH' \
-    claude --headless 'agents/spec-reviewer.md design-review mode against \$DESIGN_PATH'" 2>&1 || true
+  MODE=design-review DESIGN_PATH="$DESIGN_PATH" \
+    claude --headless "agents/spec-reviewer.md design-review mode against $DESIGN_PATH" 2>&1 || true
 else
   echo "[QL-BRAINSTORM] design-review skipped (QL_SKIP_PRE_IMPL_REVIEW=design or no design doc)" >&2
 fi
