@@ -15,6 +15,11 @@ progress.txt
 .quantum-logs/
 .ql-agent-output.txt
 
+# Pre-impl-review per-run snapshots (v0.7.0 / G13).
+# The aggregate ledger metrics/pre-impl-review-findings.csv IS committed —
+# only the per-run snapshots are runtime state.
+.handoffs/*-review-findings.json
+
 # Archives of previous runs
 archive/
 
