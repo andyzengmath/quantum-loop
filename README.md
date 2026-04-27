@@ -38,6 +38,16 @@ Each phase produces an artifact consumed by the next. Skip a phase and the next 
 
 ---
 
+## Self-modifying execution
+
+Quantum-loop is **self-modifying**: each release ships a bundle that often modifies the very orchestrator, agent, and skill prompts the orchestrator itself uses to run. Because every dogfood run executes against the **previous release**'s prompt semantics (the code already on the branch when the orchestrator was invoked), this release's wires only apply to runs starting **after the bundle merges** to master.
+
+A concrete example. v0.6.4 added the pre-impl-review CSV-persistence wires (`metrics/pre-impl-review-findings.csv`). The v0.6.4 dogfood ran on the v0.6.3 master HEAD that did not yet have those wires, so its CSV was empty by design — not a regression. v0.6.5's first run is the first to populate the CSV. If you arrive at this codebase fresh, see an empty `metrics/` directory after install, and run `--audit`, the WARN row for `pre-impl-review-coverage` is the **expected first-run state**, not a bug.
+
+This generalizes. When a v0.X.Y release adds a new wire (a new gate, a new step, a new audit), the release's own dogfood cannot exercise that wire — only subsequent releases can. Plan accordingly when reading a release's PIPELINE_REPORT: the metrics it captures are the metrics the *previous* release wired. See [`idea-stage/PIPELINE_REPORT_v5.md`](idea-stage/PIPELINE_REPORT_v5.md) for the v0.6.4 retrospective that first surfaced this caveat.
+
+---
+
 ## Quick Start
 
 ### Install
