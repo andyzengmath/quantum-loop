@@ -675,6 +675,71 @@ Print the complete DAG Health Report to the user. This is the last thing the use
 - **File Conflicts** — files touched by multiple stories with severity classification
 - **Stubs Created** — new shared-utility stories extracted by the validator
 
+## Step 8: Sprint-Contract write per story (G3 / US-004 / v0.6.3)
+
+This step runs **after dag-validator** completes (and after any stub flesh-out is finalized). Iterate `.stories[]` in quantum.json and write a per-story Sprint-Contract to `.handoffs/sprint-<storyId>.json`. This makes the planner's decision-context durable for downstream skills (`/ql-execute`, `/ql-review`) without re-parsing the full PRD per story. Mirrors Anthropic's 2026-03-24 Generator-Evaluator contract.
+
+The step is **idempotent** — re-running `/ql-plan` overwrites existing sprint-contract files with the latest content (only `plannedAt` will differ). Backward-compat: if `lib/handoff.sh::write_sprint_contract` is unavailable (older repos), skip the step with a one-line warning.
+
+```bash
+source "$REPO_ROOT/lib/handoff.sh"
+source "$REPO_ROOT/lib/json-atomic.sh"  # Mandatory: compute_prd_sha must produce the same
+                                        # LF-normalized hash that the orchestrator's Step 1.1
+                                        # validates against. A `sha256sum` fallback would yield
+                                        # a divergent format and mark every story stale on first
+                                        # orchestrator run.
+
+PRD_PATH=$(jq -r '.prdPath' quantum.json)
+PRD_SHA=$(compute_prd_sha "$PRD_PATH")
+
+# Iterate stories[]. Strip CRLF defensively (CLAUDE.md Platform Notes: heredocs
+# on Git Bash/MSYS produce CRLF; jq -r preserves them in some configurations).
+while IFS= read -r sid; do
+  sid="${sid%$'\r'}"
+  [[ -z "$sid" ]] && continue
+  CONTRACT=$(jq -n --arg id "$sid" --arg sha "$PRD_SHA" --arg ts "$(date -u +%FT%TZ)" \
+    --slurpfile q quantum.json '
+      ($q[0].stories[] | select(.id == $id)) as $story |
+      ($story.tasks // []) as $tasks |
+      {
+        storyId: $id,
+        prdSha: $sha,
+        acs: ($story.acceptanceCriteria // []),
+        contracts: ($q[0].contracts // {}),
+        files: [$tasks[].filePaths // []] | flatten | unique,
+        expectedTests: ([$tasks[].commands // []] | flatten | map(select(test("(test_|\\.test\\.|spec|pytest|^bash tests/|^npm test)")))),
+        otherCommands: ([$tasks[].commands // []] | flatten | map(select(test("(test_|\\.test\\.|spec|pytest|^bash tests/|^npm test)") | not))),
+        plannedBy: "ql-plan",
+        plannedAt: $ts
+      }')
+  write_sprint_contract "$sid" "$CONTRACT"
+done < <(jq -r '.stories[].id' quantum.json)
+```
+
+Inform the user: `[QL-PLAN] Wrote N sprint-contract files to .handoffs/sprint-*.json`. The contracts are consumed by `agents/implementer.md` (`read_sprint_contract`) and the spec-reviewer / quality-reviewer subagents.
+
+## Step 9: Post-exit plan-review (P5.B4 / US-008 / v0.6.3 — advisory)
+
+This step runs **after Step 7 (dag-validator) and Step 8 (sprint-contract write)** complete. Invoke the spec-reviewer in `plan-review` mode against the just-finalized `quantum.json` cross-referenced against the PRD. The review is **advisory** — findings emit to stderr; the skill does NOT abort.
+
+```bash
+JSON_PATH="quantum.json"
+PRD_PATH=$(jq -r '.prdPath' "$JSON_PATH" 2>/dev/null)
+
+# Opt-out gate: QL_SKIP_PRE_IMPL_REVIEW=plan (or comma-chain like design,prd,plan).
+SKIP_LIST="${QL_SKIP_PRE_IMPL_REVIEW:-}"
+if [[ -n "$PRD_PATH" ]] && \
+   ! printf '%s' "$SKIP_LIST" | tr ',' '\n' | grep -qx "plan"; then
+  echo "[QL-PLAN] Running spec-reviewer in plan-review mode (advisory)..." >&2
+  MODE=plan-review JSON_PATH="$JSON_PATH" PRD_PATH="$PRD_PATH" \
+    claude --headless "agents/spec-reviewer.md plan-review mode against $JSON_PATH and $PRD_PATH" 2>&1 || true
+else
+  echo "[QL-PLAN] plan-review skipped (QL_SKIP_PRE_IMPL_REVIEW=plan or no PRD)" >&2
+fi
+```
+
+Step ordering reference: dag-validator (Step 7) -> sprint-contract write (Step 8) -> plan-review (Step 9). Findings stream to stderr in `FINDING_START..FINDING_END` blocks.
+
 ## Anti-Rationalization Guards
 
 | Excuse | Reality |

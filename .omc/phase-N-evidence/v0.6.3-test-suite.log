@@ -1,0 +1,25 @@
+=== v0.6.3 test-suite run (regenerated post-code-review fixes) ===
+Date: 2026-04-27T01:07:36Z
+
+PASS  test_ambiguity.sh
+PASS  test_api_rename.sh
+PASS  test_audit.sh
+PASS  test_barrel_regen.sh
+PASS  test_claim_check_integration.sh
+PASS  test_commit_trailers.sh
+PASS  test_complexity_routing.sh
+PASS  test_conflict_grade.sh
+PASS  test_constitution.sh
+PASS  test_cross_provider_critic_flag.sh
+PASS  test_dag_query.sh
+PASS  test_dead_code.sh
+PASS  test_deep_review.sh
+PASS  test_dep_manifest.sh
+PASS  test_deslop.sh
+PASS  test_deslop_regex_fallback.sh
+PASS  test_dispatch_set.sh
+PASS  test_dogfood_e2e.sh
+PASS  test_far_filter.sh
+PASS  test_final_sweep.sh
+PASS  test_handoff.sh
+PASS  test_hyclone.sh

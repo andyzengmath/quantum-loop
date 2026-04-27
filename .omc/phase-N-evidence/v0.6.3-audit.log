@@ -1,0 +1,9 @@
+=== Quantum-loop audit ===
+branches-local:    2 (target ≤10)     OK
+branches-remote:   6 (target ≤10)     OK
+orphan-worktrees:  0 (target 0)     OK
+readme-conflicts:  0 (target 0)     OK
+cpc-files:         0 (target 0)     OK
+test-suites:       0/0 passed (target green)     OK
+
+Summary: 6/6 metrics on target.

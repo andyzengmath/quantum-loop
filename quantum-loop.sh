@@ -86,12 +86,19 @@ parse_role_arg() {
       ;;
   esac
 
-  # Availability check for non-claude/auto/none providers
+  # Availability check for non-claude/auto/none providers.
+  # US-001 / G8: role-aware fallback. The critic role degrades to 'none'
+  # (preserving US-002's "downgrade rather than substitute" design intent
+  # and matching quantum-loop.ps1). Planner/executor degrade to 'claude'
+  # because their role is "execute the work, just maybe with a different
+  # model" — disabling them entirely would break the run.
   case "$value" in
     codex|gemini)
       if ! command -v "$value" >/dev/null 2>&1; then
-        printf "WARN: per-role routing: %s provider %s not available, falling back to claude\n" "$role" "$value" >&2
-        value="claude"
+        local _fallback="claude"
+        [[ "$role" == "critic" ]] && _fallback="none"
+        printf "WARN: per-role routing: %s provider %s not available, falling back to %s\n" "$role" "$value" "$_fallback" >&2
+        value="$_fallback"
       fi
       ;;
   esac
@@ -99,43 +106,12 @@ parse_role_arg() {
 }
 
 # =============================================================================
-# P5.A2 / US-002 — --critic=auto|codex|gemini|claude|none flag with
-# availability detection at runtime. 'auto' triggers existing tier-driven
-# dispatch (lib/deep-review.sh); 'none' disables critic entirely; explicit
-# values override. When chosen provider's CLI binary is not on \$PATH, log
-# warning and degrade to 'none' rather than failing the review gate.
-# Note: parse_role_arg above is the unified entry point; parse_critic_arg
-# remains for backward compatibility with US-002 callers.
+# P5.A2 / US-002 — --critic=auto|codex|gemini|claude|none flag.
+# US-001 / G8 (v0.6.3): legacy parse_critic_arg removed as dead code.
+# parse_role_arg above is the unified entry point with role-aware fallback:
+# critic role degrades to 'none' (preserving the "downgrade rather than
+# substitute" design intent), planner/executor degrade to 'claude'.
 # =============================================================================
-
-# parse_critic_arg VALUE
-# Validates VALUE against the enum (auto|codex|gemini|claude|none) and runs
-# availability check on codex/gemini. On absence, emits WARN to stderr and
-# rewrites the choice to 'none'. Echoes the resolved value on stdout.
-# Returns 0 on success, 1 on invalid enum value (caller should exit).
-parse_critic_arg() {
-  local value="${1:-}"
-  case "$value" in
-    auto|codex|gemini|claude|none) : ;;
-    *)
-      printf "Error: --critic value must be one of auto|codex|gemini|claude|none (got [%s])\n" "$value" >&2
-      return 1
-      ;;
-  esac
-
-  # Availability check for external providers.
-  # claude is assumed present (the orchestrator binary itself); auto/none
-  # never need a binary check.
-  case "$value" in
-    codex|gemini)
-      if ! command -v "$value" >/dev/null 2>&1; then
-        printf "WARN: critic provider %s not available, falling back to none\n" "$value" >&2
-        value="none"
-      fi
-      ;;
-  esac
-  printf '%s' "$value"
-}
 
 # =============================================================================
 # --audit flag support (Phase 44 / US-001 -- US-004). Read-only repo-hygiene

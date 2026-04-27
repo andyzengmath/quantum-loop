@@ -202,6 +202,31 @@ JSON
 
 Every downstream skill opens with `bash lib/handoff.sh all | jq '.'` — so any decision you record here is durable even across session boundaries.
 
+## Phase 4d: Post-exit design-review (P5.B4 / US-006 / v0.6.3 — advisory)
+
+After Phase 4c writes the brainstorm handoff, run the spec-reviewer in `design-review` mode against the just-saved design doc. The review is **advisory** in v0.6.3 — findings emit to stderr; the skill does NOT abort regardless of what's flagged.
+
+```bash
+DESIGN_PATH=$(ls docs/plans/*-design.md 2>/dev/null | tail -1)
+
+# Opt-out gate: QL_SKIP_PRE_IMPL_REVIEW=design (or comma-separated, e.g. design,prd)
+SKIP_LIST="${QL_SKIP_PRE_IMPL_REVIEW:-}"
+if [[ -n "$DESIGN_PATH" ]] && \
+   ! printf '%s' "$SKIP_LIST" | tr ',' '\n' | grep -qx "design"; then
+  echo "[QL-BRAINSTORM] Running spec-reviewer in design-review mode (advisory)..." >&2
+  # Dispatch the spec-reviewer subagent with MODE=design-review and the design doc path.
+  # Findings are emitted to stderr in FINDING_START..FINDING_END format.
+  # The skill continues regardless of what's reported — set QL_SKIP_PRE_IMPL_REVIEW=design
+  # to disable this stage entirely.
+  MODE=design-review DESIGN_PATH="$DESIGN_PATH" \
+    claude --headless "agents/spec-reviewer.md design-review mode against $DESIGN_PATH" 2>&1 || true
+else
+  echo "[QL-BRAINSTORM] design-review skipped (QL_SKIP_PRE_IMPL_REVIEW=design or no design doc)" >&2
+fi
+```
+
+Inform the user the design-review ran (one-line summary). If `QL_SKIP_PRE_IMPL_REVIEW=design` was set, mention that the stage was bypassed.
+
 ## Anti-Rationalization Guards
 
 You WILL be tempted to skip this process. Here's why every excuse is wrong:

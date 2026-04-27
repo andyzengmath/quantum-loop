@@ -247,6 +247,65 @@ else
   echo "  FAIL: parse_role_arg helper not defined (5 cases)"
 fi
 
+# Test 21: G11 / US-003 — write_routing_snapshot composes with
+# write_quantum_json's validation gate. Invalid routing JSON (e.g., a
+# truncated string '{"planner":') is rejected via the canonical validator,
+# not raw jq, leaving quantum.json untouched. The refactor must call
+# write_quantum_json (composition) rather than rolling its own tmp+mv.
+echo ""
+echo "Test 21: G11 write_routing_snapshot validation gate + composition"
+
+TMP3=$(mktemp -d)
+TJ3="$TMP3/quantum.json"
+cat > "$TJ3" << 'EOF'
+{ "stories": [], "branchName": "test", "prdPath": "prd.md" }
+EOF
+
+if declare -f write_routing_snapshot >/dev/null 2>&1; then
+  # AC3a: behavioral — invalid JSON rejected, file untouched
+  ORIG_HASH=$(sha256sum "$TJ3" | awk '{print $1}')
+  rc=$(write_routing_snapshot "$TJ3" '{"planner":' >/dev/null 2>&1; echo $?)
+
+  TOTAL=$((TOTAL + 1))
+  if [[ "$rc" != "0" ]]; then
+    echo "  PASS: write_routing_snapshot rejects invalid JSON (rc=$rc)"
+    PASS=$((PASS + 1))
+  else
+    echo "  FAIL: write_routing_snapshot accepted invalid JSON (rc=$rc)"
+    FAIL=$((FAIL + 1))
+  fi
+
+  TOTAL=$((TOTAL + 1))
+  NEW_HASH=$(sha256sum "$TJ3" | awk '{print $1}')
+  if [[ "$ORIG_HASH" == "$NEW_HASH" ]]; then
+    echo "  PASS: quantum.json untouched after invalid routing JSON"
+    PASS=$((PASS + 1))
+  else
+    echo "  FAIL: quantum.json modified despite invalid routing JSON"
+    FAIL=$((FAIL + 1))
+  fi
+
+  # AC3b: composition — function body must reference write_quantum_json
+  # (canonical helper), not raw `mv` of a hand-rolled .tmp file.
+  TOTAL=$((TOTAL + 1))
+  FUNC_BODY=$(declare -f write_routing_snapshot)
+  if printf '%s' "$FUNC_BODY" | grep -qF "write_quantum_json"; then
+    echo "  PASS: write_routing_snapshot composes with write_quantum_json"
+    PASS=$((PASS + 1))
+  else
+    echo "  FAIL: write_routing_snapshot still rolls its own tmp+mv (no write_quantum_json reference)"
+    FAIL=$((FAIL + 1))
+  fi
+else
+  TOTAL=$((TOTAL + 3))
+  FAIL=$((FAIL + 3))
+  for i in 1 2 3; do
+    echo "  FAIL: write_routing_snapshot not defined"
+  done
+fi
+
+rm -rf "$TMP3"
+
 # Cleanup
 rm -rf "$TMP"
 

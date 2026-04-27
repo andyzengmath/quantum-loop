@@ -67,47 +67,93 @@ echo ""
 echo "Test 4: --critic=none short-circuits"
 assert_grep "quantum-loop.sh handles 'none' value" "none" "$QL_SH"
 
-# Test 5: availability check + fallback warning
+# Test 5: availability check + fallback warning (US-001 unified-fallback semantics).
+# After parse_critic_arg removal, the warning lives inside parse_role_arg's
+# role-aware availability check. Critic role still degrades to 'none' (PS1 parity).
 echo ""
 echo "Test 5: availability check + degrade warning"
-assert_grep "WARN message when binary missing" "WARN: critic provider" "$QL_SH"
-assert_grep "falling back to none" "falling back to none" "$QL_SH"
+assert_grep "WARN message when binary missing" "WARN: per-role routing:" "$QL_SH"
+assert_grep "falling back to none (critic role)" 'falling back to %s' "$QL_SH"
+assert_grep "role-aware fallback comment" "critic role degrades to 'none'" "$QL_SH"
 
 # Test 6: behavioral test — sourcing under QL_AUDIT_TEST_MODE doesn't error,
-# and the parse_critic helper exists.
+# and the unified parse_role_arg helper handles critic with role-aware fallback.
 echo ""
-echo "Test 6: parse_critic helper sourceable + behaves"
+echo "Test 6: parse_role_arg sourceable + behaves (US-001 unified-fallback)"
 QL_AUDIT_TEST_MODE=1
 # shellcheck disable=SC1090
 source "$QL_SH" 2>/dev/null || true
 unset QL_AUDIT_TEST_MODE
 
-if declare -f parse_critic_arg >/dev/null 2>&1; then
-  out=$(parse_critic_arg auto 2>&1 | tail -1)
-  assert_eq "auto resolves to auto" "auto" "$out"
+# US-001 / G8: parse_critic_arg has been deleted; parse_role_arg is the only entry point.
+TOTAL=$((TOTAL + 1))
+if ! declare -f parse_critic_arg >/dev/null 2>&1; then
+  echo "  PASS: parse_critic_arg removed (dead code deleted)"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: parse_critic_arg still defined (G8 dead-code removal incomplete)"
+  FAIL=$((FAIL + 1))
+fi
 
-  out=$(parse_critic_arg none 2>&1 | tail -1)
-  assert_eq "none resolves to none" "none" "$out"
+if declare -f parse_role_arg >/dev/null 2>&1; then
+  out=$(parse_role_arg critic auto 2>&1 | tail -1)
+  assert_eq "parse_role_arg critic auto -> auto" "auto" "$out"
 
-  # Codex without binary on a fake PATH — must degrade to none and
-  # emit warning to stderr. Save PATH (we need grep below) and restore.
+  out=$(parse_role_arg critic none 2>&1 | tail -1)
+  assert_eq "parse_role_arg critic none -> none" "none" "$out"
+
+  # US-001 G8: with a missing provider, critic must fall back to 'none' (not 'claude'),
+  # preserving the US-002 'downgrade rather than substitute' design intent.
   ORIG_PATH="$PATH"
   PATH=/nonexistent
-  out_stderr=$(parse_critic_arg codex 2>&1 1>/dev/null || true)
+  out_stdout=$(parse_role_arg critic codex 2>/dev/null || true)
+  out_stderr=$(parse_role_arg critic codex 2>&1 1>/dev/null || true)
   PATH="$ORIG_PATH"
+
+  assert_eq "critic codex absent -> 'none' on stdout (role-aware fallback)" "none" "$out_stdout"
+
   TOTAL=$((TOTAL + 1))
-  if printf '%s' "$out_stderr" | grep -qF "WARN: critic provider codex not available"; then
-    echo "  PASS: codex absent emits WARN"; PASS=$((PASS + 1))
+  if printf '%s' "$out_stderr" | grep -qE "WARN: per-role routing: critic provider codex not available, falling back to none"; then
+    echo "  PASS: critic codex absent emits role-aware WARN with 'falling back to none'"
+    PASS=$((PASS + 1))
   else
-    echo "  FAIL: codex absent did not emit WARN (got [$out_stderr])"
+    echo "  FAIL: critic codex absent did not emit role-aware WARN (got [$out_stderr])"
     FAIL=$((FAIL + 1))
   fi
+
+  # Same check for gemini.
+  PATH=/nonexistent
+  out_stdout=$(parse_role_arg critic gemini 2>/dev/null || true)
+  PATH="$ORIG_PATH"
+  assert_eq "critic gemini absent -> 'none' on stdout" "none" "$out_stdout"
+
+  # Planner role: must fall back to 'claude' (NOT 'none') for missing providers.
+  PATH=/nonexistent
+  out_stdout=$(parse_role_arg planner codex 2>/dev/null || true)
+  out_stderr=$(parse_role_arg planner codex 2>&1 1>/dev/null || true)
+  PATH="$ORIG_PATH"
+  assert_eq "planner codex absent -> 'claude' on stdout (role-aware: planner/executor still claude)" "claude" "$out_stdout"
+
+  TOTAL=$((TOTAL + 1))
+  if printf '%s' "$out_stderr" | grep -qE "WARN: per-role routing: planner provider codex not available, falling back to claude"; then
+    echo "  PASS: planner codex absent emits 'falling back to claude'"
+    PASS=$((PASS + 1))
+  else
+    echo "  FAIL: planner codex absent did not emit 'falling back to claude' (got [$out_stderr])"
+    FAIL=$((FAIL + 1))
+  fi
+
+  # Executor role: same as planner — falls back to 'claude'.
+  PATH=/nonexistent
+  out_stdout=$(parse_role_arg executor gemini 2>/dev/null || true)
+  PATH="$ORIG_PATH"
+  assert_eq "executor gemini absent -> 'claude' on stdout (role-aware)" "claude" "$out_stdout"
 else
-  TOTAL=$((TOTAL + 3))
-  FAIL=$((FAIL + 3))
-  echo "  FAIL: parse_critic_arg helper not defined"
-  echo "  FAIL: parse_critic_arg helper not defined"
-  echo "  FAIL: parse_critic_arg helper not defined"
+  TOTAL=$((TOTAL + 7))
+  FAIL=$((FAIL + 7))
+  for i in 1 2 3 4 5 6 7; do
+    echo "  FAIL: parse_role_arg helper not defined"
+  done
 fi
 
 echo ""

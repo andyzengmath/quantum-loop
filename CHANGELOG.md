@@ -7,6 +7,32 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.6.3] - 2026-04-26
+
+### Added
+
+8 user-facing changes covering G-track cleanup (G2/G3/G8/G9/G11) + 3-stage pre-impl spec-review (P5.B4 design / PRD / plan exits, advisory-only). Patch-tier; new mechanisms are opt-out via `QL_SKIP_PRE_IMPL_REVIEW` env var. No breaking changes. Closes IDEA_REPORT_v3 §G2/G3/G8/G9/G11 + §P5.B4 (expanded to 3 stages).
+
+- **`lib/api-rename.sh`** (US-005, G2) — symbol-migration helper. `find_rename_targets <old> <new> [--exclude <glob>]` emits `<file>:<line>:<context>` for every occurrence (code AND doc-comments); `validate_rename_complete <old> [--exclude <glob>]` exits 0 iff no occurrences remain. Addresses the v0.6.0 US-001 dogfood where the `kill_agent_process → reap_agent` rename initially missed line-4 module-header doc-comments.
+- **Sprint-Contract `expectedTests` filter + `otherCommands` schema split** (US-002, G9) — orchestrator Step 2.5 jq splits `.commands` by test-pattern regex (`test_|\.test\.|spec|pytest|^bash tests/|^npm test`); test-pattern matches → `expectedTests`, rest → new sibling `otherCommands`. Backward-compat: existing readers ignore the new optional field.
+- **`/ql-plan` exit writes Sprint-Contract per story** (US-004, G3) — `skills/ql-plan/SKILL.md` Step 8 iterates stories and calls `write_sprint_contract`, materializing `.handoffs/sprint-<storyId>.json` files at plan time instead of lazily during orchestrator's first run. Idempotent on re-run.
+- **`write_routing_snapshot` canonicalization** (US-003, G11) — `lib/runner.sh::write_routing_snapshot` now composes with `lib/json-atomic.sh::write_quantum_json` for atomic write + JSON-validation gate, replacing its inline `jq > tmp && mv` pattern. Inherits `cleanup_stale_tmp` coordination consistently with all other quantum.json writers.
+- **Critic fallback unification** (US-001, G8) — deleted dead `quantum-loop.sh::parse_critic_arg` shim; `lib/runner.sh::_availability_check` now role-aware: `critic` falls back to `none` (preserving US-002's "downgrade-not-substitute" intent), `planner`/`executor` fall back to `claude`. PowerShell already at `none` for critic. **Operator-visible behavior change:** `--critic=codex` with codex absent now produces critic disabled (was `claude` since v0.6.0).
+- **`spec-reviewer` design-review mode** (US-006, P5.B4-design) — new `## Mode: design-review` section in `agents/spec-reviewer.md` + Phase 4d hook in `skills/ql-brainstorm/SKILL.md`. Reads the just-saved design doc and reports structural gaps (missing sections, TBD/FIXME markers, hedge phrases, missing non-goals). Advisory: emits to stderr; does not abort the skill. Opt out via `QL_SKIP_PRE_IMPL_REVIEW=design`.
+- **`spec-reviewer` prd-review mode** (US-007, P5.B4-PRD) — new `## Mode: prd-review` section + post-exit hook in `skills/ql-spec/SKILL.md`. Reads the just-saved PRD and reports non-testable ACs, vague FRs, missing measurement methods. Advisory. Opt out via `QL_SKIP_PRE_IMPL_REVIEW=prd` (or comma-combined, e.g. `design,prd`).
+- **`spec-reviewer` plan-review mode** (US-008, P5.B4-plan) — new `## Mode: plan-review` section + Step 9 hook in `skills/ql-plan/SKILL.md` (after dag-validator + US-004 sprint-contract write). Cross-references quantum.json against the PRD; reports AC coverage gaps, command-test mismatches, missing wiring tasks. Advisory. Opt out via `QL_SKIP_PRE_IMPL_REVIEW=plan`.
+
+### Test-suite delta
+
+**+67 new assertions** across 8 test files. Zero regressions:
+
+- 5 new files: `test_api_rename.sh` (14), `test_spec_review_design.sh` (14), `test_spec_review_prd.sh` (13), `test_spec_review_plan.sh` (13), `test_sprint_contract_ql_plan.sh` (13)
+- 3 extended: `test_cross_provider_critic_flag.sh` 13 → 20 (+7), `test_sprint_contract.sh` 11 → 16 (+5), `test_per_role_routing.sh` 26 → 29 (+3 G11 composition + validation-gate)
+
+### Dogfood milestone (v0.6.3)
+
+**8/8 user-facing stories shipped first-attempt PASS across 4 waves** (5 + 2 + 1 + retrospective). Total wall-clock to wave-2 completion: ~34 minutes. Zero retries, zero cross-story contract violations, zero merge conflicts. Rule 0 `fileConflicts severity=none` classification held perfectly across all 4 conflicts. Per-story two-stage review gate applied; cross-story constant scan + typecheck + full test suite + barrel/dep-manifest regen ran at each wave boundary. **5 new codebasePatterns** harvested (opt-out env-var pattern; RED-test-first when refactoring with validation gates; backward-compat schema additions default to empty array; inline-vs-subshell arg-parser globals; defensive `\r` stripping for heredoc-fed JSON on Git Bash). Full retrospective: `idea-stage/PIPELINE_REPORT_v4.md`. v0.7.0 backlog: `idea-stage/IDEA_REPORT_v4.md`.
+
 ## [0.6.2] - 2026-04-26
 
 ### Fixed

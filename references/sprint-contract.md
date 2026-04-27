@@ -21,7 +21,8 @@ One file per story. Written by `lib/handoff.sh:write_sprint_contract`. Consumed 
 | `acs` | string[] | Acceptance criteria, copied verbatim from the PRD. The implementer maps each task to one or more ACs. |
 | `contracts` | object | Subset of `quantum.json.contracts` relevant to this story (env_vars, shared_types, api_routes the story consumes). |
 | `files` | string[] | Files the story is allowed to modify, derived from `tasks[].filePaths`. |
-| `expectedTests` | string[] | Test names or patterns the implementer must produce or extend. |
+| `expectedTests` | string[] | Test commands/patterns the implementer must produce or extend. **G9 / US-002 (v0.6.3):** filtered to commands matching `(test_\|\.test\.\|spec\|pytest\|^bash tests/\|^npm test)` — non-test commands move to `otherCommands`. |
+| `otherCommands` | string[] (optional, default `[]`) | Non-test commands from the per-task `commands` array (typecheck, lint, build, install). Sibling of `expectedTests`. Added in v0.6.3 (G9 / US-002). Existing readers that ignore unknown fields are unaffected. |
 | `plannedBy` | string | Identifier of the planner agent (e.g., `"dag-validator"` or `"planner-stub"`). |
 | `plannedAt` | string | ISO 8601 timestamp of contract creation. |
 
