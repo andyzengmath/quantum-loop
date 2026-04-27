@@ -536,6 +536,20 @@ case "$out" in
     echo "  FAIL: missing-csv unexpected — got [$out]"; FAIL=$((FAIL + 1));;
 esac
 TOTAL=$((TOTAL + 1))
+
+# Test 28b (G18 / US-005 / v0.6.5): missing-csv drill text now clarifies that
+# the empty-CSV state is the expected first-run state after install (not a
+# regression). Substring "(expected on first run" tells the operator to invoke
+# the planning skills to populate the CSV. Same TMP fixture as Test 28.
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$out" | grep -qF '(expected on first run'; then
+  echo "  PASS: missing-csv drill mentions '(expected on first run'"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: missing-csv drill missing '(expected on first run' substring"
+  echo "    got: [$out]"
+  FAIL=$((FAIL + 1))
+fi
 rm -rf "$TMP"
 
 # Test 29: no-recent-runs state (CSV exists, all rows >7d old) → WARN

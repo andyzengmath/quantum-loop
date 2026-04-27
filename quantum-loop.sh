@@ -354,7 +354,13 @@ _audit_test_suites() {
 _audit_pre_impl_review_coverage() {
   local csv="metrics/pre-impl-review-findings.csv"
   if [[ ! -f "$csv" ]]; then
-    printf 'pre-impl-review-coverage|0/3 stages|3/3|WARN|missing-csv — no metrics/pre-impl-review-findings.csv yet\n'
+    # G18 / US-005 (v0.6.5): drill text clarifies that the empty-CSV state
+    # is the expected first-run state after install (per README ## Self-
+    # modifying execution). Without this guidance an operator running
+    # --audit on a fresh checkout reads a WARN row and assumes a
+    # regression. Other WARN states (no-recent-runs, partial-coverage)
+    # keep their existing drill messages.
+    printf 'pre-impl-review-coverage|0/3 stages|3/3|WARN|missing-csv — no metrics/pre-impl-review-findings.csv yet (expected on first run after install — invoke /ql-brainstorm/spec/plan to populate)\n'
     return 0
   fi
   # Compute the cutoff ISO 8601 string for "7 days ago" UTC.
