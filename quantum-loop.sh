@@ -131,8 +131,10 @@ _audit_format_row() {
   # Main line: "<name>: <value> (target <target>) <status>"
   # Column widths: name: padded to 18, value+target padded to 30, status right.
   printf "%-18s %s (target %s) %6s\n" "${name}:" "$value" "$target" "$status"
-  # Drill only when FAIL and non-empty drill
-  if [[ "$status" == "FAIL" && -n "$drill" ]]; then
+  # Drill when FAIL or WARN and non-empty drill (v0.6.5 post-merge fix:
+  # G18 added a WARN drill message for missing-csv but the original
+  # FAIL-only gate suppressed it; soliton-pr-review caught at conf 97.)
+  if [[ ( "$status" == "FAIL" || "$status" == "WARN" ) && -n "$drill" ]]; then
     printf "                   └─ %s\n" "$drill"
   fi
 }
@@ -354,7 +356,13 @@ _audit_test_suites() {
 _audit_pre_impl_review_coverage() {
   local csv="metrics/pre-impl-review-findings.csv"
   if [[ ! -f "$csv" ]]; then
-    printf 'pre-impl-review-coverage|0/3 stages|3/3|WARN|missing-csv — no metrics/pre-impl-review-findings.csv yet\n'
+    # G18 / US-005 (v0.6.5): drill text clarifies that the empty-CSV state
+    # is the expected first-run state after install (per README ## Self-
+    # modifying execution). Without this guidance an operator running
+    # --audit on a fresh checkout reads a WARN row and assumes a
+    # regression. Other WARN states (no-recent-runs, partial-coverage)
+    # keep their existing drill messages.
+    printf 'pre-impl-review-coverage|0/3 stages|3/3|WARN|missing-csv — no metrics/pre-impl-review-findings.csv yet (expected on first run after install — invoke /ql-brainstorm/spec/plan to populate)\n'
     return 0
   fi
   # Compute the cutoff ISO 8601 string for "7 days ago" UTC.
@@ -396,10 +404,17 @@ _audit_pre_impl_review_coverage() {
 
 # do_audit
 # Driver for --audit. Calls all 7 metric helpers in canonical order, renders
-# each row via _audit_format_row, returns 0 if all OK else 1.
+# each row via _audit_format_row, returns 0 if all OK or WARN, else 1.
 # v0.7.0 / G17: pre-impl-review-coverage added as 7th row. WARN states do NOT
-# trigger any_fail — only |FAIL| rows do. ok_count counts non-FAIL rows
-# (OK and WARN both increment).
+# trigger any_fail — only |FAIL| rows do.
+# v0.6.5 / G26 / US-001: summary line splits into OK / WARN / FAIL counters.
+# Walk ROWS[] once, accumulate ok_count/warn_count/fail_count from |OK| /
+# |WARN| / |FAIL| substrings. Summary now reads
+#   "Summary: <ok>/<total> OK, <warn> WARN, <fail> FAIL."
+# (was: "Summary: <ok>/<total> metrics on target.", which silently counted
+# WARN as on-target and so could mislead an operator on a fresh checkout.)
+# Exit-code semantics preserved: return 1 iff any row contains |FAIL|; WARN
+# rows do NOT trip exit.
 do_audit() {
   printf "=== Quantum-loop audit ===\n"
   local -a ROWS=()
@@ -410,18 +425,18 @@ do_audit() {
   ROWS+=("$(_audit_cpc_files)")
   ROWS+=("$(_audit_test_suites)")
   ROWS+=("$(_audit_pre_impl_review_coverage)")
-  local any_fail=0 ok_count=0 total=0
+  local any_fail=0 ok_count=0 warn_count=0 fail_count=0 total=0
   local row
   for row in "${ROWS[@]}"; do
     _audit_format_row "$row"
     total=$((total + 1))
-    if [[ "$row" == *"|FAIL|"* ]]; then
-      any_fail=1
-    else
-      ok_count=$((ok_count + 1))
-    fi
+    case "$row" in
+      *"|FAIL|"*) any_fail=1; fail_count=$((fail_count + 1)) ;;
+      *"|WARN|"*) warn_count=$((warn_count + 1)) ;;
+      *"|OK|"*)   ok_count=$((ok_count + 1)) ;;
+    esac
   done
-  printf "\nSummary: %d/%d metrics on target.\n" "$ok_count" "$total"
+  printf "\nSummary: %d/%d OK, %d WARN, %d FAIL.\n" "$ok_count" "$total" "$warn_count" "$fail_count"
   return "$any_fail"
 }
 

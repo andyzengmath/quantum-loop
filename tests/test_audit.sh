@@ -72,6 +72,28 @@ out=$(_audit_format_row 'x|1|0|FAIL|')
 line_count=$(printf '%s' "$out" | awk 'END{print NR}')
 assert "empty-drill FAIL = 1 line" "1" "$line_count"
 
+# Test 3b: format_row WARN with drill — drill line MUST render
+# v0.6.5 post-merge soliton fix (conf 97). Before the fix, _audit_format_row
+# only emitted the drill line on FAIL. G18's whole point — telling the
+# operator "(expected on first run after install)" — was invisible.
+echo ""
+echo "Test 3b: _audit_format_row WARN renders drill line (G18 visibility)"
+out=$(_audit_format_row 'pre-impl-review-coverage|0/3 stages|3/3|WARN|missing-csv (expected on first run after install)')
+case "$out" in
+  *"pre-impl-review-coverage:"*"WARN"*"└─"*"missing-csv"*"(expected on first run"*)
+    echo "  PASS: WARN drill rendered with G18 hint"; PASS=$((PASS + 1));;
+  *)
+    echo "  FAIL: WARN drill suppressed — got [$out]"; FAIL=$((FAIL + 1));;
+esac
+TOTAL=$((TOTAL + 1))
+
+# Test 3c: format_row WARN with empty drill — no drill line (symmetric to Test 3)
+echo ""
+echo "Test 3c: _audit_format_row WARN empty drill omits drill line"
+out=$(_audit_format_row 'x|1|0|WARN|')
+line_count=$(printf '%s' "$out" | awk 'END{print NR}')
+assert "empty-drill WARN = 1 line" "1" "$line_count"
+
 # Test 4: do_audit stub returns 0 and prints header
 echo ""
 echo "Test 4: do_audit stub happy path"
@@ -361,24 +383,27 @@ line2=$(printf '%s\n' "$actual" | sed -n '2p')
 assert "format_row FAIL line 1"   "$expected_main"  "$line1"
 assert "format_row FAIL drill line" "$expected_drill" "$line2"
 
-# Test 23: full-flow happy-path integration (all 6 OK, exit 0)
+# Test 23: full-flow happy-path integration (all 6 OK + 1 WARN from clean
+# tmp's missing pre-impl-review CSV, exit 0)
 echo ""
-echo "Test 23: full-flow happy path 6/6"
+echo "Test 23: full-flow happy path 6/7 OK + 1 WARN"
 TMP=$(setup_audit_repo)
 mkdir -p "$TMP/.omc/phase-99-evidence"
 printf '=== Results: 1/1 passed, 0 failed ===\n' > "$TMP/.omc/phase-99-evidence/test_x.log"
 out=$(cd "$TMP" && bash "$REPO_ROOT/quantum-loop.sh" --audit 2>&1 || true)
 rc=$(cd "$TMP" && bash "$REPO_ROOT/quantum-loop.sh" --audit >/dev/null 2>&1 ; echo $?)
 TOTAL=$((TOTAL + 1))
-ok_count=$(printf '%s' "$out" | grep -cE '^[a-z].*(OK|WARN)$')
+nonfail_count=$(printf '%s' "$out" | grep -cE '^[a-z].*(OK|WARN)$')
 # v0.7.0 / G17: new pre-impl-review-coverage metric raises total from 6 → 7.
 # In a clean tmp repo there is no metrics/pre-impl-review-findings.csv, so the
-# new helper emits WARN (missing-csv). WARN does not fail the audit (AC) and
-# counts toward ok_count (the summary tallies non-FAIL rows).
-if [[ "$rc" -eq 0 ]] && [[ "$ok_count" -eq 7 ]] && printf '%s' "$out" | grep -q 'Summary: 7/7 metrics on target.'; then
-  echo "  PASS: full-flow happy 7/7"; PASS=$((PASS + 1))
+# new helper emits WARN (missing-csv). WARN does not fail the audit (AC).
+# v0.6.5 / G26 / US-001: split summary distinguishes OK / WARN / FAIL — the
+# clean-tmp fixture is 6 OK + 1 WARN + 0 FAIL, so summary reads
+# "Summary: 6/7 OK, 1 WARN, 0 FAIL." (was: "Summary: 7/7 metrics on target.")
+if [[ "$rc" -eq 0 ]] && [[ "$nonfail_count" -eq 7 ]] && printf '%s' "$out" | grep -q 'Summary: 6/7 OK, 1 WARN, 0 FAIL\.'; then
+  echo "  PASS: full-flow happy 6/7 OK + 1 WARN"; PASS=$((PASS + 1))
 else
-  echo "  FAIL: full-flow happy (rc=$rc, ok_count=$ok_count)"; FAIL=$((FAIL + 1))
+  echo "  FAIL: full-flow happy (rc=$rc, nonfail_count=$nonfail_count)"; FAIL=$((FAIL + 1))
 fi
 rm -rf "$TMP"
 
@@ -533,6 +558,20 @@ case "$out" in
     echo "  FAIL: missing-csv unexpected — got [$out]"; FAIL=$((FAIL + 1));;
 esac
 TOTAL=$((TOTAL + 1))
+
+# Test 28b (G18 / US-005 / v0.6.5): missing-csv drill text now clarifies that
+# the empty-CSV state is the expected first-run state after install (not a
+# regression). Substring "(expected on first run" tells the operator to invoke
+# the planning skills to populate the CSV. Same TMP fixture as Test 28.
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$out" | grep -qF '(expected on first run'; then
+  echo "  PASS: missing-csv drill mentions '(expected on first run'"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: missing-csv drill missing '(expected on first run' substring"
+  echo "    got: [$out]"
+  FAIL=$((FAIL + 1))
+fi
 rm -rf "$TMP"
 
 # Test 29: no-recent-runs state (CSV exists, all rows >7d old) → WARN
@@ -604,19 +643,102 @@ rm -rf "$TMP"
 
 # Test 33: row is wired into do_audit ROWS as the 7th metric
 echo ""
-echo "Test 33: do_audit emits 7 metric rows including pre-impl-review-coverage"
+echo "Test 33: do_audit emits 7 metric rows + split summary (G26 / v0.6.5)"
 TMP=$(setup_audit_repo)
 mkdir -p "$TMP/.omc/phase-99-evidence"
 printf '=== Results: 1/1 passed, 0 failed ===\n' > "$TMP/.omc/phase-99-evidence/test_x.log"
 out=$(cd "$TMP" && bash "$REPO_ROOT/quantum-loop.sh" --audit 2>&1 || true)
 metric_lines=$(printf '%s' "$out" | grep -cE '^[a-z][a-z-]+:')
 TOTAL=$((TOTAL + 1))
-if (( metric_lines == 7 )) && printf '%s' "$out" | grep -q 'Summary: .*7 metrics on target'; then
-  echo "  PASS: 7 metric rows + summary updated"; PASS=$((PASS + 1))
+# v0.6.5 / G26: summary now reports split OK / WARN / FAIL counters.
+# Clean tmp repo: 6 OK + 1 WARN (pre-impl-review-coverage missing-csv) + 0 FAIL.
+if (( metric_lines == 7 )) && printf '%s' "$out" | grep -q 'Summary: 6/7 OK, 1 WARN, 0 FAIL\.'; then
+  echo "  PASS: 7 metric rows + split summary (6/7 OK, 1 WARN, 0 FAIL)"; PASS=$((PASS + 1))
 else
-  echo "  FAIL: expected 7 metric rows, got [$metric_lines]"; FAIL=$((FAIL + 1))
+  echo "  FAIL: expected 7 metric rows + split summary, got [$metric_lines] / out:"; FAIL=$((FAIL + 1))
+  printf '%s\n' "$out" | tail -5 | sed 's/^/    /'
 fi
 rm -rf "$TMP"
+
+# --- v0.6.5 / G26 / US-001: split-summary tests ---------------------------
+
+# Test 34: 3-row all-OK fixture → "Summary: 3/3 OK, 0 WARN, 0 FAIL." + exit 0
+#
+# Subshell exit-code capture pattern (see CLAUDE.md "Platform Notes"): under
+# `set -euo pipefail` (inherited via `source quantum-loop.sh` at the top of
+# this file), `out=$(... exit "$any_fail")` would terminate the test script
+# whenever any_fail=1 — so we use the two-invocation idiom: one captures
+# stdout with `|| true` (no errexit trip), one captures the exit code via
+# explicit `; echo $?`.
+echo ""
+echo "Test 34: split summary all-OK fixture (G26)"
+mock_rows=(
+  'foo|1|0|OK|'
+  'bar|2|0|OK|'
+  'baz|3|0|OK|'
+)
+_t34_run() {
+  local -a ROWS=("${mock_rows[@]}")
+  local any_fail=0 ok_count=0 warn_count=0 fail_count=0 total=0 row
+  printf "=== Quantum-loop audit ===\n"
+  for row in "${ROWS[@]}"; do
+    _audit_format_row "$row"
+    total=$((total + 1))
+    case "$row" in
+      *"|FAIL|"*) any_fail=1; fail_count=$((fail_count + 1)) ;;
+      *"|WARN|"*) warn_count=$((warn_count + 1)) ;;
+      *"|OK|"*)   ok_count=$((ok_count + 1)) ;;
+    esac
+  done
+  printf "\nSummary: %d/%d OK, %d WARN, %d FAIL.\n" "$ok_count" "$total" "$warn_count" "$fail_count"
+  return "$any_fail"
+}
+out=$(_t34_run 2>&1 || true)
+rc=$(_t34_run >/dev/null 2>&1 ; echo $?)
+TOTAL=$((TOTAL + 1))
+if [[ "$rc" -eq 0 ]] && printf '%s' "$out" | grep -q 'Summary: 3/3 OK, 0 WARN, 0 FAIL\.'; then
+  echo "  PASS: 3-OK fixture → 'Summary: 3/3 OK, 0 WARN, 0 FAIL.' exit 0"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: 3-OK fixture (rc=$rc, summary missing or wrong)"; FAIL=$((FAIL + 1))
+  printf '%s\n' "$out" | sed 's/^/    /'
+fi
+
+# Test 35: mixed 1-OK / 1-WARN / 1-FAIL fixture → exit 1 + "1/3 OK, 1 WARN, 1 FAIL."
+# Same subshell-exit-code idiom as Test 34. This test isolates the summary
+# arithmetic + exit semantics; the live do_audit path is exercised via Test
+# 33 (full-flow with 7 helpers).
+echo ""
+echo "Test 35: split summary mixed-3-state fixture (G26)"
+mock_rows=(
+  'foo|1|0|OK|'
+  'bar|2|0|WARN|partial-coverage'
+  'baz|3|0|FAIL|broken'
+)
+_t35_run() {
+  local -a ROWS=("${mock_rows[@]}")
+  local any_fail=0 ok_count=0 warn_count=0 fail_count=0 total=0 row
+  printf "=== Quantum-loop audit ===\n"
+  for row in "${ROWS[@]}"; do
+    _audit_format_row "$row"
+    total=$((total + 1))
+    case "$row" in
+      *"|FAIL|"*) any_fail=1; fail_count=$((fail_count + 1)) ;;
+      *"|WARN|"*) warn_count=$((warn_count + 1)) ;;
+      *"|OK|"*)   ok_count=$((ok_count + 1)) ;;
+    esac
+  done
+  printf "\nSummary: %d/%d OK, %d WARN, %d FAIL.\n" "$ok_count" "$total" "$warn_count" "$fail_count"
+  return "$any_fail"
+}
+out=$(_t35_run 2>&1 || true)
+rc=$(_t35_run >/dev/null 2>&1 ; echo $?)
+TOTAL=$((TOTAL + 1))
+if [[ "$rc" -eq 1 ]] && printf '%s' "$out" | grep -q 'Summary: 1/3 OK, 1 WARN, 1 FAIL\.'; then
+  echo "  PASS: mixed-3-state → 'Summary: 1/3 OK, 1 WARN, 1 FAIL.' exit 1"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: mixed-3-state (rc=$rc, summary missing or wrong)"; FAIL=$((FAIL + 1))
+  printf '%s\n' "$out" | sed 's/^/    /'
+fi
 
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="

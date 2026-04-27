@@ -53,7 +53,8 @@ fi
 # Single source of truth for the regex that splits per-task `commands` into
 # `expectedTests` (test commands) vs `otherCommands` (typecheck/lint/build).
 # Consumers: agents/orchestrator.md Step 2.5, skills/ql-plan/SKILL.md Step 8,
-# tests/test_sprint_contract.sh, tests/test_sprint_contract_ql_plan.sh.
+# tests/test_sprint_contract.sh, tests/test_sprint_contract_ql_plan.sh,
+# agents/spec-reviewer.md plan-review (G27 / US-002, v0.6.5 — 5th site).
 # Use via jq: --arg pattern "$SPRINT_CONTRACT_TEST_REGEX" then test($pattern).
 if [[ -z "${SPRINT_CONTRACT_TEST_REGEX+x}" ]]; then
 readonly SPRINT_CONTRACT_TEST_REGEX='(test_|\.test\.|spec|pytest|^bash tests/|^npm test)'
