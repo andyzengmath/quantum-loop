@@ -76,28 +76,42 @@ _csv_escape() {
   esac
 }
 
-# _csv_append_locked(csv_path, row)
+# _csv_append_locked(csv_path, row, [header])
 # Append a row to the CSV file under flock -x when available; fall back to
-# tmpfile + atomic rename-replace otherwise. The header MUST already exist
-# in the file (written by persist_review_findings before the first call).
+# tmpfile + atomic rename-replace otherwise. The optional `header` is
+# written iff the file is missing or empty AT THE MOMENT THE LOCK IS HELD —
+# this keeps the header check and write inside the same critical section
+# as the row append, so concurrent writers cannot truncate each other's
+# rows by re-writing the header outside the lock (v0.7.0 post-merge fix).
 _csv_append_locked() {
   local csv="${1:?csv path required}"
   local row="${2:?row required}"
+  local header="${3:-}"
   if command -v flock >/dev/null 2>&1; then
     # flock acquires an exclusive lock on the FD; safe across concurrent
-    # writers on POSIX-compliant filesystems.
+    # writers on POSIX-compliant filesystems. Both the header bootstrap
+    # and the row append run under this lock.
     (
-      flock -x 200
+      flock -x 200 || return 1
+      [[ -n "$header" && ! -s "$csv" ]] && printf '%s\n' "$header" >> "$csv"
       printf '%s\n' "$row" >> "$csv"
     ) 200>>"$csv"
   else
     # Fallback: copy → append → rename. Not concurrent-safe but the only
-    # option on systems without flock (older Git Bash, BusyBox).
+    # option on systems without flock (older Git Bash, BusyBox). When the
+    # CSV is missing or empty we seed it with `header` instead of cp'ing
+    # an empty source. All disk operations are guarded with || return 1
+    # so a partial failure cleans up the tmp file rather than silently
+    # promoting a corrupt CSV.
     local tmp
-    tmp=$(mktemp "${csv}.XXXXXX")
-    cp "$csv" "$tmp"
-    printf '%s\n' "$row" >> "$tmp"
-    mv -f "$tmp" "$csv"
+    tmp=$(mktemp "${csv}.XXXXXX") || return 1
+    if [[ -s "$csv" ]]; then
+      cp "$csv" "$tmp" || { rm -f "$tmp"; return 1; }
+    elif [[ -n "$header" ]]; then
+      printf '%s\n' "$header" > "$tmp" || { rm -f "$tmp"; return 1; }
+    fi
+    printf '%s\n' "$row" >> "$tmp" || { rm -f "$tmp"; return 1; }
+    mv -f "$tmp" "$csv" || { rm -f "$tmp"; return 1; }
   fi
 }
 
@@ -128,24 +142,25 @@ persist_review_findings() {
   ts=$(_ts)
 
   # Build snapshot. Use jq to ensure clean JSON regardless of shell-escape
-  # quirks in source_path / findings.
+  # quirks in source_path / findings. If jq fails (malformed --argjson
+  # input), abort the whole call: do NOT write a CSV row that has no
+  # corroborating snapshot file (v0.7.0 post-merge fix).
   local snap_tmp
-  snap_tmp=$(mktemp "${snap}.XXXXXX")
-  jq -nc \
-    --arg stage "$stage" \
-    --arg ts "$ts" \
-    --arg src "$source_path" \
-    --argjson summary "$summary" \
-    --argjson findings "$findings" \
-    '{stage: $stage, timestamp: $ts, source_path: $src, summary: $summary, findings: $findings}' \
-    > "$snap_tmp"
-  # Atomic rename — readers never see a half-written file.
-  mv -f "$snap_tmp" "$snap"
-
-  # CSV: write header if file doesn't exist or is empty.
-  if [[ ! -s "$csv" ]]; then
-    printf 'timestamp,stage,source_path,count,critical,high,medium,low\n' > "$csv"
+  snap_tmp=$(mktemp "${snap}.XXXXXX") || return 1
+  if ! jq -nc \
+      --arg stage "$stage" \
+      --arg ts "$ts" \
+      --arg src "$source_path" \
+      --argjson summary "$summary" \
+      --argjson findings "$findings" \
+      '{stage: $stage, timestamp: $ts, source_path: $src, summary: $summary, findings: $findings}' \
+      > "$snap_tmp"; then
+    rm -f "$snap_tmp"
+    printf "ERR: persist_review_findings: jq failed building snapshot for stage '%s'\n" "$stage" >&2
+    return 1
   fi
+  # Atomic rename — readers never see a half-written file.
+  mv -f "$snap_tmp" "$snap" || { rm -f "$snap_tmp"; return 1; }
 
   # Extract summary fields for the CSV row.
   local count crit high med low
@@ -155,10 +170,13 @@ persist_review_findings() {
   med=$(jq   -r '.by_severity.medium // 0'     <<< "$summary")
   low=$(jq   -r '.by_severity.low // 0'        <<< "$summary")
 
-  # Build the row with proper escaping of source_path.
+  # Build the row with proper escaping of source_path. The CSV header is
+  # bootstrapped INSIDE the flock by _csv_append_locked (no longer here —
+  # see v0.7.0 post-merge fix in _csv_append_locked).
+  local csv_header='timestamp,stage,source_path,count,critical,high,medium,low'
   local row
   row="${ts},${stage},$(_csv_escape "$source_path"),${count},${crit},${high},${med},${low}"
-  _csv_append_locked "$csv" "$row"
+  _csv_append_locked "$csv" "$row" "$csv_header"
 
   # Echo the snapshot path so callers can log/chain.
   printf '%s\n' "$snap"

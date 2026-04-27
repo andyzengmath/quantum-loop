@@ -266,6 +266,77 @@ check_in "ql-plan sources finding-synth.sh"         "lib/finding-synth.sh"   "sk
 check_in "ql-plan sources finding-persist.sh"       "lib/finding-persist.sh" "skills/ql-plan/SKILL.md"
 check_in "ql-plan calls persist_review_findings"    "persist_review_findings" "skills/ql-plan/SKILL.md"
 
+# Test 11 — v0.7.0 post-merge soliton fix: header bootstrap is atomic with
+# row append. Calling _csv_append_locked twice with a header arg should
+# yield exactly ONE header line (not two), and both rows should be present.
+echo ""
+echo "Test 11: header bootstrap inside lock — exactly one header on repeat call"
+TMP=$(mktemp -d)
+CSV="$TMP/t11.csv"
+HEADER='timestamp,stage,source_path,count,critical,high,medium,low'
+_csv_append_locked "$CSV" "row1,a,b,1,0,0,1,0" "$HEADER" 2>&1
+_csv_append_locked "$CSV" "row2,a,b,2,0,0,2,0" "$HEADER" 2>&1
+TOTAL=$((TOTAL + 1))
+header_count=$(grep -cF "$HEADER" "$CSV" 2>/dev/null || echo 0)
+if [[ "$header_count" == "1" ]]; then
+  echo "  PASS: header appears exactly once after 2 calls"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: header_count=$header_count (expected 1)"; FAIL=$((FAIL + 1))
+fi
+TOTAL=$((TOTAL + 1))
+row_count=$(grep -c '^row[12]' "$CSV" 2>/dev/null || echo 0)
+if [[ "$row_count" == "2" ]]; then
+  echo "  PASS: both data rows present"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: row_count=$row_count (expected 2)"; FAIL=$((FAIL + 1))
+fi
+TOTAL=$((TOTAL + 1))
+total_lines=$(wc -l < "$CSV" | tr -d ' ')
+if [[ "$total_lines" == "3" ]]; then
+  echo "  PASS: total CSV lines = 3 (1 header + 2 rows)"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: total_lines=$total_lines (expected 3)"; FAIL=$((FAIL + 1))
+fi
+rm -rf "$TMP"
+
+# Test 12 — v0.7.0 post-merge soliton fix: jq failure aborts the whole call.
+# When --argjson receives malformed input, persist_review_findings must:
+#   (a) return non-zero
+#   (b) emit ERR to stderr
+#   (c) leave NO CSV row behind
+#   (d) leave NO orphan snap_tmp behind
+echo ""
+echo "Test 12: jq failure aborts — no CSV row, no orphan tmp"
+TMP=$(mktemp -d)
+# "not a valid summary" is not valid JSON, so jq --argjson will fail
+out=$(persist_review_findings "design" "/tmp/x.md" "not a valid summary" "[]" "$TMP" 2>&1; echo "RC=$?")
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$out" | grep -q 'RC=[1-9]'; then
+  echo "  PASS: malformed summary returns non-zero exit"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: malformed summary did not return non-zero (out=$out)"; FAIL=$((FAIL + 1))
+fi
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$out" | grep -qE 'ERR|jq'; then
+  echo "  PASS: stderr emits ERR/jq message"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: no ERR/jq message in stderr (out=$out)"; FAIL=$((FAIL + 1))
+fi
+TOTAL=$((TOTAL + 1))
+if [[ ! -s "$TMP/metrics/pre-impl-review-findings.csv" ]]; then
+  echo "  PASS: no CSV row written on jq failure"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: CSV was written despite jq failure"; FAIL=$((FAIL + 1))
+fi
+TOTAL=$((TOTAL + 1))
+orphans=$(find "$TMP/.handoffs" -name '*.XXXXXX*' -o -name 'design-review-findings.json.*' 2>/dev/null | wc -l | tr -d ' ')
+if [[ "$orphans" == "0" ]]; then
+  echo "  PASS: no orphan snap_tmp files left behind"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: $orphans orphan tmp file(s) left in .handoffs/"; FAIL=$((FAIL + 1))
+fi
+rm -rf "$TMP"
+
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 exit $((FAIL > 0 ? 1 : 0))
