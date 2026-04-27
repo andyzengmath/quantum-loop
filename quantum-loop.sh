@@ -131,8 +131,10 @@ _audit_format_row() {
   # Main line: "<name>: <value> (target <target>) <status>"
   # Column widths: name: padded to 18, value+target padded to 30, status right.
   printf "%-18s %s (target %s) %6s\n" "${name}:" "$value" "$target" "$status"
-  # Drill only when FAIL and non-empty drill
-  if [[ "$status" == "FAIL" && -n "$drill" ]]; then
+  # Drill when FAIL or WARN and non-empty drill (v0.6.5 post-merge fix:
+  # G18 added a WARN drill message for missing-csv but the original
+  # FAIL-only gate suppressed it; soliton-pr-review caught at conf 97.)
+  if [[ ( "$status" == "FAIL" || "$status" == "WARN" ) && -n "$drill" ]]; then
     printf "                   └─ %s\n" "$drill"
   fi
 }

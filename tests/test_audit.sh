@@ -72,6 +72,28 @@ out=$(_audit_format_row 'x|1|0|FAIL|')
 line_count=$(printf '%s' "$out" | awk 'END{print NR}')
 assert "empty-drill FAIL = 1 line" "1" "$line_count"
 
+# Test 3b: format_row WARN with drill — drill line MUST render
+# v0.6.5 post-merge soliton fix (conf 97). Before the fix, _audit_format_row
+# only emitted the drill line on FAIL. G18's whole point — telling the
+# operator "(expected on first run after install)" — was invisible.
+echo ""
+echo "Test 3b: _audit_format_row WARN renders drill line (G18 visibility)"
+out=$(_audit_format_row 'pre-impl-review-coverage|0/3 stages|3/3|WARN|missing-csv (expected on first run after install)')
+case "$out" in
+  *"pre-impl-review-coverage:"*"WARN"*"└─"*"missing-csv"*"(expected on first run"*)
+    echo "  PASS: WARN drill rendered with G18 hint"; PASS=$((PASS + 1));;
+  *)
+    echo "  FAIL: WARN drill suppressed — got [$out]"; FAIL=$((FAIL + 1));;
+esac
+TOTAL=$((TOTAL + 1))
+
+# Test 3c: format_row WARN with empty drill — no drill line (symmetric to Test 3)
+echo ""
+echo "Test 3c: _audit_format_row WARN empty drill omits drill line"
+out=$(_audit_format_row 'x|1|0|WARN|')
+line_count=$(printf '%s' "$out" | awk 'END{print NR}')
+assert "empty-drill WARN = 1 line" "1" "$line_count"
+
 # Test 4: do_audit stub returns 0 and prints header
 echo ""
 echo "Test 4: do_audit stub happy path"
