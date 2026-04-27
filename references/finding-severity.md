@@ -10,6 +10,8 @@ The rubric is consumed in two places:
 
 Severity decisions are advisory only in v0.7.0. Promotion of any pre-impl stage from advisory to blocking is explicitly deferred per the PRD's NG-1.
 
+Companion doc: [`risk-mitigation-language.md`](risk-mitigation-language.md) -- the design-craft pair to this review-craft rubric. Reviewers using this rubric grade what design-doc authors phrased using that doc's checklist.
+
 ---
 
 ## design-review
