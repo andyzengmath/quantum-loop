@@ -105,6 +105,16 @@ echo ""
 echo "Test 6: rule scopes warning to multi-story case (single-story = no warning)"
 assert_grep_E "single-story-ok scope" "(more than one|> ?1|2\+|two or more|stories.length > 1|when[[:space:]]+more[[:space:]]+than[[:space:]]+one)" "$DAG_DOC"
 
+# Test 7: G25 / US-003 (v0.6.5) -- Step 4 sort instruction enumerates all 5
+# severity values in priority order: high -> medium -> low -> warning -> none.
+# Without all 5 listed, the new "none" (Rule 0) and "warning" (Rule 0.5)
+# severities have implementation-defined ordering when an agent renders the
+# fileConflicts array. The literal arrow used in the doc is U+2192 (RIGHT
+# ARROW), not "->", to match agent prose conventions.
+echo ""
+echo "Test 7: Step 4 sort enumeration covers all 5 severities (G25)"
+assert_grep "5-severity sort enumeration" "high → medium → low → warning → none" "$AUDIT_DOC"
+
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 exit $((FAIL > 0 ? 1 : 0))

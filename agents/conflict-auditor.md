@@ -133,7 +133,7 @@ Each entry contains:
 - **stories**: Array of all story IDs that touch this file, sorted alphabetically
 - **severity**: One of `"none"`, `"high"`, `"medium"`, or `"low"` as determined by Step 3. `"none"` means the stories are totally ordered via `dependsOn` and cannot run concurrently — informational only, no remediation needed.
 
-Sort the `fileConflicts` array by severity (high first, then medium, then low), and alphabetically by file path within the same severity level.
+Sort the `fileConflicts` array by severity in this order: high → medium → low → warning → none. Rationale: high is most-impactful (real conflicts that need barrel/shared-type/config remediation); medium and low are real conflicts at decreasing co-scheduling risk; warning is informational-but-real-signal (the CHANGELOG-ownership convention violation); none is informational only (no actual conflict to resolve, just a serialized chain). Within the same severity level, sort alphabetically by file path.
 
 ### Step 5: Return Result
 
