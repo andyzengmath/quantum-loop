@@ -58,27 +58,43 @@ Post-merge code review pass on PR #64 ran 5 parallel Sonnet reviewers (CLAUDE.md
 | **G26: `do_audit` summary line `"X/Y metrics on target"` counts WARN as on-target** | Pre-v0.7.0, every audit metric was binary OK-or-FAIL, so "X/Y on target" was accurate. PR #64's G17 (US-005) added the first WARN-capable metric (`pre-impl-review-coverage`). `do_audit`'s `ok_count` increments for any non-`FAIL` row — meaning a WARN row is counted as on-target. Test 33 asserts `'Summary: .*7 metrics on target'` for the WARN case, locking in the misleading wording. The committed `.omc/phase-N-evidence/v0.7.0-audit.log` already shows the contradiction. | 75 | Either (a) split the summary into two counts: `Summary: 6/7 metrics OK, 1 WARN, 0 FAIL.` Or (b) reframe "on target" semantics to mean "not FAIL" and add a one-line legend. (a) is more accurate; (b) is closer to existing wording. Update Test 33 in `tests/test_audit.sh` to match the new wording. 0.5 stories. |
 | **G27: `agents/spec-reviewer.md` plan-review checklist still inlines the test-pattern regex** | G14/US-003's "single source of truth" intent (`SPRINT_CONTRACT_TEST_REGEX` in `lib/handoff.sh`) updated 4 enumerated consumers. But `agents/spec-reviewer.md` plan-review mode checklist (line 117) also enumerates the same regex inline (`testFirst command consistency` checklist item: `test_`, `.test.`, `pytest`, `^bash tests/`, `^npm test`, `spec`). The constant's consumer comment doesn't mention this 5th site. | 75 | Update `agents/spec-reviewer.md` plan-review checklist to reference `lib/handoff.sh::SPRINT_CONTRACT_TEST_REGEX` instead of inlining. Update `lib/handoff.sh` consumer comment to add `agents/spec-reviewer.md` to the consumer list. 0.25 stories. |
 
-## Recommendation for v0.7.1 / next bundle
+## NEW gaps surfaced by design-doc-vs-shipped audit (post-release)
 
-**Highest leverage v0.7.1 candidates (in order):**
+After v0.6.4 shipped, a design-doc-vs-shipped audit cross-referenced the bundle's design doc + PRD + per-story acceptance criteria against the actual merged commits, post-merge review findings, and the orchestrator's execution evidence. This surfaced one process-quality gap distinct from the code findings above:
+
+| Gap | Symptom | Where seen | Suggested fix |
+|---|---|---|---|
+| **G28: Risk-mitigation language was insufficient to prevent the soliton-detected flock race** | The v0.6.4 design doc §"Risk + mitigations" listed: *"US-002 CSV append race when 2 SKILLs run concurrently → Use `flock`-style atomic append via `lib/json-atomic.sh::write_quantum_json` pattern (a small shim that wraps `flock -x` around the append). Document as US-002 test fixture."* The implementer correctly added `flock -x` around the row append — but left the header bootstrap (`[[ ! -s "$csv" ]]; printf ... > "$csv"`) OUTSIDE the locked region. Soliton review caught this at confidence 90 (see G23-superseding analysis); now fixed in `c89ba13`. The design-doc language ("flock-style atomic append") was not specific enough to prevent the failure mode. | `docs/plans/2026-04-26-v0.7.0-bundle-design.md` §Risk + mitigations row 2; soliton finding #1 confirmation | Add a `references/risk-mitigation-language.md` (or extend `references/edge-cases.md`) with a checklist for risk-mitigation prose in design docs. Specifically for concurrency: "exclusive critical section MUST cover ALL observably-coupled operations, not just the obvious mutator (e.g., header bootstrap + row append, not just row append; check-then-truncate + check-then-write, not just the truncate)." The pattern is general: any "X-style" mitigation prose should enumerate the operations to be wrapped, not just the technique. 1 doc story (≤0.5 days). |
+
+The audit also confirmed two design-vs-execution gaps that are NOT new G-items but worth surfacing for v0.6.5 planning:
+
+- **`ql-deep-review` was skipped at the Wave-2 boundary.** The design doc explicitly listed: *"Whole-feature (after Wave 2): invoke `ql-deep-review` at HIGH or CRITICAL tier. Cross-provider critic via P5.B1 routing."* The orchestrator went straight from US-005 → US-007 without invoking it. PIPELINE_REPORT_v5 §"Module Timing" shows 0/0 invocations across all hardening modules. Post-merge `/code-review:code-review` + `/soliton:pr-review` covered some of the same ground (and surfaced the soliton race finding), so the gap was not catastrophic — but the v0.6.5 cycle should reinstate `ql-deep-review` invocation at the wave-N boundary, OR explicitly document why it's deferred per release.
+- **G14's "4 call sites" enumeration in the design doc was incomplete.** The 5th call site (agents/spec-reviewer.md plan-review checklist line 117) was missed. Captured as G27 above and bumped in the v0.6.5 priority list below.
+
+## Recommendation for v0.6.5 / next bundle
+
+**Highest leverage v0.6.5 candidates (in order):**
 1. **G26** — fix misleading `--audit` summary (the WARN-counted-as-on-target contradiction is user-facing and the test locks it in).
-2. **G25** — extend conflict-auditor sort enumeration to cover `none` + `warning`.
-3. **G27** — close G14's single-source-of-truth gap with the 5th regex copy in spec-reviewer.md.
-4. **G18** — audit drill copy improvement (trivial; closes the "is the audit broken?" reaction; enables G26 to be wedded to a clearer drill).
-5. **G20** — self-modifying caveat README note (trivial; one-time documentation debt).
-6. **First end-to-end populated-CSV run** — explicitly invoke `/ql-brainstorm` → `/ql-spec` → `/ql-plan` on a v0.7.1+ planning cycle. The first run will be the first to populate `metrics/pre-impl-review-findings.csv`. This is a process step, not a story.
+2. **G27** — close G14's single-source-of-truth gap with the 5th regex copy in spec-reviewer.md (bumped per design-doc audit; small fix, clean win, closes a known incomplete enumeration).
+3. **G25** — extend conflict-auditor sort enumeration to cover `none` + `warning`.
+4. **G28** — write `references/risk-mitigation-language.md` checklist; cite from design-doc template. Process-quality fix to prevent another soliton-driven post-merge fix loop.
+5. **G18** — audit drill copy improvement (trivial; closes the "is the audit broken?" reaction; enables G26 to be wedded to a clearer drill).
+6. **G20** — self-modifying caveat README note (trivial; one-time documentation debt).
+7. **First end-to-end populated-CSV run** — explicitly invoke `/ql-brainstorm` → `/ql-spec` → `/ql-plan` on a v0.6.5+ planning cycle. The first run will be the first to populate `metrics/pre-impl-review-findings.csv`. This is a process step, not a story.
 
-~~**G23**~~ (flock-fallback race) was addressed inline in v0.7.0 commit `c89ba13` after `/soliton:pr-review` surfaced it at confidence 90 plus a related jq-failure abort guard at confidence 85. Closed.
+~~**G23**~~ (flock-fallback race) was addressed inline in v0.6.4 commit `c89ba13` after `/soliton:pr-review` surfaced it at confidence 90 plus a related jq-failure abort guard at confidence 85. Closed.
 
-**Deferred to v0.7.x or v0.8.x:**
+**Deferred to v0.6.x or v0.7.x:**
+- **G19** (3 SKILL wrappers identical-by-design) — revisit only if a 4th pre-impl-review stage is ever added.
 - **G21** (metrics rotation) — premature optimization until the CSV has accumulated >100 rows.
 - **G22** (severity rubric calibration) — explicitly blocked on ≥1 release of CSV data accumulating; cannot be calibrated against zero data.
 - **G24** (audit relative-path inconsistency) — consistent with all 6 existing audit helpers; not strictly a bug. Can either be fixed alongside G26 or deferred indefinitely.
+- **`ql-deep-review` reinstatement** — track for v0.6.5 OR document a per-bundle decision rule (e.g., "skip when `risk-scorer` < MEDIUM").
 - **P5.B2 / B3 / B5** and **P5.C\*** — same as v4 verdict.
 
 ## Promotion gate: pre-impl-review advisory → blocking
 
-This is the central question for the v0.7.x line. The v0.7.0 bundle deliberately landed instrumentation (G13 persistence + G16 rubric + G17 audit) WITHOUT promoting any stage from advisory to blocking. **Explicit policy: blocking-promotion of any pre-impl-review stage defers until ≥1 release of CSV baseline data accumulates.**
+This is the central question for the v0.6.x line. The v0.6.4 bundle deliberately landed instrumentation (G13 persistence + G16 rubric + G17 audit) WITHOUT promoting any stage from advisory to blocking. **Explicit policy: blocking-promotion of any pre-impl-review stage defers until ≥1 release of CSV baseline data accumulates.**
 
 The reason is empirical: without real finding-severity distributions, picking a blocking threshold is guesswork. Examples of decisions blocked on data:
 - "How many `critical` findings per design-review run is normal?" — Need histogram.
