@@ -159,12 +159,12 @@ synthetic_only_tests='{
   }],
   "contracts": {}
 }'
-out=$(printf '%s' "$synthetic_only_tests" | jq -c '
+out=$(printf '%s' "$synthetic_only_tests" | jq -c --arg pattern "$SPRINT_CONTRACT_TEST_REGEX" '
   .stories[0] as $story |
   ($story.tasks // []) as $tasks |
   {
-    expectedTests: ([($tasks[].commands // [])] | flatten | map(select(test("(test_|\\.test\\.|spec|pytest|^bash tests/|^npm test)")))),
-    otherCommands: ([($tasks[].commands // [])] | flatten | map(select(test("(test_|\\.test\\.|spec|pytest|^bash tests/|^npm test)") | not)))
+    expectedTests: ([($tasks[].commands // [])] | flatten | map(select(test($pattern)))),
+    otherCommands: ([($tasks[].commands // [])] | flatten | map(select(test($pattern) | not)))
   }')
 exp_test_count=$(printf '%s' "$out" | jq -r '.expectedTests | length')
 oth_test_count=$(printf '%s' "$out" | jq -r '.otherCommands | length')
@@ -189,12 +189,12 @@ synthetic_mixed='{
   }],
   "contracts": {}
 }'
-out=$(printf '%s' "$synthetic_mixed" | jq -c '
+out=$(printf '%s' "$synthetic_mixed" | jq -c --arg pattern "$SPRINT_CONTRACT_TEST_REGEX" '
   .stories[0] as $story |
   ($story.tasks // []) as $tasks |
   {
-    expectedTests: ([($tasks[].commands // [])] | flatten | map(select(test("(test_|\\.test\\.|spec|pytest|^bash tests/|^npm test)")))),
-    otherCommands: ([($tasks[].commands // [])] | flatten | map(select(test("(test_|\\.test\\.|spec|pytest|^bash tests/|^npm test)") | not)))
+    expectedTests: ([($tasks[].commands // [])] | flatten | map(select(test($pattern)))),
+    otherCommands: ([($tasks[].commands // [])] | flatten | map(select(test($pattern) | not)))
   }')
 exp_test_count=$(printf '%s' "$out" | jq -r '.expectedTests | length')
 oth_test_count=$(printf '%s' "$out" | jq -r '.otherCommands | length')
@@ -219,12 +219,12 @@ synthetic_only_other='{
   }],
   "contracts": {}
 }'
-out=$(printf '%s' "$synthetic_only_other" | jq -c '
+out=$(printf '%s' "$synthetic_only_other" | jq -c --arg pattern "$SPRINT_CONTRACT_TEST_REGEX" '
   .stories[0] as $story |
   ($story.tasks // []) as $tasks |
   {
-    expectedTests: ([($tasks[].commands // [])] | flatten | map(select(test("(test_|\\.test\\.|spec|pytest|^bash tests/|^npm test)")))),
-    otherCommands: ([($tasks[].commands // [])] | flatten | map(select(test("(test_|\\.test\\.|spec|pytest|^bash tests/|^npm test)") | not)))
+    expectedTests: ([($tasks[].commands // [])] | flatten | map(select(test($pattern)))),
+    otherCommands: ([($tasks[].commands // [])] | flatten | map(select(test($pattern) | not)))
   }')
 exp_test_count=$(printf '%s' "$out" | jq -r '.expectedTests | length')
 oth_test_count=$(printf '%s' "$out" | jq -r '.otherCommands | length')
@@ -248,6 +248,98 @@ fi
 
 cd "$REPO_ROOT"
 rm -rf "$TMP"
+
+# Test 7: G14 / US-003 — SPRINT_CONTRACT_TEST_REGEX single source of truth
+echo ""
+echo "Test 7: SPRINT_CONTRACT_TEST_REGEX single source of truth"
+
+# 7a: lib/handoff.sh defines the constant
+TOTAL=$((TOTAL + 1))
+if grep -q '^readonly SPRINT_CONTRACT_TEST_REGEX=' "$REPO_ROOT/lib/handoff.sh" || \
+   grep -qE '^[[:space:]]*readonly[[:space:]]+SPRINT_CONTRACT_TEST_REGEX=' "$REPO_ROOT/lib/handoff.sh"; then
+  echo "  PASS: lib/handoff.sh defines readonly SPRINT_CONTRACT_TEST_REGEX"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: lib/handoff.sh missing readonly SPRINT_CONTRACT_TEST_REGEX"
+  FAIL=$((FAIL + 1))
+fi
+
+# 7b: constant value is exactly the canonical regex
+TOTAL=$((TOTAL + 1))
+# Source the lib and read the constant value (avoids brittle grep on quoting).
+# shellcheck disable=SC1090
+( source "$REPO_ROOT/lib/handoff.sh" 2>/dev/null
+  expected='(test_|\.test\.|spec|pytest|^bash tests/|^npm test)'
+  if [[ "${SPRINT_CONTRACT_TEST_REGEX:-}" == "$expected" ]]; then
+    exit 0
+  else
+    echo "  -- got: [${SPRINT_CONTRACT_TEST_REGEX:-<unset>}]" >&2
+    exit 1
+  fi
+)
+if [[ $? -eq 0 ]]; then
+  echo "  PASS: SPRINT_CONTRACT_TEST_REGEX value matches canonical regex"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: SPRINT_CONTRACT_TEST_REGEX value does not match canonical regex"
+  FAIL=$((FAIL + 1))
+fi
+
+# 7c: agents/orchestrator.md references the constant by name (not inline regex)
+TOTAL=$((TOTAL + 1))
+if grep -q 'SPRINT_CONTRACT_TEST_REGEX' "$REPO_ROOT/agents/orchestrator.md"; then
+  echo "  PASS: agents/orchestrator.md references SPRINT_CONTRACT_TEST_REGEX"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: agents/orchestrator.md missing SPRINT_CONTRACT_TEST_REGEX reference"
+  FAIL=$((FAIL + 1))
+fi
+
+# 7d: skills/ql-plan/SKILL.md references the constant by name
+TOTAL=$((TOTAL + 1))
+if grep -q 'SPRINT_CONTRACT_TEST_REGEX' "$REPO_ROOT/skills/ql-plan/SKILL.md"; then
+  echo "  PASS: skills/ql-plan/SKILL.md references SPRINT_CONTRACT_TEST_REGEX"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: skills/ql-plan/SKILL.md missing SPRINT_CONTRACT_TEST_REGEX reference"
+  FAIL=$((FAIL + 1))
+fi
+
+# 7e: agents/orchestrator.md no longer carries the inline regex literal.
+# Forbid `test("(test_|\\.test\\.|...)")` jq filter -- the constant ref via
+# `--arg pattern "$SPRINT_CONTRACT_TEST_REGEX"` + `test($pattern)` is what
+# survives the refactor.
+TOTAL=$((TOTAL + 1))
+# fgrep -c counts occurrences. Pattern is the verbatim inline literal.
+inline_orch=$(grep -cF 'test("(test_|\\.test\\.' "$REPO_ROOT/agents/orchestrator.md" || true)
+if [[ "$inline_orch" == "0" ]]; then
+  echo "  PASS: agents/orchestrator.md has 0 inline test-regex literals"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: agents/orchestrator.md still has $inline_orch inline test-regex literals"
+  FAIL=$((FAIL + 1))
+fi
+
+# 7f: skills/ql-plan/SKILL.md no longer carries the inline regex literal
+TOTAL=$((TOTAL + 1))
+inline_plan=$(grep -cF 'test("(test_|\\.test\\.' "$REPO_ROOT/skills/ql-plan/SKILL.md" || true)
+if [[ "$inline_plan" == "0" ]]; then
+  echo "  PASS: skills/ql-plan/SKILL.md has 0 inline test-regex literals"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: skills/ql-plan/SKILL.md still has $inline_plan inline test-regex literals"
+  FAIL=$((FAIL + 1))
+fi
+
+# 7g: references/sprint-contract.md documents the constant location
+TOTAL=$((TOTAL + 1))
+if grep -q 'SPRINT_CONTRACT_TEST_REGEX' "$REPO_ROOT/references/sprint-contract.md"; then
+  echo "  PASS: references/sprint-contract.md documents SPRINT_CONTRACT_TEST_REGEX"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: references/sprint-contract.md missing SPRINT_CONTRACT_TEST_REGEX reference"
+  FAIL=$((FAIL + 1))
+fi
 
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="

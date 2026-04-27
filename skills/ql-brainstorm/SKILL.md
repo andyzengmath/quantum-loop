@@ -218,8 +218,30 @@ if [[ -n "$DESIGN_PATH" ]] && \
   # Findings are emitted to stderr in FINDING_START..FINDING_END format.
   # The skill continues regardless of what's reported — set QL_SKIP_PRE_IMPL_REVIEW=design
   # to disable this stage entirely.
+  #
+  # G13 / US-002 (v0.7.0): capture the reviewer stderr, parse FINDING blocks
+  # via lib/finding-synth.sh, and persist the parsed summary + per-run snapshot
+  # via lib/finding-persist.sh. Advisory contract preserved — the skill never
+  # aborts based on findings.
+  REVIEW_LOG=$(mktemp)
   MODE=design-review DESIGN_PATH="$DESIGN_PATH" \
-    claude --headless "agents/spec-reviewer.md design-review mode against $DESIGN_PATH" 2>&1 || true
+    claude --headless "agents/spec-reviewer.md design-review mode against $DESIGN_PATH" \
+      2> "$REVIEW_LOG" || true
+
+  # Source the parser + persister (no shell flags inherited; libs are flag-free at source).
+  # shellcheck disable=SC1091
+  source lib/finding-synth.sh
+  # shellcheck disable=SC1091
+  source lib/finding-persist.sh
+
+  findings=$(parse_findings design < "$REVIEW_LOG")
+  summary=$(summarize_findings design "$findings")
+  persist_review_findings design "$DESIGN_PATH" "$summary" "$findings" >/dev/null
+  format_summary_line "$summary" >&2; echo >&2
+
+  # Surface the reviewer's stderr (so operators still see FINDING blocks).
+  cat "$REVIEW_LOG" >&2
+  rm -f "$REVIEW_LOG"
 else
   echo "[QL-BRAINSTORM] design-review skipped (QL_SKIP_PRE_IMPL_REVIEW=design or no design doc)" >&2
 fi

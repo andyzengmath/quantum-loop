@@ -339,9 +339,67 @@ _audit_test_suites() {
   fi
 }
 
+# _audit_pre_impl_review_coverage  (v0.7.0 / G17 / US-005)
+# Counts unique stage values in metrics/pre-impl-review-findings.csv whose
+# timestamp is within the last 7 days. Four states (per AC):
+#   missing-csv      → WARN (no CSV at all)
+#   no-recent-runs   → WARN (CSV exists, all rows >7d old)
+#   partial-coverage → WARN (1-2 of 3 stages have a recent row)
+#   full-coverage    → OK   (all 3 stages have a recent row)
+#
+# Cross-platform date math: GNU `date -d '7 days ago'` first, BSD
+# `date -v-7d` fallback, epoch-0 fallback otherwise. Last fallback degrades
+# to "all rows count as recent" rather than crashing — never fails the audit
+# (per AC: "WARN does not fail the audit").
+_audit_pre_impl_review_coverage() {
+  local csv="metrics/pre-impl-review-findings.csv"
+  if [[ ! -f "$csv" ]]; then
+    printf 'pre-impl-review-coverage|0/3 stages|3/3|WARN|missing-csv — no metrics/pre-impl-review-findings.csv yet\n'
+    return 0
+  fi
+  # Compute the cutoff ISO 8601 string for "7 days ago" UTC.
+  local cutoff_ts
+  cutoff_ts=$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null) \
+    || cutoff_ts=$(date -u -v-7d +%Y-%m-%dT%H:%M:%SZ 2>/dev/null) \
+    || cutoff_ts="1970-01-01T00:00:00Z"
+  # awk: skip header (NR==1); split on comma; field 1 = timestamp, field 2 = stage.
+  # ISO 8601 strings are lexicographically comparable when zero-padded — the
+  # date library guarantees that. We accumulate unique stage names whose
+  # timestamp >= cutoff into a hash.
+  local recent_stages
+  recent_stages=$(awk -F',' -v cutoff="$cutoff_ts" '
+    NR == 1 { next }   # header
+    $1 >= cutoff {
+      seen[$2] = 1
+    }
+    END {
+      n = 0
+      for (s in seen) {
+        if (s == "design" || s == "prd" || s == "plan") {
+          out = out (n > 0 ? "," : "") s
+          n++
+        }
+      }
+      print n "|" out
+    }
+  ' "$csv" 2>/dev/null) || recent_stages="0|"
+  local n stages_csv
+  n="${recent_stages%%|*}"
+  stages_csv="${recent_stages#*|}"
+  case "$n" in
+    0) printf 'pre-impl-review-coverage|0/3 stages|3/3|WARN|no-recent-runs — no rows in last 7 days\n' ;;
+    1|2) printf 'pre-impl-review-coverage|%d/3 stages|3/3|WARN|partial-coverage — recent: %s\n' "$n" "$stages_csv" ;;
+    3) printf 'pre-impl-review-coverage|3/3 stages|3/3|OK|full-coverage — all stages recent\n' ;;
+    *) printf 'pre-impl-review-coverage|%d/3 stages|3/3|WARN|partial-coverage — recent: %s\n' "$n" "$stages_csv" ;;
+  esac
+}
+
 # do_audit
-# Driver for --audit. Calls all 6 metric helpers in canonical order, renders
+# Driver for --audit. Calls all 7 metric helpers in canonical order, renders
 # each row via _audit_format_row, returns 0 if all OK else 1.
+# v0.7.0 / G17: pre-impl-review-coverage added as 7th row. WARN states do NOT
+# trigger any_fail — only |FAIL| rows do. ok_count counts non-FAIL rows
+# (OK and WARN both increment).
 do_audit() {
   printf "=== Quantum-loop audit ===\n"
   local -a ROWS=()
@@ -351,6 +409,7 @@ do_audit() {
   ROWS+=("$(_audit_readme_conflicts)")
   ROWS+=("$(_audit_cpc_files)")
   ROWS+=("$(_audit_test_suites)")
+  ROWS+=("$(_audit_pre_impl_review_coverage)")
   local any_fail=0 ok_count=0 total=0
   local row
   for row in "${ROWS[@]}"; do

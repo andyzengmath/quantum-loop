@@ -259,8 +259,30 @@ SKIP_LIST="${QL_SKIP_PRE_IMPL_REVIEW:-}"
 if [[ -n "$PRD_PATH" ]] && \
    ! printf '%s' "$SKIP_LIST" | tr ',' '\n' | grep -qx "prd"; then
   echo "[QL-SPEC] Running spec-reviewer in prd-review mode (advisory)..." >&2
+
+  # G13 / US-002 (v0.7.0): capture the reviewer stderr, parse FINDING blocks
+  # via lib/finding-synth.sh, and persist the parsed summary + per-run snapshot
+  # via lib/finding-persist.sh. Advisory contract preserved — the skill never
+  # aborts based on findings.
+  REVIEW_LOG=$(mktemp)
   MODE=prd-review PRD_PATH="$PRD_PATH" \
-    claude --headless "agents/spec-reviewer.md prd-review mode against $PRD_PATH" 2>&1 || true
+    claude --headless "agents/spec-reviewer.md prd-review mode against $PRD_PATH" \
+      2> "$REVIEW_LOG" || true
+
+  # Source the parser + persister (no shell flags inherited; libs are flag-free at source).
+  # shellcheck disable=SC1091
+  source lib/finding-synth.sh
+  # shellcheck disable=SC1091
+  source lib/finding-persist.sh
+
+  findings=$(parse_findings prd < "$REVIEW_LOG")
+  summary=$(summarize_findings prd "$findings")
+  persist_review_findings prd "$PRD_PATH" "$summary" "$findings" >/dev/null
+  format_summary_line "$summary" >&2; echo >&2
+
+  # Surface the reviewer's stderr (so operators still see FINDING blocks).
+  cat "$REVIEW_LOG" >&2
+  rm -f "$REVIEW_LOG"
 else
   echo "[QL-SPEC] prd-review skipped (QL_SKIP_PRE_IMPL_REVIEW=prd or no PRD)" >&2
 fi

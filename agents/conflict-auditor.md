@@ -52,6 +52,18 @@ For each conflicting file, determine its severity using the following rules, eva
 
 **Note on reporting:** Even when classified `"none"`, the conflict SHOULD still appear in the `fileConflicts` output with `severity: "none"` so tooling can distinguish "no conflict possible (serialized)" from "no conflict examined yet." A `"none"` entry is informational; it does not trigger any synthetic edges or escalation.
 
+#### Rule 0.5: Warning Severity -- CHANGELOG Ownership Convention (v0.7.0 / G15)
+
+**Evaluated AFTER Rule 0 but BEFORE Rules 1-5.** This rule is a per-file override that takes precedence over Rule 0's `none` classification.
+
+If the file basename is `CHANGELOG.md` AND `stories.length > 1` (i.e., 2 or more stories touch `CHANGELOG.md` — the multiple-story trigger), classify as `severity: warning` (not `severity: none`, even when the stories are totally ordered via `dependsOn`). The `warning` label is distinct from the existing `none/low/medium/high` labels and signals a soft policy violation rather than a runtime conflict.
+
+**Why:** The v0.6.3 retrospective established a convention that a single retrospective story per release owns all CHANGELOG.md edits. Multiple stories editing `CHANGELOG.md` — even when serialized via `dependsOn` — fragments the changelog narrative across PRs and bypasses the single-owner pattern. Rule 0's `none` classification is correct for runtime concurrency but blind to this organizational convention. Rule 0.5 surfaces the violation without escalating it to a hard `high` severity.
+
+**Algorithm:** When the basename of the conflicting file equals `CHANGELOG.md` AND the conflict's `stories` array has 2 or more elements (`stories.length > 1` / multiple), emit `severity: "warning"`. Single-story `CHANGELOG.md` edits (the intended retrospective-owner case) never reach this rule because Step 2 already filtered to multi-story conflicts.
+
+**Note on reporting:** A `warning` entry signals to the dag-validator coordinator that it should emit the corresponding Health Report line (`WARNING: <N> stories touch CHANGELOG.md — consolidate to a single retrospective story per the v0.6.3 convention`). It does not trigger synthetic edges or escalation; like `none`, it is informational, but unlike `none`, it surfaces in the operator-visible Health Report.
+
 #### Rule 1: High Severity -- Barrel/Index Files
 
 Extract the basename of the file path (the filename without directory components). If the basename matches any entry in the `barrelFilePatterns` array, classify as `"high"`.

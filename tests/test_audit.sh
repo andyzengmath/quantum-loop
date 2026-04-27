@@ -370,9 +370,13 @@ printf '=== Results: 1/1 passed, 0 failed ===\n' > "$TMP/.omc/phase-99-evidence/
 out=$(cd "$TMP" && bash "$REPO_ROOT/quantum-loop.sh" --audit 2>&1 || true)
 rc=$(cd "$TMP" && bash "$REPO_ROOT/quantum-loop.sh" --audit >/dev/null 2>&1 ; echo $?)
 TOTAL=$((TOTAL + 1))
-ok_count=$(printf '%s' "$out" | grep -cE '^[a-z].*OK$')
-if [[ "$rc" -eq 0 ]] && [[ "$ok_count" -eq 6 ]] && printf '%s' "$out" | grep -q 'Summary: 6/6 metrics on target.'; then
-  echo "  PASS: full-flow happy 6/6"; PASS=$((PASS + 1))
+ok_count=$(printf '%s' "$out" | grep -cE '^[a-z].*(OK|WARN)$')
+# v0.7.0 / G17: new pre-impl-review-coverage metric raises total from 6 → 7.
+# In a clean tmp repo there is no metrics/pre-impl-review-findings.csv, so the
+# new helper emits WARN (missing-csv). WARN does not fail the audit (AC) and
+# counts toward ok_count (the summary tallies non-FAIL rows).
+if [[ "$rc" -eq 0 ]] && [[ "$ok_count" -eq 7 ]] && printf '%s' "$out" | grep -q 'Summary: 7/7 metrics on target.'; then
+  echo "  PASS: full-flow happy 7/7"; PASS=$((PASS + 1))
 else
   echo "  FAIL: full-flow happy (rc=$rc, ok_count=$ok_count)"; FAIL=$((FAIL + 1))
 fi
@@ -480,6 +484,138 @@ case "$out" in
     echo "  FAIL: phase-sort regression — got [$out]"; FAIL=$((FAIL + 1));;
 esac
 TOTAL=$((TOTAL + 1))
+rm -rf "$TMP"
+
+# --- v0.7.0 / G17 / US-005: pre-impl-review-coverage metric --------------
+#
+# The new helper _audit_pre_impl_review_coverage reads
+# metrics/pre-impl-review-findings.csv and counts unique stage values in rows
+# newer than 7 days. Four states per AC (all use status=WARN or OK; never
+# fails the audit):
+#   missing-csv      → WARN (no metrics/pre-impl-review-findings.csv)
+#   no-recent-runs   → WARN (CSV exists but all rows are >7d old)
+#   partial-coverage → WARN (1-2 of 3 stages have a recent row)
+#   full-coverage    → OK   (all 3 stages have a recent row)
+#
+# Cross-platform date math: GNU `date -d '7 days ago'` first; BSD `date -v-7d`
+# fallback; epoch-0 fallback otherwise (so the helper degrades to "all rows
+# count as recent" rather than crashing — never breaks the audit).
+
+echo ""
+echo "=== v0.7.0 / G17 / US-005 pre-impl-review-coverage tests ==="
+
+# Helper: synthesize a CSV with a header + N data rows. Each row's timestamp
+# is current_unix - $age_secs.
+_synth_csv() {
+  local csv="$1"; shift
+  mkdir -p "$(dirname "$csv")"
+  printf 'timestamp,stage,source_path,count,critical,high,medium,low\n' > "$csv"
+  while (( $# >= 2 )); do
+    local stage="$1" age="$2"; shift 2
+    # Compute ISO 8601 UTC for `now - age` seconds. GNU first, BSD fallback.
+    local ts
+    ts=$(date -u -d "@$(( $(date -u +%s) - age ))" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null) \
+      || ts=$(date -u -r "$(( $(date -u +%s) - age ))" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null) \
+      || ts="1970-01-01T00:00:00Z"
+    printf '%s,%s,docs/x.md,4,1,1,2,0\n' "$ts" "$stage" >> "$csv"
+  done
+}
+
+# Test 28: missing-csv state (no metrics/ at all) → WARN
+echo ""
+echo "Test 28: pre-impl-review-coverage missing-csv → WARN"
+TMP=$(setup_audit_repo)
+out=$(cd "$TMP" && _audit_pre_impl_review_coverage)
+case "$out" in
+  pre-impl-review-coverage\|0/3\ stages\|*\|WARN\|*missing-csv*)
+    echo "  PASS: missing-csv → WARN"; PASS=$((PASS + 1));;
+  *)
+    echo "  FAIL: missing-csv unexpected — got [$out]"; FAIL=$((FAIL + 1));;
+esac
+TOTAL=$((TOTAL + 1))
+rm -rf "$TMP"
+
+# Test 29: no-recent-runs state (CSV exists, all rows >7d old) → WARN
+echo ""
+echo "Test 29: pre-impl-review-coverage no-recent-runs → WARN"
+TMP=$(setup_audit_repo)
+# 14 days = 1209600 seconds; 21 days = 1814400; 30 days = 2592000.
+_synth_csv "$TMP/metrics/pre-impl-review-findings.csv" \
+  design 1209600  prd 1814400  plan 2592000
+out=$(cd "$TMP" && _audit_pre_impl_review_coverage)
+case "$out" in
+  pre-impl-review-coverage\|0/3\ stages\|*\|WARN\|*no-recent-runs*)
+    echo "  PASS: no-recent-runs → WARN"; PASS=$((PASS + 1));;
+  *)
+    echo "  FAIL: no-recent-runs unexpected — got [$out]"; FAIL=$((FAIL + 1));;
+esac
+TOTAL=$((TOTAL + 1))
+rm -rf "$TMP"
+
+# Test 30: partial-coverage state (2 of 3 stages recent) → WARN
+echo ""
+echo "Test 30: pre-impl-review-coverage partial-coverage → WARN"
+TMP=$(setup_audit_repo)
+# 1 hour + 6 hours = 2 recent stages; plan @14 days = stale.
+_synth_csv "$TMP/metrics/pre-impl-review-findings.csv" \
+  design 3600  prd 21600  plan 1209600
+out=$(cd "$TMP" && _audit_pre_impl_review_coverage)
+case "$out" in
+  pre-impl-review-coverage\|2/3\ stages\|*\|WARN\|*partial-coverage*)
+    echo "  PASS: partial-coverage 2/3 → WARN"; PASS=$((PASS + 1));;
+  *)
+    echo "  FAIL: partial-coverage unexpected — got [$out]"; FAIL=$((FAIL + 1));;
+esac
+TOTAL=$((TOTAL + 1))
+rm -rf "$TMP"
+
+# Test 31: full-coverage state (all 3 stages recent) → OK
+echo ""
+echo "Test 31: pre-impl-review-coverage full-coverage → OK"
+TMP=$(setup_audit_repo)
+_synth_csv "$TMP/metrics/pre-impl-review-findings.csv" \
+  design 3600  prd 21600  plan 86400
+out=$(cd "$TMP" && _audit_pre_impl_review_coverage)
+case "$out" in
+  pre-impl-review-coverage\|3/3\ stages\|*\|OK\|*)
+    echo "  PASS: full-coverage 3/3 → OK"; PASS=$((PASS + 1));;
+  *)
+    echo "  FAIL: full-coverage unexpected — got [$out]"; FAIL=$((FAIL + 1));;
+esac
+TOTAL=$((TOTAL + 1))
+rm -rf "$TMP"
+
+# Test 32: WARN does not fail the audit; full-flow with full-coverage → exit 0
+echo ""
+echo "Test 32: WARN never fails the audit (do_audit exit 0 with WARN row)"
+TMP=$(setup_audit_repo)
+mkdir -p "$TMP/.omc/phase-99-evidence"
+printf '=== Results: 1/1 passed, 0 failed ===\n' > "$TMP/.omc/phase-99-evidence/test_x.log"
+# No CSV → missing-csv WARN; everything else OK
+rc=$(cd "$TMP" && bash "$REPO_ROOT/quantum-loop.sh" --audit >/dev/null 2>&1 ; echo $?)
+out=$(cd "$TMP" && bash "$REPO_ROOT/quantum-loop.sh" --audit 2>&1 || true)
+TOTAL=$((TOTAL + 1))
+if [[ "$rc" -eq 0 ]] && printf '%s' "$out" | grep -q 'pre-impl-review-coverage'; then
+  echo "  PASS: WARN row present + audit exit 0"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: full-flow WARN (rc=$rc)"; FAIL=$((FAIL + 1))
+fi
+rm -rf "$TMP"
+
+# Test 33: row is wired into do_audit ROWS as the 7th metric
+echo ""
+echo "Test 33: do_audit emits 7 metric rows including pre-impl-review-coverage"
+TMP=$(setup_audit_repo)
+mkdir -p "$TMP/.omc/phase-99-evidence"
+printf '=== Results: 1/1 passed, 0 failed ===\n' > "$TMP/.omc/phase-99-evidence/test_x.log"
+out=$(cd "$TMP" && bash "$REPO_ROOT/quantum-loop.sh" --audit 2>&1 || true)
+metric_lines=$(printf '%s' "$out" | grep -cE '^[a-z][a-z-]+:')
+TOTAL=$((TOTAL + 1))
+if (( metric_lines == 7 )) && printf '%s' "$out" | grep -q 'Summary: .*7 metrics on target'; then
+  echo "  PASS: 7 metric rows + summary updated"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: expected 7 metric rows, got [$metric_lines]"; FAIL=$((FAIL + 1))
+fi
 rm -rf "$TMP"
 
 echo ""

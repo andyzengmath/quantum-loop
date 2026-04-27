@@ -49,6 +49,16 @@ readonly HANDOFF_STAGE_ORDER=(
 )
 fi
 
+# G14 / US-003 (v0.7.0) — Sprint-Contract test-pattern regex.
+# Single source of truth for the regex that splits per-task `commands` into
+# `expectedTests` (test commands) vs `otherCommands` (typecheck/lint/build).
+# Consumers: agents/orchestrator.md Step 2.5, skills/ql-plan/SKILL.md Step 8,
+# tests/test_sprint_contract.sh, tests/test_sprint_contract_ql_plan.sh.
+# Use via jq: --arg pattern "$SPRINT_CONTRACT_TEST_REGEX" then test($pattern).
+if [[ -z "${SPRINT_CONTRACT_TEST_REGEX+x}" ]]; then
+readonly SPRINT_CONTRACT_TEST_REGEX='(test_|\.test\.|spec|pytest|^bash tests/|^npm test)'
+fi
+
 # _handoff_dir(repo_root)
 _handoff_dir() {
   local root="${1:-.}"

@@ -681,6 +681,8 @@ This step runs **after dag-validator** completes (and after any stub flesh-out i
 
 The step is **idempotent** — re-running `/ql-plan` overwrites existing sprint-contract files with the latest content (only `plannedAt` will differ). Backward-compat: if `lib/handoff.sh::write_sprint_contract` is unavailable (older repos), skip the step with a one-line warning.
 
+**G14 / US-003 (v0.7.0):** the test-pattern regex is sourced from `lib/handoff.sh::SPRINT_CONTRACT_TEST_REGEX` (single source of truth) and passed to jq via `--arg pattern`.
+
 ```bash
 source "$REPO_ROOT/lib/handoff.sh"
 source "$REPO_ROOT/lib/json-atomic.sh"  # Mandatory: compute_prd_sha must produce the same
@@ -698,6 +700,7 @@ while IFS= read -r sid; do
   sid="${sid%$'\r'}"
   [[ -z "$sid" ]] && continue
   CONTRACT=$(jq -n --arg id "$sid" --arg sha "$PRD_SHA" --arg ts "$(date -u +%FT%TZ)" \
+    --arg pattern "$SPRINT_CONTRACT_TEST_REGEX" \
     --slurpfile q quantum.json '
       ($q[0].stories[] | select(.id == $id)) as $story |
       ($story.tasks // []) as $tasks |
@@ -707,8 +710,8 @@ while IFS= read -r sid; do
         acs: ($story.acceptanceCriteria // []),
         contracts: ($q[0].contracts // {}),
         files: [$tasks[].filePaths // []] | flatten | unique,
-        expectedTests: ([$tasks[].commands // []] | flatten | map(select(test("(test_|\\.test\\.|spec|pytest|^bash tests/|^npm test)")))),
-        otherCommands: ([$tasks[].commands // []] | flatten | map(select(test("(test_|\\.test\\.|spec|pytest|^bash tests/|^npm test)") | not))),
+        expectedTests: ([$tasks[].commands // []] | flatten | map(select(test($pattern)))),
+        otherCommands: ([$tasks[].commands // []] | flatten | map(select(test($pattern) | not))),
         plannedBy: "ql-plan",
         plannedAt: $ts
       }')
@@ -731,8 +734,31 @@ SKIP_LIST="${QL_SKIP_PRE_IMPL_REVIEW:-}"
 if [[ -n "$PRD_PATH" ]] && \
    ! printf '%s' "$SKIP_LIST" | tr ',' '\n' | grep -qx "plan"; then
   echo "[QL-PLAN] Running spec-reviewer in plan-review mode (advisory)..." >&2
+
+  # G13 / US-002 (v0.7.0): capture the reviewer stderr, parse FINDING blocks
+  # via lib/finding-synth.sh, and persist the parsed summary + per-run snapshot
+  # via lib/finding-persist.sh. Advisory contract preserved — the skill never
+  # aborts based on findings. The reviewed artifact for the plan stage is
+  # quantum.json itself (cross-referenced against the PRD).
+  REVIEW_LOG=$(mktemp)
   MODE=plan-review JSON_PATH="$JSON_PATH" PRD_PATH="$PRD_PATH" \
-    claude --headless "agents/spec-reviewer.md plan-review mode against $JSON_PATH and $PRD_PATH" 2>&1 || true
+    claude --headless "agents/spec-reviewer.md plan-review mode against $JSON_PATH and $PRD_PATH" \
+      2> "$REVIEW_LOG" || true
+
+  # Source the parser + persister (no shell flags inherited; libs are flag-free at source).
+  # shellcheck disable=SC1091
+  source lib/finding-synth.sh
+  # shellcheck disable=SC1091
+  source lib/finding-persist.sh
+
+  findings=$(parse_findings plan < "$REVIEW_LOG")
+  summary=$(summarize_findings plan "$findings")
+  persist_review_findings plan "$JSON_PATH" "$summary" "$findings" >/dev/null
+  format_summary_line "$summary" >&2; echo >&2
+
+  # Surface the reviewer's stderr (so operators still see FINDING blocks).
+  cat "$REVIEW_LOG" >&2
+  rm -f "$REVIEW_LOG"
 else
   echo "[QL-PLAN] plan-review skipped (QL_SKIP_PRE_IMPL_REVIEW=plan or no PRD)" >&2
 fi
