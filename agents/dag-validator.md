@@ -140,6 +140,16 @@ Process each confirmed duplication risk from the duplication-detector report:
 
 Overwrite the `fileConflicts` array in quantum.json with the conflict-auditor's complete results.
 
+#### (5d) CHANGELOG ownership convention (v0.7.0 / G15)
+
+Stories that touch `CHANGELOG.md` SHOULD defer to a single retrospective story per release (see v0.6.3 retrospective US-016 for the canonical example). When more than one story has `CHANGELOG.md` in `tasks[].filePaths`, the conflict-auditor MUST classify the conflict as `severity: warning` (not the default `severity: none`), and the dag-validator MUST emit the following Health Report line:
+
+```
+WARNING: <N> stories touch CHANGELOG.md — consolidate to a single retrospective story per the v0.6.3 convention
+```
+
+Where `<N>` is the count of stories that touch `CHANGELOG.md` (when N > 1). 0 or 1 stories touching `CHANGELOG.md` produces no warning — a single retrospective owner is the intended pattern. The convention is a soft rule: the warning surfaces in the Health Report so the planner can consolidate, but it does not block validation. See `agents/conflict-auditor.md` Rule 6 for the matching severity-classification rule.
+
 ### (6) Synthetic Dependency Injection for High-Severity Conflicts
 
 After applying all restructuring from step (5), process high-severity file conflicts:
