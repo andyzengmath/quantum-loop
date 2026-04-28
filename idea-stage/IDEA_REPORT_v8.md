@@ -108,6 +108,18 @@ Aggregate: **25 findings across 3 cycles → 0 critical / 2 high / 7 medium / 16
 
 **Path:** decide whether to (a) narrow Test 37a to function-header range only (matching G34's design intent), OR (b) widen G34's stated scope to "all comments in the function" (matching Test 37a's existing behavior). Either is correct; pick one. v0.6.8 doc + test edit: 0.25 stories.
 
+### N10 — `compute_risk_score` lacks the `files_changed > 0` guard that v0.6.7 added to `should_dispatch_deep_review`
+**Surfaced:** `/soliton:pr-review` correctness agent on PR #68 (confidence 75 — sub-threshold of 85; queued).
+**Symptom:** US-002's defensive guard added `if (( files_changed > 0 ))` around `prod_count` in `should_dispatch_deep_review` (line 184). The accompanying comment says "Mirrors the structure used in compute_risk_score above." But `compute_risk_score` (line 78) does NOT have that guard — it relies on the outer `if [[ -n "$base_sha" && -n "$head_sha" ]]` check (line 51) instead. The "mirror" claim creates a false documentation contract — a future maintainer following the comment will be misled.
+**Severity:** LOW. Both functions are functionally correct today (regex `|$` handles empty input). The misdocumentation is a minor accuracy issue.
+**Path:** Either (a) update the comment to clarify the structural difference, OR (b) add the same guard to `compute_risk_score` for true symmetry. Either is fine; pick one. v0.6.8 doc/code edit: 0.1 stories.
+
+### N11 — orchestrator.md Step 4B.5 `else` branch deletes patch file before pipeline runs
+**Surfaced:** `/soliton:pr-review` correctness agent on PR #68 (confidence 65 — sub-threshold).
+**Symptom:** In US-004's restructured Step 4B.5, the `else` branch's first action is `rm -f "$REPO_ROOT/.quantum-feature-diff.patch"`. If steps 1-7 fail (jq error, missing dependency, etc.), the patch file is gone and cannot be inspected for debugging.
+**Severity:** LOW. The patch's primary use (input to `should_dispatch_deep_review`) is already consumed before the `else` branch runs. The cleanup is correct functionally; the debugging-ergonomics gap is the concern.
+**Path:** Move the cleanup to the END of the else branch (after step 7), OR use a `trap` to clean up unconditionally on exit. v0.6.8 doc/code edit: 0.1 stories.
+
 ### N9 — Wall-clock target unrealistic on Git Bash
 **Surfaced:** US-001 design + PRD specified "<60s wall-clock" for tests/test_audit.sh. Actual Git Bash wall-clock is ~3-4 min due to per-process subprocess startup overhead (the same N3 issue from IDEA_REPORT_v7).
 
