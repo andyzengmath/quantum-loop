@@ -1325,6 +1325,37 @@ When DAG query returns no eligible stories and all stories have passed, run fina
 3. **Dead code scan:** every new function/class created during this feature has at least one call site outside its own file and tests. Use LSP "Find References" when available, fall back to grep.
 4. **If any check fails:** create a fix task, implement inline, re-test, commit. Do NOT output COMPLETE until all checks pass.
 
+### Self-monitoring guard (N6 / US-001 — v0.6.8)
+
+**Prose-level cue, NOT runtime-enforced.** This subsection exists because v0.6.7's orchestrator subagent abandoned its cycle mid-execution — set a story to `in_progress`, made one edit, then drifted into self-narration about "later stories" and stopped committing. The parent agent had to detect drift via `git log` + `jq status` checks and take over manually.
+
+**The rule:** before any reasoning that references a story other than the current `in_progress` one, verify the current story's commit landed (via `git log --oneline -1`). If the most recent commit is not `feat: <current-story-id> ...` (or an explicit fix-followup against it), reset to the current story's task list and execute the next pending task.
+
+**Forbidden idioms** — if you catch yourself writing any of these phrases while a story is still `in_progress` (uncommitted), STOP and reset:
+
+- `while that runs, let me ...`
+- `let me proactively work on later <story|task>`
+- `let me prepare US-XXX in parallel` (when the current story isn't `passed`)
+
+These are LLM context-drift signals. The first phrase typically appears when an agent confuses itself with the parent observing background work.
+
+**Self-recovery action** when drift is detected:
+
+1. Log to stderr: `[ORCH] STALE-DETECT: drifted; resetting to <current-story-id>`
+2. Re-read `quantum.json` and identify the story with `status: "in_progress"`.
+3. If the story has no `startedAt`, log a warning and exit STORY_FAILED — the parent will re-spawn.
+4. Otherwise, resume from the first pending task in that story's `tasks[]`.
+
+**Legitimate cross-story phrasing** (these do NOT trigger reset):
+
+- `dependsOn US-002` — declaring a DAG edge.
+- `current story passed; picking next eligible` — normal sequential transition.
+- `Wave N+1 unblocked` — wave-boundary log.
+
+These mention other stories by ID but don't drift away from the current task. The forbidden-idiom regex (used by `tests/test_orchestrator_self_monitor.sh`) deliberately excludes them via specific multi-word phrase matching, not bare story-ID matching.
+
+**Enforcement model:** prose-only. The orchestrator LLM reads this subsection at agent-spawn time and is expected to honor it as a self-discipline cue. Runtime enforcement (a parent-side liveness check that polls for committed changes after a wall-clock and re-spawns or hands off) is queued as `v0.6.9 N6-followup`.
+
 ## Step 4B: Full-Feature Code Review
 
 After Step 4 passes, run a holistic review of the **entire feature branch diff** — not per-story, but the combined change set. Per-story reviews catch local issues; this step catches cross-story problems that only emerge when viewed as a whole.
@@ -1383,8 +1414,6 @@ if ! bash -c "source '$REPO_ROOT/lib/deep-review.sh' && should_dispatch_deep_rev
   rm -f "$REPO_ROOT/.quantum-feature-diff.patch"
   # proceed to Step 4C
 else
-  rm -f "$REPO_ROOT/.quantum-feature-diff.patch"
-
   # 1. Compute risk score + tier from feature diff + intent-drift signal
   SCORE=$(bash "$REPO_ROOT/lib/deep-review.sh" score-from-quantum "$JSON_PATH" "$BASE_SHA" "HEAD")
   TIER=$(bash  "$REPO_ROOT/lib/deep-review.sh" tier "$SCORE")
@@ -1417,6 +1446,16 @@ else
     APPROVE_WITH_COMMENTS) echo "[DEEP-REVIEW] comments logged to codebasePatterns" >&2 ;;
     APPROVE)               echo "[DEEP-REVIEW] clean" >&2 ;;
   esac
+
+  # N11 / US-006 (v0.6.8): cleanup-at-end-of-branch. When verdict=BLOCKS_MERGE
+  # the case above `exit 1`s and skips this rm — the patch file remains for
+  # forensic inspection by the operator triaging the blocked merge. Other
+  # verdicts (REQUEST_CHANGES / APPROVE_WITH_COMMENTS / APPROVE) fall through
+  # the case and reach this cleanup. Pre-N11 the cleanup ran at the START of
+  # the else-branch, deleting the patch before steps 1-7 ran — operators lost
+  # the ability to inspect the patch when a step (jq error, missing dep, etc.)
+  # failed mid-pipeline.
+  rm -f "$REPO_ROOT/.quantum-feature-diff.patch"
 fi
 ```
 

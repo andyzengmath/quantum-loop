@@ -7,6 +7,31 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.6.8] - 2026-04-28
+
+### Added
+
+6 user-facing changes addressing v0.6.7's IDEA_REPORT_v8 priority list (N6 orchestrator stale-detection prose guard, N7 soliton-finding-triage doc, N8 narrow Test 37a awk to function-header range, N9 wall-clock baselines reference, N10 compute_risk_score comment correction, N11 orchestrator Step 4B.5 cleanup-line move). Patch-tier; all changes are doc/cleanup-additive (no schema deltas, no breaking changes, 2 new committed reference files). **Fourth multi-cycle populated-CSV run** — ledger 9 → 12 rows. v0.6.8's own diff was self-validated: tier=LOW score=25 files=13 sensitive=0 → skip recorded in `quantum.json.reviews[v0.6.8-bundle].deepReview` with `automated:true`.
+
+- **N6 — orchestrator Self-monitoring guard prose** (US-001) — `agents/orchestrator.md` adds a new `### Self-monitoring guard` subsection between Step 4 and Step 4B. Documents the rule (verify in_progress story commit landed before reasoning about other stories), 3 forbidden idioms ("while that runs", "let me proactively", "let me prepare US-XXX in parallel"), self-recovery action ([ORCH] STALE-DETECT log + reset to current in_progress story's task list), and explicit prose-only enforcement model. Runtime enforcement (parent-side liveness check) queued as v0.6.9 N6-followup. New `tests/test_orchestrator_self_monitor.sh` (5 assertions: presence header, >=3 idioms, STALE-DETECT marker, negative-control regex against legitimate cross-story phrasing, positive-control regex match against true drift phrase).
+- **N7 — soliton-finding-triage doc** (US-002) — new `references/soliton-finding-triage.md` (Workflow / Repro template / Examples) documenting the validate-before-design workflow for sub-threshold (<85) `/soliton:pr-review` findings between cycles. v0.6.7 G36 documented as worked HALLUCINATION example. Cross-linked from new `## Process references` section in CLAUDE.md. New `tests/test_soliton_triage_doc.sh` (5 assertions).
+- **N8 — narrow `extract_function_comments` awk to header range** (US-003) — `tests/test_audit.sh::extract_function_comments` simplified to emit accumulated header buffer ONLY (no `in_body` state machine). Matches G34 stated scope ("trim PR-metadata bloat from function-HEADER comments"). DISCOVERED: Tests 36b/37b WHY-phrase checks were relying on body comments; SPLIT INTO 2 HELPERS — `extract_function_comments` (header-only) for Tests 36a/37a (bloat); new `extract_function_full_comments` (header+body) for Tests 36b/37b (WHY). 45/45 audit assertions preserved.
+- **N9 — wall-clock baselines reference** (US-004) — new `references/test-wallclock-baselines.md` (6-row platform-conditional table: Git Bash vs Linux/CI for the major test commands). Cross-linked from CLAUDE.md `## Process references`. New `tests/test_wallclock_baselines_doc.sh` (4 assertions). Baseline-drift WARN-test deferred to v0.6.9 N9-followup per design-review.
+- **N10 — compute_risk_score comment correction** (US-005) — `lib/deep-review.sh` comment block above v0.6.7's G36 defense-in-depth guard rewritten. Removed misleading "Mirrors the structure used in compute_risk_score above" claim (compute_risk_score uses outer SHA-presence gate; should_dispatch_deep_review uses inner files_changed-count gate — different mechanisms, same intent). Comment-only edit. 14/14 dispatch tests preserved.
+- **N11 — orchestrator Step 4B.5 cleanup-line move** (US-006) — `agents/orchestrator.md` Step 4B.5 else-branch: `rm -f .quantum-feature-diff.patch` moved from start-of-branch to end-of-branch (after the verdict-case block, before closing fi). BLOCKS_MERGE intentional skip-via-exit-1 documented in comment near new location — patch file remains for forensic inspection by the operator triaging the blocked merge. New Test 7 in `tests/test_deep_review_dispatch.sh` (awk-line-numbering assertion: rm-f line index AFTER case-VERDICT line index).
+
+### Test-suite delta
+
+**+15 new assertions** across 3 new test files + 1 extended:
+
+- 3 new files: `test_orchestrator_self_monitor.sh` (5), `test_soliton_triage_doc.sh` (5), `test_wallclock_baselines_doc.sh` (4)
+- 1 extended: `test_deep_review_dispatch.sh` 14 → 15 (+1: Test 7 N11 cleanup ordering)
+- 1 modified (assertion count unchanged): `test_audit.sh` 45 → 45 (awk simplification + helper split)
+
+### Dogfood milestone (v0.6.8)
+
+**6/6 user-facing stories shipped first-attempt PASS** under manual takeover (parent agent executed all stories — orchestrator subagent's N6 prose guard does not yet apply since the dogfood ran on v0.6.7 master HEAD). 0 retries. **Multi-cycle CSV milestone**: `metrics/pre-impl-review-findings.csv` now has 12 rows (3 v0.6.5 + 3 v0.6.6 + 3 v0.6.7 + 3 v0.6.8) — first calibration pass becomes meaningful at v0.7.x with bundle-tier comparison data (33 findings total: 0 critical / 2 high / 9 medium / 22 low). **G30 self-validation**: v0.6.8's own master..HEAD diff (13 files) classified by its own `should_dispatch_deep_review` rule as tier=LOW score=25 → skip; decision recorded in `quantum.json.reviews[v0.6.8-bundle].deepReview` with all 4 required keys. Audit log shows split summary AND `pre-impl-review-coverage: 3/3 stages OK` (deterministic given v0.6.7 + v0.6.8 rows fall inside the 7d rolling window). **2 mid-cycle design-improvements**: US-001 regex form needed `[A-Z0-9]+` (not `[0-9]+`) for placeholder match; US-003 needed a split into 2 helpers (`extract_function_comments` header-only vs `extract_function_full_comments` for WHY-checks) to match G34's actual semantics. v0.6.9+ candidates: N6-followup (parent-side liveness check), N13 (`references/orchestrator-takeover.md`), N9-followup (baseline-drift WARN-test), N12 (helper rename). Full retrospective: `idea-stage/PIPELINE_REPORT_v9.md`. v0.6.9+ backlog: `idea-stage/IDEA_REPORT_v9.md`.
+
 ## [0.6.7] - 2026-04-28
 
 ### Added

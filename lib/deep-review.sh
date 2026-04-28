@@ -180,7 +180,20 @@ should_dispatch_deep_review() {
   # any future refactor that removes the `|$` anchor — without it, the
   # spurious empty-line count would inflate cg from 0 to 2 (still LOW tier,
   # but operators would see misleading score=2 in the diagnostic log).
-  # Mirrors the structure used in compute_risk_score above.
+  #
+  # N10 / US-005 (v0.6.8) — note that `compute_risk_score` above handles
+  # the same empty-input case via a DIFFERENT mechanism: it has the OUTER
+  # `if [[ -n "$base_sha" && -n "$head_sha" ]]` SHA-presence check at line
+  # 51 which short-circuits the whole block (including the prod_count
+  # computation) BEFORE files_changed is ever set. Pre-N10 the comment
+  # claimed this function "mirrors" compute_risk_score's structure, but
+  # the structures differ: compute_risk_score uses an outer SHA-presence
+  # gate; should_dispatch_deep_review (this function) uses an inner
+  # files_changed-count gate. Both are correct for their respective
+  # call-site assumptions — compute_risk_score is called with SHAs (which
+  # may be empty); should_dispatch_deep_review is called with a diff-path
+  # (which is checked for existence at line 145 above, so the SHA
+  # mechanism doesn't apply here).
   local prod_count=0
   if (( files_changed > 0 )); then
     prod_count=$(printf '%s\n' "$files" | grep -cvE '^(tests?/|$)|(\.test\.|_test\.)' || true)

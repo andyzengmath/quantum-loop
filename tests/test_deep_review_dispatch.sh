@@ -219,6 +219,40 @@ else
   FAIL=$((FAIL + 1))
 fi
 
+# ----- 7. N11 / US-006 (v0.6.8): cleanup-line moved to end of else-branch -----
+# Pre-N11 the else-branch's `rm -f .quantum-feature-diff.patch` ran as the
+# FIRST line (immediately after `else`), deleting the patch before steps 1-7
+# could be inspected on failure. Post-N11 the cleanup runs at end-of-branch
+# (after the `case "$VERDICT"` block, before `fi`). Verify the rm -f line
+# index is AFTER the case-line index using the same awk-line-numbering
+# pattern as Test 6 above.
+echo ""
+echo "Test 7: Step 4B.5 else-branch cleanup-rm-f lives AFTER case \$VERDICT (end-of-branch ordering)"
+TOTAL=$((TOTAL + 1))
+cleanup_after_case=$(printf '%s' "$step_4b5" | awk '
+  /^else$/ {else_idx=NR}
+  /^[[:space:]]*case "\$VERDICT"/ {case_idx=NR}
+  /^[[:space:]]*rm -f .*quantum-feature-diff/ {
+    # First rm-f after else marks the else-branch cleanup; ignore the
+    # if-branch rm-f that occurs before else.
+    if (else_idx > 0 && NR > else_idx && rm_idx == 0) rm_idx = NR
+  }
+  /^fi$/ {fi_idx=NR}
+  END {
+    if (else_idx > 0 && case_idx > else_idx && rm_idx > case_idx && (fi_idx == 0 || rm_idx < fi_idx))
+      print "yes"
+    else
+      print "no"
+  }
+')
+if [[ "$cleanup_after_case" == "yes" ]]; then
+  echo "  PASS: else-branch rm -f lives after case \$VERDICT (end-of-branch)"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: else-branch rm -f not found at end-of-branch (post-case, pre-fi)"
+  FAIL=$((FAIL + 1))
+fi
+
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 [[ $FAIL -eq 0 ]] || exit 1

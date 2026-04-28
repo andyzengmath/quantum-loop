@@ -237,6 +237,21 @@ the function comment so future readers aren't surprised.
 version-style numeric sort anywhere you're finding the "latest" of a
 set of numbered siblings.
 
+## Process references
+
+Operator-side workflow docs that the standard pipeline does not invoke
+automatically — consult them during retrospective writing or before
+designing the next cycle's slate.
+
+- [`references/soliton-finding-triage.md`](references/soliton-finding-triage.md):
+  validate-before-design workflow for sub-threshold (<85) `/soliton:pr-review`
+  findings the operator chooses to address in the next cycle. Worked
+  example: v0.6.7 G36 hallucination.
+- [`references/test-wallclock-baselines.md`](references/test-wallclock-baselines.md):
+  platform-conditional baseline table (Git Bash vs Linux/CI) for each
+  test-suite command. Reference these instead of absolute test-time
+  targets in PRD ACs.
+
 ## Signal Reference
 
 | Signal | Meaning |
