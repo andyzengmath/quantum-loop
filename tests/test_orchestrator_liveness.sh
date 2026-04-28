@@ -284,6 +284,42 @@ else
 fi
 rm -rf "$TMP10"
 
+# Test 11: N25 / US-001 (v0.7.4) — QL_RESPAWN_CMD real-CLI smoke test
+echo ""
+echo "Test 11: wrap_orchestrator_dispatch QL_RESPAWN_CMD=claude --version + stale -> respawn rc=0 (skip-pass if claude absent)"
+if ! command -v claude >/dev/null 2>&1; then
+  printf "[N25] WARN: claude CLI not available in PATH — skip-pass\n" >&2
+  mkdir -p "$REPO_ROOT/.handoffs"
+  printf '{"finding":"n25-deferred","reason":"claude CLI absent","timestamp":"%s","host":"%s"}\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${HOSTNAME:-unknown}" \
+    > "$REPO_ROOT/.handoffs/n25-deferred.md"
+  TOTAL=$((TOTAL + 1))
+  echo "  PASS: Test 11 skipped (claude unavailable; deferred-finding emitted)"; PASS=$((PASS + 1))
+else
+  TMP11=$(mktemp -d)
+  ( cd "$TMP11" && git init -q && git config user.email "t@t.t" && git config user.name "t" \
+    && echo "init" > README.md && git add README.md && git commit -qm "init" ) >/dev/null 2>&1
+  t0=$(date +%s)
+  rc11=0
+  out11=$(cd "$TMP11" && QL_RESPAWN_CMD="claude --version" bash -c "source '$LIB' && wrap_orchestrator_dispatch 2 1" 2>&1) || rc11=$?
+  t1=$(date +%s)
+  elapsed=$((t1 - t0))
+  assert "Test 11: real-CLI respawn rc=0" "0" "$rc11"
+  TOTAL=$((TOTAL + 1))
+  if (( elapsed <= 15 )); then
+    echo "  PASS: real-CLI respawn completed within 15s (got ${elapsed}s)"; PASS=$((PASS + 1))
+  else
+    echo "  FAIL: real-CLI respawn took ${elapsed}s (>15s)"; FAIL=$((FAIL + 1))
+  fi
+  TOTAL=$((TOTAL + 1))
+  if printf '%s' "$out11" | grep -qE '[0-9]+\.[0-9]+'; then
+    echo "  PASS: claude --version stdout matches version regex"; PASS=$((PASS + 1))
+  else
+    echo "  FAIL: claude --version output missing version regex — out: $out11"; FAIL=$((FAIL + 1))
+  fi
+  rm -rf "$TMP11"
+fi
+
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 [[ $FAIL -eq 0 ]] || exit 1
