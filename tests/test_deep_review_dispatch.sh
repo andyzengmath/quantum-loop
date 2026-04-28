@@ -171,12 +171,17 @@ echo "Test 6: orchestrator.md Step 4B.5 wires should_dispatch_deep_review with e
 ORCH="$REPO_ROOT/agents/orchestrator.md"
 # Extract the Step 4B.5 region: from the bash code-fence after the
 # "### 4B.5: Deep-review aggregation" header through the closing fence.
+# Strip trailing \r defensively per CLAUDE.md Platform Notes — orchestrator.md
+# may be checked out with CRLF line endings (Git autocrlf=true on Windows OR
+# mixed encoding from prior edits). awk preserves \r on lines it reads from a
+# CRLF file, so the downstream `grep -qE '^else$'` and `awk /^else$/` patterns
+# would fail to match `else\r`. The `tr -d '\r'` strip neutralizes this.
 step_4b5=$(awk '
   /^### 4B\.5: Deep-review aggregation/ {found=1}
   found && /^```bash/ {inblock=1; next}
   found && inblock && /^```/ {inblock=0; exit}
   found && inblock {print}
-' "$ORCH")
+' "$ORCH" | tr -d '\r')
 TOTAL=$((TOTAL + 1))
 if printf '%s' "$step_4b5" | grep -qE '^if ! .*should_dispatch_deep_review'; then
   echo "  PASS: Step 4B.5 contains 'if ! ...should_dispatch_deep_review' gate invocation"
