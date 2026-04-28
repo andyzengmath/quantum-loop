@@ -292,6 +292,11 @@ _audit_validate_env() {
 # matching `=== Results: <P>/<T> passed, <F> failed ===`. Sums P/T/F.
 # OK iff F == 0. When no evidence dir exists, emits unknown/FAIL per FR-10.
 #
+# N2 / US-005 (v0.6.7) — reads the phase-evidence LEDGER, not the live
+# test corpus. The row answers "did the most recent recorded test run
+# pass?" not "do tests pass right now?". For live state, run
+# `bash tests/run_all.sh` (sequential or `--parallel N`).
+#
 # Filtered by QL_AUDIT_TEST_GLOB (default "*", validated by
 # _audit_validate_env before this helper runs).
 _audit_test_suites() {
