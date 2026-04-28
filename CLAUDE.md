@@ -266,11 +266,13 @@ Test-related, and Process-related.
   validate-before-design workflow for sub-threshold (<85) `/soliton:pr-review`
   findings the operator chooses to address in the next cycle. Worked
   example: v0.6.7 G36 hallucination.
-- [`references/severity-rubric-calibration-v0.7.2.md`](references/severity-rubric-calibration-v0.7.2.md):
-  v0.7.2 second calibration pass of `references/finding-severity.md`
-  against the 8-cycle / 24-row CSV baseline. Empirical aggregate:
-  57 findings, 0/3/13/41 (critical/high/medium/low). Bundle-tier
-  comparison: patch-tier HIGH 4.1% vs minor-tier HIGH 12.5% (n=1).
+- [`references/severity-rubric-calibration-v0.7.4.md`](references/severity-rubric-calibration-v0.7.4.md):
+  v0.7.4 third calibration pass of `references/finding-severity.md`
+  against the 8-committed-cycle / 24-row CSV baseline. Empirical
+  aggregate: 58 findings, 0/3/13/42 (critical/high/medium/low).
+  Bundle-tier comparison: patch-tier HIGH 4.0% vs minor-tier HIGH
+  12.5% (n=1, ratio worsens from v0.7.2). Documents the v0.7.2/v0.7.3
+  CSV-commit gap. Plan-review MEDIUM still 0/12 across all cycles.
   Re-snapshot at v0.8.0+ via the companion parse-script.
 
 ## Signal Reference
