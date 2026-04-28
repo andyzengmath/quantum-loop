@@ -253,6 +253,76 @@ else
   FAIL=$((FAIL + 1))
 fi
 
+# ----- 8. N19 / US-001 (v0.7.1): MEDIUM-tier end-to-end dispatch chain -----
+# v0.6.5..v0.7.0 produced 6 consecutive LOW classifications (calibration
+# observation in PIPELINE_REPORT_v11). The G30 dispatch gate's MEDIUM/HIGH/
+# CRITICAL branches (v0.6.6 G30 + v0.6.7 N1 wiring) had not been exercised
+# end-to-end. This fixture synthesizes a patch with sensitive_hits=2
+# (sp=20) + cg=10 to land tier=MEDIUM, then asserts dispatch_set MEDIUM
+# returns the canonical 4-reviewer set.
+echo ""
+echo "Test 8: MEDIUM-tier dispatch chain end-to-end (sensitive_hits=2 + coverage gap)"
+TMP_M=$(mktemp -d)
+MED_DIFF8="$TMP_M/sens.patch"
+cat > "$MED_DIFF8" <<'PATCH'
+diff --git a/auth/login.js b/auth/login.js
+index 1111111..2222222 100644
+--- a/auth/login.js
++++ b/auth/login.js
+@@ -1,3 +1,3 @@
+-1
++11
+diff --git a/.env b/.env
+index 1111111..2222222 100644
+--- a/.env
++++ b/.env
+@@ -1,3 +1,3 @@
+-2
++22
+diff --git a/src/payments/charge.js b/src/payments/charge.js
+index 1111111..2222222 100644
+--- a/src/payments/charge.js
++++ b/src/payments/charge.js
+@@ -1,3 +1,3 @@
+-3
++33
+PATCH
+
+# Sub-test 8a: should_dispatch_deep_review returns 0 (dispatch)
+out=$(bash -c "source '$LIB' && should_dispatch_deep_review '$MED_DIFF8'" 2>&1 || true)
+rc=$(bash -c "source '$LIB' && should_dispatch_deep_review '$MED_DIFF8' >/dev/null 2>&1 ; echo \$?")
+assert "Test 8a: sensitive-paths diff exit code = 0 (dispatch)" "0" "$rc"
+assert_grep "Test 8a: stderr logs tier=MEDIUM" 'tier=MEDIUM|MEDIUM.*dispatch' "$out"
+
+# Sub-test 8b: dispatch_set MEDIUM returns canonical 4-reviewer JSON list
+reviewers=$(bash -c "source '$LIB' && dispatch_set MEDIUM" 2>&1)
+TOTAL=$((TOTAL + 1))
+n_reviewers=$(printf '%s' "$reviewers" | jq 'length' 2>/dev/null || echo "0")
+if [[ "$n_reviewers" == "4" ]]; then
+  echo "  PASS: dispatch_set MEDIUM returns 4 reviewers (got $n_reviewers)"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: dispatch_set MEDIUM returned $n_reviewers reviewers (expected 4)"
+  FAIL=$((FAIL + 1))
+fi
+TOTAL=$((TOTAL + 1))
+all_present=1
+for agent in 'oh-my-claudecode:code-reviewer' 'soliton:synthesizer' 'oh-my-claudecode:security-reviewer' 'oh-my-claudecode:test-engineer'; do
+  if ! printf '%s' "$reviewers" | grep -q "$agent"; then
+    all_present=0
+    echo "    missing reviewer: $agent"
+  fi
+done
+if (( all_present == 1 )); then
+  echo "  PASS: all 4 canonical MEDIUM-tier reviewer agent names present"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: dispatch_set MEDIUM list missing one or more canonical reviewers"
+  FAIL=$((FAIL + 1))
+fi
+
+rm -rf "$TMP_M"
+
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 [[ $FAIL -eq 0 ]] || exit 1
