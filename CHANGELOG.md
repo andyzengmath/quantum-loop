@@ -7,6 +7,36 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.7.0] - 2026-04-28
+
+**MINOR bump rationale:** First non-patch release in 5 cycles. Patch-tier backlog drained over v0.6.5..v0.6.9 (5 consecutive LOW-tier patch releases). v0.7.0 ships substantive G22 calibration analysis + N14 SKILL-level runtime control-flow change + 3 LOW-priority cleanups. The version bump deliberately skips 0.6.10 to signal v0.6.x patch-track closure.
+
+### Added
+
+5 user-facing changes addressing v0.6.9's IDEA_REPORT_v10 v0.7.0 slate (G22, N14, N15, N16, N17) + 1 retrospective. **Sixth multi-cycle populated-CSV run** — ledger 15 → 18 rows. v0.7.0's own diff was self-validated: tier=LOW score=25 files=12 sensitive=0 → skip recorded with `automated:true`. **6 consecutive LOW-tier self-validations** across v0.6.5..v0.7.0 — calibration insight: G30 score formula caps blast-radius at 25 for files_changed ≥ 10 + 0 sensitive + 0 cg = 25 = LOW; conservative threshold means patch-tier and small-minor-tier bundles correctly skip the deep-review pipeline.
+
+- **G22 — severity rubric calibration first pass** (US-001) — new `references/severity-rubric-calibration-v0.7.0.md` (~150 lines, 6 sections: Methodology / Empirical distribution / Expected distribution / Drift analysis / Rubric language updates / Future work). Companion `references/severity-rubric-calibration-parse.sh` (NEW awk parser cited by Methodology). 6-cycle aggregate: 49 findings → 0/3/13/33 (critical/high/medium/low). Drift: HIGH mild under-classification (-4 to -9pp); LOW mild over-classification (+7 to +17pp); plan-review emits ONLY LOW (9/9 = 100%). Verdict: no urgent rubric edits at this baseline; plan-review MEDIUM-example tweak queued for v0.7.1 N18. Re-snapshot at v0.7.x retrospectives via the parse-script. Cross-linked from CLAUDE.md `## Process references` (under N15's new Process-related sub-categorization). 6 assertions in `tests/test_severity_rubric_calibration.sh`.
+
+- **N14 — `/ql-execute` SKILL-level liveness wrapping** (US-002) — `skills/ql-execute/SKILL.md` `## Orchestrator liveness gate` subsection wraps orchestrator dispatch with `poll_orchestrator_commits` (timeout 600s, interval 60s). Honors `QL_LIVENESS_ENABLE` env var (default `true`; set `false` preserves v0.6.9 dispatch semantics for backwards compat). On STALE signal (rc=1), the SKILL emits a structured handoff message (header + pointer to `references/orchestrator-takeover.md` + numbered recovery steps) and exits with rc=1 (`orchestrator-stale` signal). Closes the v0.6.7+v0.6.8+v0.6.9 manual-takeover recovery loop: v0.6.8 N6 prose advisory → v0.6.9 N6-followup lib helper → v0.7.0 N14 SKILL wrapping (3-layer recovery infrastructure complete). 6 PRESENCE-ONLY assertions in `tests/test_ql_execute_liveness_wrapping.sh` (matches v0.6.8 N6 pattern).
+
+- **N15 — CLAUDE.md `## Process references` re-categorization** (US-003) — refactored into 3 `### ` sub-headers (Orchestrator-related / Test-related / Process-related). 4 entries placed in natural categories (orchestrator-takeover.md → Orchestrator; test-wallclock-baselines.md → Test; soliton-finding-triage.md + severity-rubric-calibration-v0.7.0.md → Process). Existing 14 cross-link assertions remain green post-refactor.
+
+- **N16 — `poll_orchestrator_commits` interval_sec=0 guard** (US-004) — adds `if (( interval_sec <= 0 ))` fail-fast guard at top of function. Emits `[LIVENESS] ERROR: interval_sec must be > 0 (got %s)` log + returns 1, preventing the infinite-loop hazard (sleep 0 + elapsed never increases). v0.6.9 PR #70 soliton conf-82 carry-over closed. Test 5 in `tests/test_orchestrator_liveness.sh` (4 new assertions: exit 1 + ERROR log within 2s + no STALE log on guard path). 8 → 12 dispatch tests.
+
+- **N17 — `tests/bench_wallclock_baseline_drift.sh` REPO_ROOT printf %q quoting** (US-005) — replaces `eval "(cd '$REPO_ROOT' && $cmd)"` with `safe_cmd=$(printf '(cd %q && %s)' "$REPO_ROOT" "$cmd"); time eval "$safe_cmd"`. Defensive against future relocations to single-quote-containing paths (e.g. `/home/user/andy's-repos/`). v0.6.9 PR #70 soliton conf-65 carry-over closed.
+
+### Test-suite delta
+
+**+16 new assertions** across 2 new test files + 1 extended:
+
+- 2 new files: `test_severity_rubric_calibration.sh` (6), `test_ql_execute_liveness_wrapping.sh` (6)
+- 1 extended: `test_orchestrator_liveness.sh` 8 → 12 (+4: Test 5 N16 guard)
+- 1 implicit (cross-link assertions remain green post-refactor): 14 unchanged across 3 existing test files
+
+### Dogfood milestone (v0.7.0)
+
+**5/5 user-facing stories shipped first-attempt PASS** under manual takeover (4th consecutive cycle; orchestrator subagent's 3-layer recovery infrastructure now complete but applies only to runs starting AFTER v0.7.0 merges — the v0.7.0 dogfood ran on v0.6.9 master HEAD which has the lib helper but no SKILL wrapping). 0 retries. **Multi-cycle CSV milestone**: 15 → 18 rows. Aggregate across 6 cycles: 49 findings (0 critical / 3 high / 13 medium / 33 low). **G30 self-validation** (6th consecutive correct LOW classification): tier=LOW score=25 files=12 sensitive=0 → skip; recorded with `automated:true`. **G30 score-formula calibration insight**: blast-radius caps at 25 for files_changed ≥ 10; the dispatch gate's threshold (score>30) is conservative — only sensitive-path or coverage-gap diffs trigger MEDIUM+. v0.7.x candidates: N18 (plan-review MEDIUM example), N19 (G30 dispatch gate end-to-end test fixture), N20 (N14 SKILL wrapping runtime extraction). Full retrospective: `idea-stage/PIPELINE_REPORT_v11.md`. v0.7.1+ backlog: `idea-stage/IDEA_REPORT_v11.md`.
+
 ## [0.6.9] - 2026-04-28
 
 ### Added

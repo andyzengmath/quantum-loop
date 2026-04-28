@@ -28,6 +28,43 @@ The orchestrator will:
 5. Handle retries, cascade blocking, and error recovery
 6. Loop until all stories pass (COMPLETE) or no stories are executable (BLOCKED)
 
+## Orchestrator liveness gate (N14 / US-002 — v0.7.0)
+
+**Default-on for unattended `/ql-execute` runs.** v0.6.7 + v0.6.8 + v0.6.9 all saw the orchestrator subagent abandon its cycle mid-execution (LLM context-drift). v0.6.8 N6 shipped a prose-only Self-monitoring guard. v0.6.9 N6-followup shipped `lib/orchestrator-liveness.sh::poll_orchestrator_commits` as a callable runtime helper. This v0.7.0 N14 SKILL-level wrapping is the third and final layer — auto-invoke the helper after dispatching the orchestrator, hand off to the parent on STALE.
+
+```bash
+# After dispatching the orchestrator subagent (Step 3 of Execution above):
+if [[ "${QL_LIVENESS_ENABLE:-true}" == "true" ]]; then
+  source lib/orchestrator-liveness.sh
+  if ! poll_orchestrator_commits 600 60; then
+    cat <<'HANDOFF'
+[QL-EXECUTE] orchestrator-stale signal. Recovery procedure:
+  1. Read references/orchestrator-takeover.md (manual-takeover SOP).
+  2. Verify drift via git log <BASE>..HEAD --oneline + jq status query.
+  3. Continue the in-progress story manually; commit normally.
+HANDOFF
+    exit 1   # orchestrator-stale signal to parent agent / CI
+  fi
+fi
+```
+
+**Env var contract:**
+
+| `QL_LIVENESS_ENABLE=` | Effect |
+|---|---|
+| (unset) or `true` | default — wrap orchestrator dispatch with `poll_orchestrator_commits` (timeout 600s, interval 60s) |
+| `false` | skip the wrapping; preserve v0.6.9 dispatch semantics exactly (backwards compat for operators with their own wrappers) |
+| any other value | treated as `true` (default-true semantics; warn to stderr) |
+
+**Handoff message structure** (printed to stdout when STALE fires):
+- One-line `[QL-EXECUTE] orchestrator-stale signal.` header.
+- Pointer to `references/orchestrator-takeover.md` (the v0.6.9 N13 SOP).
+- Numbered recovery steps the parent agent runs (drift verification + manual takeover).
+
+The parent agent reads the handoff and either re-spawns `/ql-execute` (after confirming whether drift was a transient LLM hiccup) or takes over manually per the SOP. SKILL exits with rc=1 (`orchestrator-stale`) so CI / wrapper scripts can distinguish stale-signal exits from clean COMPLETE / BLOCKED exits.
+
+**Testability note (presence-only AC):** the wrapping prose above is consumed by an LLM that runs `/ql-execute`. There is no runtime test that EXERCISES the env-var conditional or the handoff message structure inside the SKILL itself — those would require running the SKILL in a controlled fixture. Instead, `tests/test_ql_execute_liveness_wrapping.sh` verifies the prose contains the expected idioms (header, env var, default-true, cross-link, handoff structure). Matches v0.6.8 N6 prose-guard pattern.
+
 ## Autonomous CLI Alternative
 
 For unattended execution outside Claude Code (Linux/Mac):

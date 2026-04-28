@@ -39,6 +39,16 @@ poll_orchestrator_commits() {
   local timeout_sec="${1:-600}"
   local interval_sec="${2:-60}"
   local base_sha="${3:-$(git rev-parse HEAD 2>/dev/null)}"
+
+  # N16 / US-004 (v0.7.0) — fail-fast on bad interval_sec. Without this guard,
+  # interval_sec=0 makes `sleep 0` a no-op and `elapsed` never increases past 0
+  # — the loop runs forever burning CPU. Soliton-pr-review caught at confidence
+  # 82 on PR #70 (v0.6.9 sub-threshold; carried forward to v0.7.0).
+  if (( interval_sec <= 0 )); then
+    printf "[LIVENESS] ERROR: interval_sec must be > 0 (got %s)\n" "$interval_sec" >&2
+    return 1
+  fi
+
   local elapsed=0
   while (( elapsed < timeout_sec )); do
     sleep "$interval_sec"
