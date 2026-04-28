@@ -95,10 +95,26 @@ line_count=$(printf '%s' "$out" | awk 'END{print NR}')
 assert "empty-drill WARN = 1 line" "1" "$line_count"
 
 # Test 4: do_audit stub returns 0 and prints header
+# G35 / US-001 (v0.6.7): wrap the do_audit capture in `set +e ... set -e`.
+# Sourcing quantum-loop.sh inherits its `set -euo pipefail`. Without the
+# wrapper, any non-zero exit *inside* the do_audit subshell capture
+# propagates errexit out of the $(...) substitution and aborts the test
+# script silently — Test 4 (and every test after it) never runs to
+# completion, hanging tests/run_all.sh's run_one capture indefinitely.
+# v0.6.6's run_one fix exposed the previously-swallowed abort.
+#
+# Run do_audit in a clean tmp repo (matching Test 5's pattern) so the
+# "stub happy path" test does not depend on the developer's working repo
+# state (e.g. >10 remote branches makes do_audit exit 1 environmentally).
 echo ""
 echo "Test 4: do_audit stub happy path"
-out=$(do_audit 2>&1)
+TMP=$(setup_audit_repo)
+mkdir -p "$TMP/.omc/phase-99-evidence"
+printf '=== Results: 1/1 passed, 0 failed ===\n' > "$TMP/.omc/phase-99-evidence/test_x.log"
+set +e
+out=$(cd "$TMP" && do_audit 2>&1)
 rc=$?
+set -e
 assert "do_audit exits 0" "0" "$rc"
 case "$out" in
   *"=== Quantum-loop audit ==="*"Summary:"*)
@@ -107,6 +123,7 @@ case "$out" in
     echo "  FAIL: do_audit output — got [$out]"; FAIL=$((FAIL + 1));;
 esac
 TOTAL=$((TOTAL + 1))
+rm -rf "$TMP"
 
 # Test 5: --audit clean repo exit 0 (seed green evidence so test-suites is OK)
 echo ""

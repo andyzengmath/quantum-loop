@@ -424,10 +424,10 @@ do_audit() {
   # Gated on QL_AUDIT_TEST_MODE=1 because honoring it in production would let
   # any environment override audit input.
   if [[ -n "${QL_AUDIT_TEST_ROWS:-}" && "${QL_AUDIT_TEST_MODE:-0}" == "1" ]]; then
-    # mapfile splits on newlines into ROWS[]. The earlier "read -d ''" idiom
+    # mapfile splits on newlines into ROWS[]. An earlier "read -d ''" idiom
     # set NUL as the record delimiter, making IFS=$'\n' irrelevant — every
-    # synthetic row collapsed into ROWS[0]. Soliton-pr-review caught at
-    # confidence 95.
+    # synthetic row collapsed into ROWS[0]. mapfile is the right tool because
+    # it treats newlines as record separators by default.
     mapfile -t ROWS <<< "$QL_AUDIT_TEST_ROWS"
   fi
   local any_fail=0 ok_count=0 warn_count=0 fail_count=0 total=0
