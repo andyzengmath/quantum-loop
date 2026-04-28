@@ -1,0 +1,11 @@
+=== Quantum-loop audit ===
+branches-local:    2 (target ≤10)     OK
+branches-remote:   13 (target ≤10)   FAIL
+                   └─  origin/docs/v0.6.5-backlog-g27-g28,  origin/fix/audit-test-glob,  origin/fix/ql-spec-question-count-adaptive (+10 more)
+orphan-worktrees:  0 (target 0)     OK
+readme-conflicts:  0 (target 0)     OK
+cpc-files:         0 (target 0)     OK
+test-suites:       98/98 passed (target green)     OK
+pre-impl-review-coverage: 3/3 stages (target 3/3)     OK
+
+Summary: 6/7 OK, 0 WARN, 1 FAIL.

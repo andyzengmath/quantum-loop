@@ -7,6 +7,29 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.6.9] - 2026-04-28
+
+### Added
+
+4 user-facing changes addressing v0.6.8's IDEA_REPORT_v9 priority list (N6-followup orchestrator-liveness lib helper, N13 orchestrator-takeover SOP doc, N9-followup wall-clock baseline-drift bench, N12 helper rename) + 1 retrospective. Patch-tier; 5-story bundle (smaller than the typical 7 — clean LOW-tier slate, patch-track backlog drained). **Fifth multi-cycle populated-CSV run** — ledger 12 → 15 rows. v0.6.9's own diff was self-validated: tier=LOW score=25 files=11 sensitive=0 → skip recorded in `quantum.json.reviews[v0.6.9-bundle].deepReview` with `automated:true`. **5 consecutive LOW-tier self-validations** across v0.6.5..v0.6.9 — G30 dispatch gate routes patch-tier bundles with 100% accuracy across the established baseline.
+
+- **N6-followup — `lib/orchestrator-liveness.sh::poll_orchestrator_commits`** (US-001) — new parent-side commit-poll helper. Defaults: timeout=600s, interval=60s, base=git rev-parse HEAD at call time. Returns 0 (live) on new-commit observation; 1 (stale) on timeout. Stderr log: `[LIVENESS] new commit XXXXXXXX observed at +Ns` (live) / `[LIVENESS] STALE: no commits in Ns (base=XXXXXXXX)` (stale). Library contract: no shell flags at source time. `agents/orchestrator.md` Step 1.0.4 prose subsection points operators at the helper for unattended `/ql-execute` mode (helper invocation is operator-side; SKILL-level wrapping queued as v0.7.0 N14). 8 assertions in `tests/test_orchestrator_liveness.sh` (function defined, stale-path within timeout-jitter ceiling, live-path with pre-staged HEAD-advance, default-arg behavior).
+- **N13 — `references/orchestrator-takeover.md`** (US-002) — new manual-takeover SOP for parent agents detecting orchestrator drift mid-cycle. 4 sections: When to detect drift / What to verify / How to take over without corrupting state / Recovery from N6-followup STALE signal. Documents the verification-failure-driven amendment rule (preserve orchestrator edits unless a check proves them broken; v0.6.7 Pattern C → Pattern A worked example). Cross-linked from `CLAUDE.md` `## Process references` section (joining N7 soliton-finding-triage + N9 wallclock-baselines). 5 assertions in `tests/test_orchestrator_takeover_doc.sh`.
+- **N9-followup — `tests/bench_wallclock_baseline_drift.sh`** (US-003) — new opt-in benchmark. Runs 7 documented baseline commands with `time`, parses real wall-clock seconds, compares against hardcoded BASELINES (curated subset of `references/test-wallclock-baselines.md`). Emits `WARN: <cmd> took Ns (baseline Xs, threshold Ys — drift > 50%)` if measured > 1.5× baseline. Always exits 0 (informational). File-naming uses `bench_*` prefix (NOT `test_*`) so `tests/run_all.sh`'s `tests/test_*.sh` glob deliberately skips it; operators must invoke directly: `bash tests/bench_wallclock_baseline_drift.sh`.
+- **N12 — helper rename in `tests/test_audit.sh`** (US-004) — `extract_function_comments` → `extract_function_header_comments` (clarifies: returns ONLY the function-header comment block); `extract_function_full_comments` → `extract_function_all_comments` (clarifies: returns header AND body comments). Mechanical rename across 9 occurrences (2 function defs + 4 call sites + 3 doc-comment refs). Replacement order: longer name substituted first to avoid sub-string overlap. 45/45 audit assertions unchanged.
+
+### Test-suite delta
+
+**+13 new assertions** across 2 new test files (the bench file is opt-in and not counted toward run_all):
+
+- 2 new files: `test_orchestrator_liveness.sh` (8), `test_orchestrator_takeover_doc.sh` (5)
+- 1 new opt-in bench: `bench_wallclock_baseline_drift.sh` (informational; not run by `tests/run_all.sh` due to glob mismatch)
+- 1 modified (assertion count unchanged): `test_audit.sh` 45 → 45 (mechanical rename)
+
+### Dogfood milestone (v0.6.9)
+
+**5/5 user-facing stories shipped first-attempt PASS** under manual takeover (3rd consecutive cycle; orchestrator-liveness helper SHIPS in this bundle and applies only to runs starting AFTER v0.6.9 merges — the v0.6.9 dogfood itself ran on v0.6.8 master HEAD which had no runtime liveness). 0 retries. **Multi-cycle CSV milestone**: 12 → 15 rows. Aggregate across 5 cycles: 41 findings (0 critical / 2 high / 11 medium / 28 low) — patch-tier baseline solidly stable; G22 first calibration pass becomes meaningful at v0.7.x. **G30 self-validation**: v0.6.9's own master..HEAD diff (11 files) classified by its own `should_dispatch_deep_review` rule as tier=LOW score=25 → skip; decision recorded with `automated:true`. **Bundle size shrinking**: v0.6.5/6/7/8 all had 7 stories; v0.6.9 had 5 — the natural endpoint of a patch-tier track. v0.7.0 minor-tier is the right next move. v0.7.0 candidates: G22 calibration first pass, N14 SKILL-level wrapping of the liveness helper, N15 CLAUDE.md Process references re-categorization. Full retrospective: `idea-stage/PIPELINE_REPORT_v10.md`. v0.7.0 backlog: `idea-stage/IDEA_REPORT_v10.md`.
+
 ## [0.6.8] - 2026-04-28
 
 ### Added
