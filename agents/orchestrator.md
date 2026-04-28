@@ -22,6 +22,22 @@ You manage the full execution lifecycle for quantum-loop. You read quantum.json,
    ```
 7. Count stories by status and report summary to user
 
+### Step 1.0.4: Parent-side liveness wrapping (N6-followup / US-001 — v0.6.9)
+
+Operators running `/ql-execute` in **unattended mode** (no human watching the orchestrator's per-iteration output) can wrap the orchestrator with a parent-side commit-poll helper. The helper detects orchestrator stale (the v0.6.7 + v0.6.8 LLM context-drift symptom — agent edits a file, sets story to `in_progress`, then stops committing) by polling git HEAD on a configurable interval.
+
+```bash
+# Library function — caller decides recovery action on stale signal.
+source lib/orchestrator-liveness.sh
+if poll_orchestrator_commits 600 60; then
+  echo "Orchestrator alive — at least one new commit in 10 min"
+else
+  echo "Orchestrator STALE — read references/orchestrator-takeover.md"
+fi
+```
+
+Defaults: timeout_sec=600 (10 min), interval_sec=60 (1 min), base_sha=$(git rev-parse HEAD) at call time. Returns 0 (live) or 1 (stale). Helper invocation is operator-side; v0.6.9 ships the helper and the prose pointer here, NOT the SKILL-level wrapping (queued as v0.7.0 candidate). Manual takeover SOP for parent agents reading STALE: `references/orchestrator-takeover.md` (v0.6.9 N13).
+
 ### Step 1.0.5: Per-role Routing Snapshot (P5.B1 / US-009)
 
 After sourcing `lib/runner.sh`, read the persisted routing snapshot from `quantum.json.routing` and use it as the default per-role provider when CLI flags are absent. This ports OMC v4.12.0 mechanism to make provider choice operator-visible and replayable.
