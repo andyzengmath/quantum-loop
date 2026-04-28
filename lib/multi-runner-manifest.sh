@@ -47,8 +47,9 @@ parse_manifest() {
     return 1
   fi
 
-  # Backend 2: python3 + yaml
-  if command -v python3 >/dev/null 2>&1; then
+  # Backend 2: python3 + yaml — probe `import yaml` first so we fall through
+  # to the handcrafted shell parser when PyYAML is not installed (soliton-fix).
+  if command -v python3 >/dev/null 2>&1 && python3 -c "import yaml" >/dev/null 2>&1; then
     # Translate Unix-style path to native Windows path on Git Bash / MinGW
     # so Windows python can open it. cygpath -w is the canonical fix.
     local py_path="$path"
@@ -74,12 +75,20 @@ except Exception as e:
 
   # Backend 3: handcrafted shell parser for trivial 3-field schema
   # Schema: top-level `runners:` then list of `- name: ... / command: ... / version_flag: ...`
+  # Soliton-fix: reject values containing " or \ (would break JSON interpolation
+  # without proper escaping; not supported by this fallback parser).
   local in_runners=0
   local current_name="" current_command="" current_version_flag=""
   local first_entry=1
   local result='{"runners":['
   while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line%$'\r'}"
+    # Strip trailing inline comments (everything after unquoted #)
+    line="${line%%#*}"
+    if [[ "$line" == *'"'* || "$line" == *'\\'* ]]; then
+      printf "[manifest] ERROR: shell parser does not support quoted/escaped values (install yq or PyYAML): %s\n" "$line" >&2
+      return 1
+    fi
     case "$line" in
       runners:*) in_runners=1 ;;
       "  - name:"*)
