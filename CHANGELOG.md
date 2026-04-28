@@ -7,6 +7,23 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.7.6] - 2026-04-28
+
+### Added
+
+2-story compact reactive patch closing N34 (untracked design+PRD docs audit). **Smallest cycle yet** (2 stories, ~15 min wall-clock). **11 consecutive LOW-tier self-validations** expected.
+
+- **N34 — `--audit` untracked-design-prd check** (US-001) — `quantum-loop.sh` adds `_audit_untracked_design_prd_docs` helper using `git ls-files --others --exclude-standard docs/plans/ tasks/`. WARN-level when matching files are untracked; OK otherwise. Mirrors v0.7.5 N29 csv-uncommitted pattern. +2 audit tests in `tests/test_audit.sh`. Closes the v0.7.4 + v0.7.5 process gap where design+PRD docs were repeatedly authored locally but never staged before squash-merge (caught at v0.7.5 housekeeping).
+
+### Test-suite delta
+
+- `tests/test_audit.sh` +2 (Tests 39 + 39b)
+- `quantum-loop.sh` +1 helper + 1 ROWS invocation
+
+### Reactive-cycle wrap-up
+
+v0.7.4 (dogfood) → v0.7.5 (N29+N31) → v0.7.6 (N34) sequence has now closed all known process gaps surfaced by the dogfood cycle. Patch-tier track is genuinely drained. v0.8.0 minor-tier requires operator-defined substantive scope (N30 multi-runner first integration is the natural anchor). Full retrospective: `idea-stage/PIPELINE_REPORT_v17.md`.
+
 ## [0.7.5] - 2026-04-28
 
 ### Added
