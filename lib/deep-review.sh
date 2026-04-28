@@ -108,6 +108,100 @@ tier_of_score() {
   fi
 }
 
+# G30 / US-004 (v0.6.6) — should_dispatch_deep_review(diff_path)
+#
+# Decides whether to invoke the multi-reviewer ql-deep-review pipeline based
+# on the supplied unified-diff patch file. Honors the QL_DEEP_REVIEW env-var
+# override (force=always dispatch, skip=always skip; otherwise tier-gated).
+# Default rule: dispatch on tier >= MEDIUM (i.e., risk score > 30).
+#
+# Returns 0 (dispatch) or 1 (skip). Logs the tier + decision to stderr so
+# operators can audit the choice from CI logs.
+#
+# Implementation: parses `diff --git` headers from the patch file to count
+# changed files + sensitive-path hits + production-without-test signals,
+# then computes the risk score using the same weights as compute_risk_score.
+# The diff-path entry-point exists because callers in retrospective contexts
+# (US-007 T-003) have a captured patch but no live SHAs.
+should_dispatch_deep_review() {
+  local diff_path="${1:-}"
+  local override="${QL_DEEP_REVIEW:-}"
+
+  # Override path: short-circuit before parsing, so even a missing diff_path
+  # works for force/skip decisions.
+  case "$override" in
+    force)
+      printf "[DEEP-REVIEW] QL_DEEP_REVIEW=force override → dispatch\n" >&2
+      return 0 ;;
+    skip)
+      printf "[DEEP-REVIEW] QL_DEEP_REVIEW=skip override → skip\n" >&2
+      return 1 ;;
+    "") : ;;  # no override; fall through to tier gate
+    *)
+      printf "[DEEP-REVIEW] WARN: unrecognized QL_DEEP_REVIEW=%q (expected 'force' or 'skip'); ignoring\n" "$override" >&2 ;;
+  esac
+
+  # Tier-gated path: parse the diff to derive a tier.
+  if [[ -z "$diff_path" || ! -f "$diff_path" ]]; then
+    printf "[DEEP-REVIEW] WARN: diff_path missing or unreadable (%q) → skip\n" "$diff_path" >&2
+    return 1
+  fi
+
+  # Enumerate changed files via `diff --git a/X b/Y` headers. Take the b/-side
+  # path (post-image) since that's the new state's filename.
+  local files
+  files=$(grep -E '^diff --git ' "$diff_path" | sed -E 's|^diff --git a/.* b/||')
+  local files_changed=0
+  files_changed=$(printf '%s\n' "$files" | grep -cv '^$' || true)
+
+  # Sensitive-path hits — same glob list as compute_risk_score.
+  local sensitive_hits=0
+  while IFS= read -r f; do
+    [[ -z "$f" ]] && continue
+    for glob in "${DEEP_REVIEW_SENSITIVE_GLOBS[@]}"; do
+      # shellcheck disable=SC2053
+      case "$f" in *$glob*) sensitive_hits=$((sensitive_hits + 1)); break ;; esac
+    done
+  done <<< "$files"
+
+  # Coverage gap — production files touched without any matching test file.
+  local has_test_file=false
+  while IFS= read -r f; do
+    [[ -z "$f" ]] && continue
+    if [[ "$f" == tests/* || "$f" == test/* || "$f" == *.test.* || "$f" == *_test.* ]]; then
+      has_test_file=true; break
+    fi
+  done <<< "$files"
+  local prod_count=0
+  prod_count=$(printf '%s\n' "$files" | grep -cvE '^(tests?/|$)|(\.test\.|_test\.)' || true)
+  local prod_without_test=0
+  if [[ "$has_test_file" == false && "$prod_count" -gt 0 ]]; then
+    prod_without_test="$prod_count"
+  fi
+
+  # Same weights as compute_risk_score (intent-drift signal not available
+  # from a captured patch — set to 0).
+  local br=$(( files_changed > 10 ? 25 : files_changed * 25 / 10 ))
+  local sp=$(( sensitive_hits > 2 ? 20 : sensitive_hits * 20 / 2 ))
+  local cg=$(( prod_without_test > 5 ? 10 : prod_without_test * 10 / 5 ))
+  local score=$(( br + sp + cg ))
+  (( score > 100 )) && score=100
+
+  local tier
+  tier=$(tier_of_score "$score")
+
+  case "$tier" in
+    MEDIUM|HIGH|CRITICAL)
+      printf "[DEEP-REVIEW] tier=%s score=%d files=%d sensitive=%d → dispatch\n" \
+        "$tier" "$score" "$files_changed" "$sensitive_hits" >&2
+      return 0 ;;
+    *)
+      printf "[DEEP-REVIEW] tier=%s score=%d files=%d sensitive=%d → skip\n" \
+        "$tier" "$score" "$files_changed" "$sensitive_hits" >&2
+      return 1 ;;
+  esac
+}
+
 # actionability_filter(findings_json)
 # Input: JSON array of findings on stdin. Drops entries without `file` AND
 # (`line` or `line_start`) AND `evidence_type`. Echoes a new JSON object:

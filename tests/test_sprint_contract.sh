@@ -354,6 +354,25 @@ else
   FAIL=$((FAIL + 1))
 fi
 
+# 7i: G32 / US-001 (v0.6.6) — agents/spec-reviewer.md negative assertion.
+# Guard against re-adding an inline regex-enumeration alongside the citation.
+# We grep for the load-bearing shape `(test_|\.test\.` (the head of the canonical
+# enumeration that any inline copy would carry) and exclude the citation line by
+# requiring 'SPRINT_CONTRACT_TEST_REGEX' to be on the same line. After exclusion,
+# the count must be 0. If a future commit reintroduces an uncited inline copy
+# elsewhere in the file, the count rises and this test fails.
+TOTAL=$((TOTAL + 1))
+uncited_inline=$(grep -F '(test_|\.test\.' "$REPO_ROOT/agents/spec-reviewer.md" | grep -v 'SPRINT_CONTRACT_TEST_REGEX' | wc -l)
+# Trim whitespace (Git Bash wc -l may emit leading spaces).
+uncited_inline=$(echo "$uncited_inline" | tr -d '[:space:]')
+if [[ "$uncited_inline" == "0" ]]; then
+  echo "  PASS: agents/spec-reviewer.md has 0 uncited inline test-regex enumerations"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: agents/spec-reviewer.md has $uncited_inline uncited inline test-regex enumeration(s)"
+  FAIL=$((FAIL + 1))
+fi
+
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 [[ $FAIL -eq 0 ]] || exit 1

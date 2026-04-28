@@ -660,41 +660,26 @@ else
 fi
 rm -rf "$TMP"
 
-# --- v0.6.5 / G26 / US-001: split-summary tests ---------------------------
-
-# Test 34: 3-row all-OK fixture → "Summary: 3/3 OK, 0 WARN, 0 FAIL." + exit 0
+# --- v0.6.5 / G26 / US-001 + v0.6.6 / G33 / US-002: split-summary tests ---
+# v0.6.6 / G33: Tests 34 + 35 now invoke real do_audit via subprocess
+# (`bash quantum-loop.sh --audit`) with QL_AUDIT_TEST_MODE=1 + QL_AUDIT_TEST_ROWS
+# set, instead of inlining a do_audit re-implementation. A future regression
+# in do_audit's case-pattern switch is now caught by these tests too.
 #
 # Subshell exit-code capture pattern (see CLAUDE.md "Platform Notes"): under
-# `set -euo pipefail` (inherited via `source quantum-loop.sh` at the top of
-# this file), `out=$(... exit "$any_fail")` would terminate the test script
-# whenever any_fail=1 — so we use the two-invocation idiom: one captures
-# stdout with `|| true` (no errexit trip), one captures the exit code via
-# explicit `; echo $?`.
+# `set -uo pipefail`, `out=$(bash ...)` returning non-zero does NOT abort the
+# test script (no `-e`), but capturing both stdout AND exit code requires the
+# two-invocation idiom: one captures stdout with `|| true`, one captures the
+# exit code via explicit `; echo $?`.
+
+QL_SH="$REPO_ROOT/quantum-loop.sh"
+
+# Test 34: 3-row all-OK fixture → "Summary: 3/3 OK, 0 WARN, 0 FAIL." + exit 0
 echo ""
-echo "Test 34: split summary all-OK fixture (G26)"
-mock_rows=(
-  'foo|1|0|OK|'
-  'bar|2|0|OK|'
-  'baz|3|0|OK|'
-)
-_t34_run() {
-  local -a ROWS=("${mock_rows[@]}")
-  local any_fail=0 ok_count=0 warn_count=0 fail_count=0 total=0 row
-  printf "=== Quantum-loop audit ===\n"
-  for row in "${ROWS[@]}"; do
-    _audit_format_row "$row"
-    total=$((total + 1))
-    case "$row" in
-      *"|FAIL|"*) any_fail=1; fail_count=$((fail_count + 1)) ;;
-      *"|WARN|"*) warn_count=$((warn_count + 1)) ;;
-      *"|OK|"*)   ok_count=$((ok_count + 1)) ;;
-    esac
-  done
-  printf "\nSummary: %d/%d OK, %d WARN, %d FAIL.\n" "$ok_count" "$total" "$warn_count" "$fail_count"
-  return "$any_fail"
-}
-out=$(_t34_run 2>&1 || true)
-rc=$(_t34_run >/dev/null 2>&1 ; echo $?)
+echo "Test 34: split summary all-OK fixture (G26 + G33 real-do_audit)"
+t34_rows=$(printf 'foo|1|0|OK|\nbar|2|0|OK|\nbaz|3|0|OK|')
+out=$(QL_AUDIT_TEST_MODE=1 QL_AUDIT_TEST_ROWS="$t34_rows" bash "$QL_SH" --audit 2>&1 || true)
+rc=$(QL_AUDIT_TEST_MODE=1 QL_AUDIT_TEST_ROWS="$t34_rows" bash "$QL_SH" --audit >/dev/null 2>&1 ; echo $?)
 TOTAL=$((TOTAL + 1))
 if [[ "$rc" -eq 0 ]] && printf '%s' "$out" | grep -q 'Summary: 3/3 OK, 0 WARN, 0 FAIL\.'; then
   echo "  PASS: 3-OK fixture → 'Summary: 3/3 OK, 0 WARN, 0 FAIL.' exit 0"; PASS=$((PASS + 1))
@@ -704,40 +689,99 @@ else
 fi
 
 # Test 35: mixed 1-OK / 1-WARN / 1-FAIL fixture → exit 1 + "1/3 OK, 1 WARN, 1 FAIL."
-# Same subshell-exit-code idiom as Test 34. This test isolates the summary
-# arithmetic + exit semantics; the live do_audit path is exercised via Test
-# 33 (full-flow with 7 helpers).
 echo ""
-echo "Test 35: split summary mixed-3-state fixture (G26)"
-mock_rows=(
-  'foo|1|0|OK|'
-  'bar|2|0|WARN|partial-coverage'
-  'baz|3|0|FAIL|broken'
-)
-_t35_run() {
-  local -a ROWS=("${mock_rows[@]}")
-  local any_fail=0 ok_count=0 warn_count=0 fail_count=0 total=0 row
-  printf "=== Quantum-loop audit ===\n"
-  for row in "${ROWS[@]}"; do
-    _audit_format_row "$row"
-    total=$((total + 1))
-    case "$row" in
-      *"|FAIL|"*) any_fail=1; fail_count=$((fail_count + 1)) ;;
-      *"|WARN|"*) warn_count=$((warn_count + 1)) ;;
-      *"|OK|"*)   ok_count=$((ok_count + 1)) ;;
-    esac
-  done
-  printf "\nSummary: %d/%d OK, %d WARN, %d FAIL.\n" "$ok_count" "$total" "$warn_count" "$fail_count"
-  return "$any_fail"
-}
-out=$(_t35_run 2>&1 || true)
-rc=$(_t35_run >/dev/null 2>&1 ; echo $?)
+echo "Test 35: split summary mixed-3-state fixture (G26 + G33 real-do_audit)"
+t35_rows=$(printf 'foo|1|0|OK|\nbar|2|0|WARN|partial-coverage\nbaz|3|0|FAIL|broken')
+out=$(QL_AUDIT_TEST_MODE=1 QL_AUDIT_TEST_ROWS="$t35_rows" bash "$QL_SH" --audit 2>&1 || true)
+rc=$(QL_AUDIT_TEST_MODE=1 QL_AUDIT_TEST_ROWS="$t35_rows" bash "$QL_SH" --audit >/dev/null 2>&1 ; echo $?)
 TOTAL=$((TOTAL + 1))
 if [[ "$rc" -eq 1 ]] && printf '%s' "$out" | grep -q 'Summary: 1/3 OK, 1 WARN, 1 FAIL\.'; then
   echo "  PASS: mixed-3-state → 'Summary: 1/3 OK, 1 WARN, 1 FAIL.' exit 1"; PASS=$((PASS + 1))
 else
   echo "  FAIL: mixed-3-state (rc=$rc, summary missing or wrong)"; FAIL=$((FAIL + 1))
   printf '%s\n' "$out" | sed 's/^/    /'
+fi
+
+# --- v0.6.6 / G34 / US-003: comment-meta-strip assertions -----------------
+#
+# Bloated PR-metadata strings (G-numbers, version tags, soliton-confidence
+# scores) belong in git log + CHANGELOG + retrospective docs, not in the code.
+# These tests scope to the comment ranges associated with _audit_format_row
+# and do_audit and assert two properties:
+#   (a) zero matches of the bloat regex (confidence|G[0-9]+|v0.X.Y|soliton)
+#   (b) at least one load-bearing-WHY phrase (because|why|so that|the WHY)
+#
+# The comment ranges are derived programmatically: for each function, walk
+# from the function-definition line backwards to the previous blank line
+# (function-header), and forward through the body until the closing brace
+# (function-body). Both ranges are concatenated for the regex check.
+
+# extract_function_comments <function_name>
+# Echoes all comment lines (^[[:space:]]*#) in the function-header block AND
+# the function-body. function-header = the contiguous comment block immediately
+# preceding `function_name() {`. function-body = everything from that line until
+# the first column-1 closing brace.
+extract_function_comments() {
+  local fn="$1"
+  awk -v fn="$fn" '
+    /^'"$fn"'\(\) \{/ {
+      # Emit accumulated header buffer, then start tracking body.
+      for (i=1; i<=hbuf_n; i++) print hbuf[i]
+      in_body=1
+      hbuf_n=0
+      next
+    }
+    in_body && /^\}/ { in_body=0; next }
+    in_body && /^[[:space:]]*#/ { print }
+    /^[[:space:]]*#/ {
+      # Buffer header comment (cleared on blank line, flushed on fn-def).
+      hbuf_n++
+      hbuf[hbuf_n] = $0
+      next
+    }
+    /^[[:space:]]*$/ { hbuf_n=0 }
+    { hbuf_n=0 }
+  ' "$REPO_ROOT/quantum-loop.sh"
+}
+
+echo ""
+echo "Test 36a: _audit_format_row comments contain no PR-metadata bloat (G34)"
+fmt_comments=$(extract_function_comments '_audit_format_row')
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$fmt_comments" | grep -qE '(confidence|G[0-9]+|v0\.[0-9]+\.[0-9]+|soliton)'; then
+  echo "  FAIL: _audit_format_row comments still contain PR-metadata bloat:"; FAIL=$((FAIL + 1))
+  printf '%s' "$fmt_comments" | grep -E '(confidence|G[0-9]+|v0\.[0-9]+\.[0-9]+|soliton)' | sed 's/^/    /'
+else
+  echo "  PASS: 0 PR-metadata bloat strings in _audit_format_row comments"; PASS=$((PASS + 1))
+fi
+
+echo ""
+echo "Test 36b: _audit_format_row comments retain explanatory WHY (G34)"
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$fmt_comments" | grep -qE '(because|why|so that|the WHY)'; then
+  echo "  PASS: _audit_format_row comments retain >=1 WHY phrase"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: _audit_format_row comments have no WHY phrase (over-trim)"; FAIL=$((FAIL + 1))
+fi
+
+echo ""
+echo "Test 37a: do_audit comments contain no PR-metadata bloat (G34)"
+do_comments=$(extract_function_comments 'do_audit')
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$do_comments" | grep -qE '(confidence|G[0-9]+|v0\.[0-9]+\.[0-9]+|soliton)'; then
+  echo "  FAIL: do_audit comments still contain PR-metadata bloat:"; FAIL=$((FAIL + 1))
+  printf '%s' "$do_comments" | grep -E '(confidence|G[0-9]+|v0\.[0-9]+\.[0-9]+|soliton)' | sed 's/^/    /'
+else
+  echo "  PASS: 0 PR-metadata bloat strings in do_audit comments"; PASS=$((PASS + 1))
+fi
+
+echo ""
+echo "Test 37b: do_audit comments retain explanatory WHY (G34)"
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$do_comments" | grep -qE '(because|why|so that|the WHY)'; then
+  echo "  PASS: do_audit comments retain >=1 WHY phrase"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: do_audit comments have no WHY phrase (over-trim)"; FAIL=$((FAIL + 1))
 fi
 
 echo ""

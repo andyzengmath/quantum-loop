@@ -2,3 +2,6 @@ timestamp,stage,source_path,count,critical,high,medium,low
 2026-04-27T18:35:56Z,design,docs/plans/2026-04-27-v0.6.5-bundle-design.md,1,0,0,0,1
 2026-04-27T18:40:12Z,prd,tasks/prd-v0.6.5-bundle.md,4,0,0,0,4
 2026-04-27T19:04:17Z,plan,quantum.json,0,0,0,0,0
+2026-04-27T22:18:24Z,design,docs/plans/2026-04-27-v0.6.6-bundle-design.md,0,0,0,0,0
+2026-04-27T22:22:59Z,prd,tasks/prd-v0.6.6-bundle.md,9,0,2,4,3
+2026-04-28T00:51:00Z,plan,quantum.json,1,0,0,0,1

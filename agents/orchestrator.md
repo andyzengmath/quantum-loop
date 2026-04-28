@@ -1358,9 +1358,31 @@ This review is NOT optional. Per-story reviews miss cross-cutting concerns. Fiel
 
 ### 4B.5: Deep-review aggregation (Phase 17 wiring, P1.1 + P1.2 + P1.3)
 
-After the manual checks above pass, dispatch the risk-adaptive multi-reviewer pipeline using `lib/deep-review.sh`:
+After the manual checks above pass, dispatch the risk-adaptive multi-reviewer pipeline using `lib/deep-review.sh`.
+
+**Dispatch decision rule (G30 / US-004 — v0.6.6):** the gate is the documented helper `should_dispatch_deep_review` in `lib/deep-review.sh`. Default behavior: dispatch when `compute_tier(diff) >= MEDIUM` (risk score > 30); skip when LOW. Operators can override via the `QL_DEEP_REVIEW` env var:
+
+| `QL_DEEP_REVIEW=` | Effect |
+|---|---|
+| `force`  | always dispatch regardless of tier |
+| `skip`   | always skip regardless of tier |
+| (unset) or any other value | tier-gated default (dispatch on MEDIUM/HIGH/CRITICAL) |
+
+The decision is recorded in `quantum.json.reviews[<feature-id>].deepReview` with shape `{tier, decision, rationale, automated}`. The `automated: true` flag distinguishes rule-driven decisions from hand-edited entries.
 
 ```bash
+# 0. Apply the dispatch gate FIRST. Skip the entire pipeline on LOW (or skip override).
+git diff "$BASE_SHA..HEAD" > "$REPO_ROOT/.quantum-feature-diff.patch"
+if ! bash -c "source '$REPO_ROOT/lib/deep-review.sh' && should_dispatch_deep_review '$REPO_ROOT/.quantum-feature-diff.patch'"; then
+  echo "[DEEP-REVIEW] gate=skip — recording decision and continuing past 4B.5"
+  jq --arg fid "$FEATURE_ID" --arg t "LOW-or-override" --arg r "should_dispatch_deep_review returned skip" \
+    '.reviews[$fid] = {deepReview: {tier: $t, decision: "skip", rationale: $r, automated: true}}' \
+    "$JSON_PATH" > "$JSON_PATH.tmp" && mv "$JSON_PATH.tmp" "$JSON_PATH"
+  rm -f "$REPO_ROOT/.quantum-feature-diff.patch"
+  # proceed to Step 4C
+fi
+rm -f "$REPO_ROOT/.quantum-feature-diff.patch"
+
 # 1. Compute risk score + tier from feature diff + intent-drift signal
 SCORE=$(bash "$REPO_ROOT/lib/deep-review.sh" score-from-quantum "$JSON_PATH" "$BASE_SHA" "HEAD")
 TIER=$(bash  "$REPO_ROOT/lib/deep-review.sh" tier "$SCORE")
