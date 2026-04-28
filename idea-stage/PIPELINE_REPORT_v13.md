@@ -14,7 +14,7 @@ v0.7.2 closes the IDEA_REPORT_v12 v0.7.2 slate (N24 auto-respawn + G22 second ca
 
 | # | ID | Title | Outcome |
 |:-:|---|---|:-:|
-| 1 | US-001 | N24 — `wrap_orchestrator_dispatch` QL_RESPAWN_CMD auto-respawn (lib + 2 tests) | first-attempt PASS (22/22 = 18 baseline + 4 N24) |
+| 1 | US-001 | N24 — `wrap_orchestrator_dispatch` QL_RESPAWN_CMD auto-respawn (lib + 2 tests) | first-attempt PASS + soliton inline (24/24 = 18 baseline + 6 N24+soliton) |
 | 2 | US-002 | G22 second calibration pass — `references/severity-rubric-calibration-v0.7.2.md` + CLAUDE.md ref | first-attempt PASS |
 | 3 | US-003 | Retrospective + IDEA_REPORT_v13 + version bump 0.7.1 → 0.7.2 | this report |
 
@@ -38,9 +38,9 @@ All-stages aggregate (via `bash references/severity-rubric-calibration-parse.sh`
 
 | Test file | v0.7.1 | v0.7.2 | delta |
 |---|---:|---:|---:|
-| tests/test_orchestrator_liveness.sh | 18 | 22 | +4 (Tests 8+9 N24) |
+| tests/test_orchestrator_liveness.sh | 18 | 24 | +6 (Tests 8+9+10 N24 + soliton wall-clock+rc-propagation) |
 | Other | unchanged | unchanged | 0 |
-| **Total v0.7.2 added:** | | | **+4** |
+| **Total v0.7.2 added:** | | | **+6** |
 
 Full audit: `bash quantum-loop.sh --audit` → 6/7 OK, 1 FAIL (branches-remote environmental artifact, unchanged from v0.7.1).
 

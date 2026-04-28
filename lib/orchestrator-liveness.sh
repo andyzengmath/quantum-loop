@@ -100,7 +100,11 @@ wrap_orchestrator_dispatch() {
   if [[ -n "${QL_RESPAWN_CMD:-}" ]]; then
     printf "[QL-EXECUTE] orchestrator-stale — respawning via QL_RESPAWN_CMD\n" >&2
     bash -c "${QL_RESPAWN_CMD}"
-    return $?
+    local respawn_rc=$?
+    if [[ "$respawn_rc" -ne 0 ]]; then
+      printf "[QL-EXECUTE] QL_RESPAWN_CMD exited %d — respawn may have failed\n" "$respawn_rc" >&2
+    fi
+    return $respawn_rc
   fi
 
   cat <<'HANDOFF'

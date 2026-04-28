@@ -13,14 +13,14 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 
 2 user-facing changes closing the IDEA_REPORT_v12 v0.7.2 slate (N24, G22-second-pass) + 1 retrospective. **Eighth multi-cycle populated-CSV run** — ledger 21 → 24 rows. Patch-tier; 3-story compact bundle. v0.7.2 diff self-validated: tier=LOW score=10 files=4 sensitive=0 → skip recorded with `automated:true`. **8 consecutive LOW-tier self-validations** (v0.6.5..v0.7.2).
 
-- **N24 — `wrap_orchestrator_dispatch` QL_RESPAWN_CMD auto-respawn** (US-001) — `lib/orchestrator-liveness.sh::wrap_orchestrator_dispatch` gains `QL_RESPAWN_CMD` env-var branch. When non-empty and STALE detected, executes `bash -c "${QL_RESPAWN_CMD}"` and returns its exit code instead of emitting the manual-takeover handoff. When empty/unset, v0.7.1 behavior unchanged (handoff + return 1). Operator sets `QL_RESPAWN_CMD` to a fully-specified orchestrator invocation to enable unattended auto-respawn. Tests 8 + 9 (4 new assertions): Test 8 — `QL_RESPAWN_CMD="echo respawned"` + stale repo → "respawned" in stdout + rc=0; Test 9 — unset + stale → handoff + rc=1 (regression guard). 18 → 22 liveness tests.
+- **N24 — `wrap_orchestrator_dispatch` QL_RESPAWN_CMD auto-respawn** (US-001) — `lib/orchestrator-liveness.sh::wrap_orchestrator_dispatch` gains `QL_RESPAWN_CMD` env-var branch. When non-empty and STALE detected, executes `bash -c "${QL_RESPAWN_CMD}"` and returns its exit code instead of emitting the manual-takeover handoff. When empty/unset, v0.7.1 behavior unchanged (handoff + return 1). Operator sets `QL_RESPAWN_CMD` to a fully-specified orchestrator invocation to enable unattended auto-respawn. Tests 8 + 9 + 10 (6 new assertions, 2 added in post-soliton inline fix): Test 8 — `QL_RESPAWN_CMD="echo respawned"` + stale repo → "respawned" in stdout + rc=0 + wall-clock ≤10s; Test 9 — unset + stale → handoff + rc=1 (regression guard); Test 10 — `QL_RESPAWN_CMD="exit 42"` + stale → rc=42 (exit-code propagation). 18 → 24 liveness tests.
 - **G22 second calibration pass** (US-002) — `references/severity-rubric-calibration-v0.7.2.md` created: updated empirical tables (8-cycle / 57-finding baseline), bundle-tier comparison axis (patch-tier 7 cycles vs minor-tier 1 cycle — v0.7.0). Key finding: patch-tier HIGH=4.1% vs minor-tier HIGH=12.5% — directionally confirms v0.7.0 first-pass hypothesis that HIGH under-classification was patch-tier-skew driven, not rubric miscalibration. MEDIUM stable across tiers (~25%). `CLAUDE.md` Process references updated from v0.7.0 to v0.7.2 calibration doc.
 
 ### Test-suite delta
 
 **+4 new assertions** in 1 extended test file:
 
-- 1 extended: `test_orchestrator_liveness.sh` 18 → 22 (+4 N24 Tests 8 + 9)
+- 1 extended: `test_orchestrator_liveness.sh` 18 → 24 (+6 N24 Tests 8+9+10 + soliton wall-clock fix)
 
 ### Dogfood milestone (v0.7.2)
 
