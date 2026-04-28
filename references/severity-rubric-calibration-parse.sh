@@ -38,12 +38,17 @@ emit_stage_table() {
   printf '\n'
 
   # Aggregate totals row.
+  # N21 / US-004 (v0.7.1) — track row count and suppress the **Aggregate**
+  # line when no rows matched the stage. Soliton-pr-review caught at
+  # confidence 75 on PR #71 (v0.7.0 sub-threshold; v0.7.1 carry-over).
   awk -F',' -v stage="$stage" '
     NR == 1 { next }
     $2 == stage {
       total += $4; crit += $5; high += $6; med += $7; low += $8
+      rows++
     }
     END {
+      if (rows == 0) exit
       printf "**Aggregate**: total=%d critical=%d high=%d medium=%d low=%d\n\n", total, crit, high, med, low
     }
   ' "$CSV"
