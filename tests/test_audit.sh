@@ -738,15 +738,46 @@ fi
 # (function-body). Both ranges are concatenated for the regex check.
 
 # extract_function_comments <function_name>
-# Echoes all comment lines (^[[:space:]]*#) in the function-header block AND
-# the function-body. function-header = the contiguous comment block immediately
-# preceding `function_name() {`. function-body = everything from that line until
-# the first column-1 closing brace.
+# Echoes the function-header comment block (^[[:space:]]*#) — the contiguous
+# comment lines immediately preceding `function_name() {`.
+#
+# N8 / US-003 (v0.6.8): HEADER RANGE ONLY. Body comments are out of scope per
+# G34 design intent ("trim PR-metadata bloat from quantum-loop.sh function-
+# header comments"). Pre-N8 this awk also emitted body comments, which caused
+# Test 37a to false-positive on c47e038's body comment containing "confidence
+# 95" — fixed inline in v0.6.7 US-001 but the over-broad awk remained. v0.6.8
+# narrows the awk to match G34's stated scope so a future post-merge fix that
+# legitimately needs a soliton-style comment in a function BODY does not trip
+# this audit.
 extract_function_comments() {
   local fn="$1"
   awk -v fn="$fn" '
     /^'"$fn"'\(\) \{/ {
-      # Emit accumulated header buffer, then start tracking body.
+      # Function definition reached. Emit accumulated header buffer, exit.
+      for (i=1; i<=hbuf_n; i++) print hbuf[i]
+      exit
+    }
+    /^[[:space:]]*#/ {
+      # Buffer header comment (cleared on blank line, flushed on fn-def).
+      hbuf_n++
+      hbuf[hbuf_n] = $0
+      next
+    }
+    /^[[:space:]]*$/ { hbuf_n=0 }
+    { hbuf_n=0 }
+  ' "$REPO_ROOT/quantum-loop.sh"
+}
+
+# extract_function_full_comments <function_name>
+# Echoes ALL comment lines in the function-header block AND the function-body.
+# Used by the WHY-phrase audit (Tests 36b/37b) — G34 trimmed function-headers
+# heavily, so the WHY explanation often legitimately lives in body comments.
+# Body-comment scanning is preserved for that audit only; the bloat audit
+# (Tests 36a/37a) uses extract_function_comments (header-only) per N8.
+extract_function_full_comments() {
+  local fn="$1"
+  awk -v fn="$fn" '
+    /^'"$fn"'\(\) \{/ {
       for (i=1; i<=hbuf_n; i++) print hbuf[i]
       in_body=1
       hbuf_n=0
@@ -755,7 +786,6 @@ extract_function_comments() {
     in_body && /^\}/ { in_body=0; next }
     in_body && /^[[:space:]]*#/ { print }
     /^[[:space:]]*#/ {
-      # Buffer header comment (cleared on blank line, flushed on fn-def).
       hbuf_n++
       hbuf[hbuf_n] = $0
       next
@@ -778,9 +808,14 @@ fi
 
 echo ""
 echo "Test 36b: _audit_format_row comments retain explanatory WHY (G34)"
+# N8 / US-003 (v0.6.8): WHY-phrase check uses full (header + body) range —
+# G34 trimmed function-headers heavily, so WHY often legitimately lives
+# in body comments. Test 36a (bloat) stays header-only per G34's stated
+# scope; Test 36b (WHY-presence) widens to body for accurate signal.
+fmt_comments_full=$(extract_function_full_comments '_audit_format_row')
 TOTAL=$((TOTAL + 1))
-if printf '%s' "$fmt_comments" | grep -qE '(because|why|so that|the WHY)'; then
-  echo "  PASS: _audit_format_row comments retain >=1 WHY phrase"; PASS=$((PASS + 1))
+if printf '%s' "$fmt_comments_full" | grep -qE '(because|why|so that|the WHY)'; then
+  echo "  PASS: _audit_format_row comments retain >=1 WHY phrase (header+body)"; PASS=$((PASS + 1))
 else
   echo "  FAIL: _audit_format_row comments have no WHY phrase (over-trim)"; FAIL=$((FAIL + 1))
 fi
@@ -798,9 +833,12 @@ fi
 
 echo ""
 echo "Test 37b: do_audit comments retain explanatory WHY (G34)"
+# N8 / US-003 (v0.6.8): same scope-widening as Test 36b — WHY-check uses
+# full (header + body) range; bloat-check (Test 37a) stays header-only.
+do_comments_full=$(extract_function_full_comments 'do_audit')
 TOTAL=$((TOTAL + 1))
-if printf '%s' "$do_comments" | grep -qE '(because|why|so that|the WHY)'; then
-  echo "  PASS: do_audit comments retain >=1 WHY phrase"; PASS=$((PASS + 1))
+if printf '%s' "$do_comments_full" | grep -qE '(because|why|so that|the WHY)'; then
+  echo "  PASS: do_audit comments retain >=1 WHY phrase (header+body)"; PASS=$((PASS + 1))
 else
   echo "  FAIL: do_audit comments have no WHY phrase (over-trim)"; FAIL=$((FAIL + 1))
 fi
