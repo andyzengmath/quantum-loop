@@ -1083,6 +1083,45 @@ FIRST_FILES_LEN=$(json_first_files_len "$RESULT")
 assert_eq "Python @dataclass duplicate has 2 files" "2" "$FIRST_FILES_LEN"
 
 # =========================================================================
+# US-004 (v0.7.4) — concurrent worktree-style divergence edge case.
+# Simulates 2 parallel-worktree implementer agents editing a shared lib
+# file with conflicting type signatures. The 5-layer worktree-isolation
+# architecture (memory: project_worktree_isolation) calls grep_duplicate_definitions
+# at wave-end to surface this kind of conflict before merge. We mirror
+# the in-tree fixture pattern from Test 1 but explicitly label the files
+# wt1/ and wt2/ to encode the worktree intent.
+echo ""
+echo "=== Test US-004: worktree-style shared-lib type divergence ==="
+WT_DIR=$(mktemp -d)
+mkdir -p "$WT_DIR/wt1" "$WT_DIR/wt2"
+cat > "$WT_DIR/wt1/handoff.ts" <<'EOF'
+export interface HandoffEnvelope {
+  decided: string[];
+  rejected: string[];
+}
+EOF
+cat > "$WT_DIR/wt2/handoff.ts" <<'EOF'
+export interface HandoffEnvelope {
+  decided: string[];
+  rejected: string[];
+  risks: string[];
+  remaining: string[];
+}
+EOF
+
+WT_RESULT=$(grep_duplicate_definitions "$WT_DIR" "$WT_DIR/wt1/handoff.ts $WT_DIR/wt2/handoff.ts")
+WT_LEN=$(json_array_len "$WT_RESULT")
+assert_eq "worktree divergence: HandoffEnvelope detected as duplicate" "1" "$WT_LEN"
+
+WT_NAME=$(json_first_name "$WT_RESULT")
+assert_eq "worktree divergence: duplicate name is HandoffEnvelope" "HandoffEnvelope" "$WT_NAME"
+
+WT_FILES_LEN=$(json_first_files_len "$WT_RESULT")
+assert_eq "worktree divergence: 2 worktree files surfaced" "2" "$WT_FILES_LEN"
+
+rm -rf "$WT_DIR"
+
+# =========================================================================
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 if [[ $FAIL -eq 0 ]]; then
