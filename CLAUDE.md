@@ -251,6 +251,11 @@ designing the next cycle's slate.
   platform-conditional baseline table (Git Bash vs Linux/CI) for each
   test-suite command. Reference these instead of absolute test-time
   targets in PRD ACs.
+- [`references/orchestrator-takeover.md`](references/orchestrator-takeover.md):
+  manual-takeover SOP for parent agents detecting orchestrator drift
+  mid-cycle. Pairs with `lib/orchestrator-liveness.sh::poll_orchestrator_commits`
+  (the runtime stale-detection helper). Worked example: v0.6.7 Pattern C
+  → Pattern A verification-failure-driven amendment.
 
 ## Signal Reference
 
