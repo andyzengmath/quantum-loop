@@ -160,6 +160,60 @@ assert_grep "empty-diff logs score=0 (no spurious cg inflation)" 'score=0' "$out
 
 rm -rf "$TMP"
 
+# ----- 6. N1 / US-004 (v0.6.7): orchestrator.md Step 4B.5 wires the gate -----
+# Structural assertion: agents/orchestrator.md Step 4B.5 must contain BOTH
+# the `if ! ` invocation of should_dispatch_deep_review AND a standalone
+# `else` line, AND `score-from-quantum` (the first live-pipeline step)
+# must live BETWEEN the `else` and the closing `fi`. Pre-N1, the dispatch
+# pipeline ran unconditionally because there was no `else` containing it.
+echo ""
+echo "Test 6: orchestrator.md Step 4B.5 wires should_dispatch_deep_review with else-branch containment"
+ORCH="$REPO_ROOT/agents/orchestrator.md"
+# Extract the Step 4B.5 region: from the bash code-fence after the
+# "### 4B.5: Deep-review aggregation" header through the closing fence.
+step_4b5=$(awk '
+  /^### 4B\.5: Deep-review aggregation/ {found=1}
+  found && /^```bash/ {inblock=1; next}
+  found && inblock && /^```/ {inblock=0; exit}
+  found && inblock {print}
+' "$ORCH")
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$step_4b5" | grep -qE '^if ! .*should_dispatch_deep_review'; then
+  echo "  PASS: Step 4B.5 contains 'if ! ...should_dispatch_deep_review' gate invocation"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: Step 4B.5 missing 'if ! ...should_dispatch_deep_review'"
+  FAIL=$((FAIL + 1))
+fi
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$step_4b5" | grep -qE '^else$'; then
+  echo "  PASS: Step 4B.5 contains standalone 'else' line"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: Step 4B.5 missing 'else' branch (gate is informational, not load-bearing)"
+  FAIL=$((FAIL + 1))
+fi
+TOTAL=$((TOTAL + 1))
+# Use awk to confirm score-from-quantum line index is BETWEEN `else` and closing `fi` line index.
+contained=$(printf '%s' "$step_4b5" | awk '
+  /^else$/ {else_idx=NR}
+  /score-from-quantum/ {score_idx=NR}
+  /^fi$/ {fi_idx=NR}
+  END {
+    if (else_idx > 0 && score_idx > else_idx && (fi_idx == 0 || score_idx < fi_idx))
+      print "yes"
+    else
+      print "no"
+  }
+')
+if [[ "$contained" == "yes" ]]; then
+  echo "  PASS: score-from-quantum lives inside else-branch (between else and fi)"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: score-from-quantum is NOT contained in the else-branch"
+  FAIL=$((FAIL + 1))
+fi
+
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 [[ $FAIL -eq 0 ]] || exit 1
