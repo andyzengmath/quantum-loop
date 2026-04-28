@@ -39,3 +39,4 @@ desktop.ini
 *~
 .omc/state/
 .omc/project-memory.json
+.omc/*.tmp.*
