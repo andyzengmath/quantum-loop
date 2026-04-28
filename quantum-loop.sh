@@ -425,6 +425,13 @@ do_audit() {
   ROWS+=("$(_audit_cpc_files)")
   ROWS+=("$(_audit_test_suites)")
   ROWS+=("$(_audit_pre_impl_review_coverage)")
+  # G33 / US-002 (v0.6.6): test-only injection hook. Replaces the helper-driven
+  # ROWS array with synthetic newline-delimited rows so tests can exercise the
+  # split-summary arithmetic + exit-semantics against the REAL do_audit (not a
+  # private re-implementation). Gated on QL_AUDIT_TEST_MODE=1 for production safety.
+  if [[ -n "${QL_AUDIT_TEST_ROWS:-}" && "${QL_AUDIT_TEST_MODE:-0}" == "1" ]]; then
+    IFS=$'\n' read -d '' -ra ROWS <<< "$QL_AUDIT_TEST_ROWS" || true
+  fi
   local any_fail=0 ok_count=0 warn_count=0 fail_count=0 total=0
   local row
   for row in "${ROWS[@]}"; do
@@ -444,7 +451,15 @@ do_audit() {
 # sourcing this file returns here so unit tests can reach the audit
 # helpers defined above without triggering the main arg-loop or any
 # state-mutating code below.
-[[ "${QL_AUDIT_TEST_MODE:-0}" == "1" ]] && return 0 2>/dev/null
+# G33 / US-002 (v0.6.6): require $#==0 so subprocess `bash quantum-loop.sh
+# --audit` with QL_AUDIT_TEST_MODE=1 + QL_AUDIT_TEST_ROWS set still reaches
+# the --audit branch below. Sourcing always passes 0 args (verified across
+# all current test_*.sh files), so this is backward-compatible.
+#
+# Companion test-only env var: QL_AUDIT_TEST_ROWS (read by do_audit above).
+# Newline-delimited synthetic ROWS for fixture testing. Honored only when
+# QL_AUDIT_TEST_MODE=1; ignored in production. See do_audit body.
+[[ "${QL_AUDIT_TEST_MODE:-0}" == "1" && "$#" -eq 0 ]] && return 0 2>/dev/null
 
 # Pre-arg-loop audit shortcut: --audit is exclusive and takes no other args.
 # Must run BEFORE the normal arg-parsing loop so any stray sibling flag

@@ -660,41 +660,26 @@ else
 fi
 rm -rf "$TMP"
 
-# --- v0.6.5 / G26 / US-001: split-summary tests ---------------------------
-
-# Test 34: 3-row all-OK fixture → "Summary: 3/3 OK, 0 WARN, 0 FAIL." + exit 0
+# --- v0.6.5 / G26 / US-001 + v0.6.6 / G33 / US-002: split-summary tests ---
+# v0.6.6 / G33: Tests 34 + 35 now invoke real do_audit via subprocess
+# (`bash quantum-loop.sh --audit`) with QL_AUDIT_TEST_MODE=1 + QL_AUDIT_TEST_ROWS
+# set, instead of inlining a do_audit re-implementation. A future regression
+# in do_audit's case-pattern switch is now caught by these tests too.
 #
 # Subshell exit-code capture pattern (see CLAUDE.md "Platform Notes"): under
-# `set -euo pipefail` (inherited via `source quantum-loop.sh` at the top of
-# this file), `out=$(... exit "$any_fail")` would terminate the test script
-# whenever any_fail=1 — so we use the two-invocation idiom: one captures
-# stdout with `|| true` (no errexit trip), one captures the exit code via
-# explicit `; echo $?`.
+# `set -uo pipefail`, `out=$(bash ...)` returning non-zero does NOT abort the
+# test script (no `-e`), but capturing both stdout AND exit code requires the
+# two-invocation idiom: one captures stdout with `|| true`, one captures the
+# exit code via explicit `; echo $?`.
+
+QL_SH="$REPO_ROOT/quantum-loop.sh"
+
+# Test 34: 3-row all-OK fixture → "Summary: 3/3 OK, 0 WARN, 0 FAIL." + exit 0
 echo ""
-echo "Test 34: split summary all-OK fixture (G26)"
-mock_rows=(
-  'foo|1|0|OK|'
-  'bar|2|0|OK|'
-  'baz|3|0|OK|'
-)
-_t34_run() {
-  local -a ROWS=("${mock_rows[@]}")
-  local any_fail=0 ok_count=0 warn_count=0 fail_count=0 total=0 row
-  printf "=== Quantum-loop audit ===\n"
-  for row in "${ROWS[@]}"; do
-    _audit_format_row "$row"
-    total=$((total + 1))
-    case "$row" in
-      *"|FAIL|"*) any_fail=1; fail_count=$((fail_count + 1)) ;;
-      *"|WARN|"*) warn_count=$((warn_count + 1)) ;;
-      *"|OK|"*)   ok_count=$((ok_count + 1)) ;;
-    esac
-  done
-  printf "\nSummary: %d/%d OK, %d WARN, %d FAIL.\n" "$ok_count" "$total" "$warn_count" "$fail_count"
-  return "$any_fail"
-}
-out=$(_t34_run 2>&1 || true)
-rc=$(_t34_run >/dev/null 2>&1 ; echo $?)
+echo "Test 34: split summary all-OK fixture (G26 + G33 real-do_audit)"
+t34_rows=$(printf 'foo|1|0|OK|\nbar|2|0|OK|\nbaz|3|0|OK|')
+out=$(QL_AUDIT_TEST_MODE=1 QL_AUDIT_TEST_ROWS="$t34_rows" bash "$QL_SH" --audit 2>&1 || true)
+rc=$(QL_AUDIT_TEST_MODE=1 QL_AUDIT_TEST_ROWS="$t34_rows" bash "$QL_SH" --audit >/dev/null 2>&1 ; echo $?)
 TOTAL=$((TOTAL + 1))
 if [[ "$rc" -eq 0 ]] && printf '%s' "$out" | grep -q 'Summary: 3/3 OK, 0 WARN, 0 FAIL\.'; then
   echo "  PASS: 3-OK fixture → 'Summary: 3/3 OK, 0 WARN, 0 FAIL.' exit 0"; PASS=$((PASS + 1))
@@ -704,34 +689,11 @@ else
 fi
 
 # Test 35: mixed 1-OK / 1-WARN / 1-FAIL fixture → exit 1 + "1/3 OK, 1 WARN, 1 FAIL."
-# Same subshell-exit-code idiom as Test 34. This test isolates the summary
-# arithmetic + exit semantics; the live do_audit path is exercised via Test
-# 33 (full-flow with 7 helpers).
 echo ""
-echo "Test 35: split summary mixed-3-state fixture (G26)"
-mock_rows=(
-  'foo|1|0|OK|'
-  'bar|2|0|WARN|partial-coverage'
-  'baz|3|0|FAIL|broken'
-)
-_t35_run() {
-  local -a ROWS=("${mock_rows[@]}")
-  local any_fail=0 ok_count=0 warn_count=0 fail_count=0 total=0 row
-  printf "=== Quantum-loop audit ===\n"
-  for row in "${ROWS[@]}"; do
-    _audit_format_row "$row"
-    total=$((total + 1))
-    case "$row" in
-      *"|FAIL|"*) any_fail=1; fail_count=$((fail_count + 1)) ;;
-      *"|WARN|"*) warn_count=$((warn_count + 1)) ;;
-      *"|OK|"*)   ok_count=$((ok_count + 1)) ;;
-    esac
-  done
-  printf "\nSummary: %d/%d OK, %d WARN, %d FAIL.\n" "$ok_count" "$total" "$warn_count" "$fail_count"
-  return "$any_fail"
-}
-out=$(_t35_run 2>&1 || true)
-rc=$(_t35_run >/dev/null 2>&1 ; echo $?)
+echo "Test 35: split summary mixed-3-state fixture (G26 + G33 real-do_audit)"
+t35_rows=$(printf 'foo|1|0|OK|\nbar|2|0|WARN|partial-coverage\nbaz|3|0|FAIL|broken')
+out=$(QL_AUDIT_TEST_MODE=1 QL_AUDIT_TEST_ROWS="$t35_rows" bash "$QL_SH" --audit 2>&1 || true)
+rc=$(QL_AUDIT_TEST_MODE=1 QL_AUDIT_TEST_ROWS="$t35_rows" bash "$QL_SH" --audit >/dev/null 2>&1 ; echo $?)
 TOTAL=$((TOTAL + 1))
 if [[ "$rc" -eq 1 ]] && printf '%s' "$out" | grep -q 'Summary: 1/3 OK, 1 WARN, 1 FAIL\.'; then
   echo "  PASS: mixed-3-state → 'Summary: 1/3 OK, 1 WARN, 1 FAIL.' exit 1"; PASS=$((PASS + 1))
