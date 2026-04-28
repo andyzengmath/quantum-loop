@@ -75,6 +75,12 @@ Severity distribution: **0 critical / 3 high / 13 medium / 33 low (0.0% / 6.1% /
 **Severity:** LOW (test coverage gap; not a bug).
 **Path:** v0.7.x candidate. Either (a) seed a future cycle's diff with a fixture that introduces non-zero sensitive_hits (e.g., a doc edit at `references/auth/...`), OR (b) add a `--force-dispatch` test fixture to `tests/test_deep_review_dispatch.sh` that exercises the full reviewer-dispatch chain. Option (b) is cleaner test coverage; option (a) is real-world signal. 0.5 stories for either.
 
+### N21 — `severity-rubric-calibration-parse.sh` aggregate prints zero-row "total=0" line
+**Surfaced:** `/soliton:pr-review` correctness agent on PR #71 (confidence 75 — sub-threshold of 85; queued).
+**Symptom:** the per-stage aggregate awk program in `references/severity-rubric-calibration-parse.sh` (lines 41-49) unconditionally executes its END block regardless of whether any rows matched `stage`. For a freshly-seeded CSV with only `design` rows, calling `emit_stage_table prd` would print `**Aggregate**: total=0 critical=0 high=0 medium=0 low=0` — misleading (suggests a stage was measured with zero findings rather than that no data exists for that stage yet).
+**Severity:** LOW (presentation polish; current CSV has data for all 3 stages so the misleading output doesn't manifest today).
+**Path:** v0.7.1 candidate. Add a `rows` counter and suppress the aggregate line when `rows == 0`. 0.05 stories.
+
 ### N20 — N14 SKILL wrapping isn't auto-tested at runtime
 **Surfaced:** v0.7.0 US-002 shipped with PRESENCE-ONLY AC (matches v0.6.8 N6 pattern). The wrapping prose IS in skills/ql-execute/SKILL.md, but no test EXERCISES the env-var conditional or the handoff message structure inside the SKILL.
 **Severity:** LOW (test coverage gap).

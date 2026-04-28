@@ -135,10 +135,16 @@ elapsed=$((t1 - t0))
 
 assert "interval_sec=0 guard exit code = 1" "1" "$rc"
 TOTAL=$((TOTAL + 1))
-if (( elapsed <= 2 )); then
-  echo "  PASS: guard returns within 2s (no infinite-loop hazard)"; PASS=$((PASS + 1))
+# Soliton-pr-review caught at confidence 82 (v0.7.0 PR #71): the previous 2s
+# ceiling was too tight for two `bash -c "source ..."` subprocess launches
+# on Git Bash / Windows (each can take 0.5-1.5s startup). Raised to 6s to
+# match the proportional generosity used in Test 2 (12s ceiling for two
+# invocations of a 2s poll). The guard itself returns in microseconds; the
+# ceiling measures subprocess launch overhead, not the function logic.
+if (( elapsed <= 6 )); then
+  echo "  PASS: guard returns within 6s (no infinite-loop hazard; subprocess-launch headroom)"; PASS=$((PASS + 1))
 else
-  echo "  FAIL: guard took ${elapsed}s (expected <2s)"; FAIL=$((FAIL + 1))
+  echo "  FAIL: guard took ${elapsed}s (expected <6s)"; FAIL=$((FAIL + 1))
 fi
 TOTAL=$((TOTAL + 1))
 if printf '%s' "$out" | grep -qE '^\[LIVENESS\] ERROR: interval_sec must be > 0'; then
