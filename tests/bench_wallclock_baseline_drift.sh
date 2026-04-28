@@ -50,7 +50,13 @@ for cmd in "${!BASELINES[@]}"; do
   # Run with `time` and parse the real wall-clock from stderr.
   # `time` output format on bash: 3 lines (real / user / sys). On Git Bash,
   # `real` is in `0m1.234s` form. Convert to integer seconds.
-  measured_raw=$( { time eval "(cd '$REPO_ROOT' && $cmd)" >/dev/null 2>&1 ; } 2>&1 | grep '^real' | awk '{print $2}')
+  # N17 / US-005 (v0.7.0) — printf %q safely quotes REPO_ROOT against single
+  # quotes. v0.6.9 PR #70 soliton conf-65 carry-over: pre-N17 the literal
+  # `cd '$REPO_ROOT'` form would syntax-error if REPO_ROOT contained a single
+  # quote (e.g. /home/user/andy's-repos/). Current paths are quote-free; this
+  # change is defensive against future relocations.
+  safe_cmd=$(printf '(cd %q && %s)' "$REPO_ROOT" "$cmd")
+  measured_raw=$( { time eval "$safe_cmd" >/dev/null 2>&1 ; } 2>&1 | grep '^real' | awk '{print $2}')
   # Parse 0m12.345s → 12 (integer seconds; round down).
   if [[ "$measured_raw" =~ ^([0-9]+)m([0-9]+)\.([0-9]+)s ]]; then
     minutes="${BASH_REMATCH[1]}"
