@@ -1414,8 +1414,6 @@ if ! bash -c "source '$REPO_ROOT/lib/deep-review.sh' && should_dispatch_deep_rev
   rm -f "$REPO_ROOT/.quantum-feature-diff.patch"
   # proceed to Step 4C
 else
-  rm -f "$REPO_ROOT/.quantum-feature-diff.patch"
-
   # 1. Compute risk score + tier from feature diff + intent-drift signal
   SCORE=$(bash "$REPO_ROOT/lib/deep-review.sh" score-from-quantum "$JSON_PATH" "$BASE_SHA" "HEAD")
   TIER=$(bash  "$REPO_ROOT/lib/deep-review.sh" tier "$SCORE")
@@ -1448,6 +1446,16 @@ else
     APPROVE_WITH_COMMENTS) echo "[DEEP-REVIEW] comments logged to codebasePatterns" >&2 ;;
     APPROVE)               echo "[DEEP-REVIEW] clean" >&2 ;;
   esac
+
+  # N11 / US-006 (v0.6.8): cleanup-at-end-of-branch. When verdict=BLOCKS_MERGE
+  # the case above `exit 1`s and skips this rm — the patch file remains for
+  # forensic inspection by the operator triaging the blocked merge. Other
+  # verdicts (REQUEST_CHANGES / APPROVE_WITH_COMMENTS / APPROVE) fall through
+  # the case and reach this cleanup. Pre-N11 the cleanup ran at the START of
+  # the else-branch, deleting the patch before steps 1-7 ran — operators lost
+  # the ability to inspect the patch when a step (jq error, missing dep, etc.)
+  # failed mid-pipeline.
+  rm -f "$REPO_ROOT/.quantum-feature-diff.patch"
 fi
 ```
 
