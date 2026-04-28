@@ -7,6 +7,25 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.7.9] - 2026-04-28
+
+### Added
+
+3 stories closing 6 issues from external code review of `lib/multi-runner-manifest.sh` (v0.7.4 N5 shipment). Patch-tier; **operator-driven reactive** (not autonomous loop). Loop-stop signal in IDEA_REPORT_v19 stands for autonomous track. **Tenth multi-cycle populated-CSV run** — ledger 27 → 30 rows. v0.7.9 self-validated: tier=LOW score=5 files=2 sensitive=0 → skip with `automated:true`. **14 consecutive LOW-tier self-validations** (v0.6.5..v0.7.9).
+
+- **US-001 — multi-runner-manifest hardening (Issues 1-4 + 6)** — `lib/multi-runner-manifest.sh` 5 fixes: (1) yq backend distinguishes empty-success from parse-failure (empty/null output emits "is empty or has no top-level structure"); (2) python backend captures stderr to a tmpfile separately from stdout, preventing JSON contamination by DeprecationWarnings or other diagnostic output; (3) shell parser strips leading whitespace before pattern matching, accepting tab-indented and arbitrary-space-indented manifests; (4) shell parser rtrims trailing whitespace from each field value via new `_rtrim` helper; (6) `validate_manifest` distinguishes jq exit codes (rc=1 → missing-runners-or-wrong-type; rc≥2 → "malformed JSON input").
+- **US-002 — backend-selection tests (Issue 5)** — `lib/multi-runner-manifest.sh` adds 3 test-only env-var hooks: `MR_DISABLE_YQ=1` skips yq even if installed; `MR_DISABLE_PYTHON=1` skips python+yaml; `MR_DEBUG=1` emits `[manifest] backend: <name>` to stderr per parse. `tests/test_multi_runner_manifest.sh` adds Tests 7-10: Test 7 (yq backend, skips if yq not installed), Test 8 (python backend with `MR_DISABLE_YQ`, skips if no python+yaml), Test 9 (shell backend with both disable flags), Test 10 (tab-indented + trailing-whitespace fixture forced through shell backend, verifies Issues 3+4 end-to-end). 6 → 14 multi-runner-manifest test assertions.
+
+### Test-suite delta
+
+**+8 new assertions** in 1 extended test file:
+
+- 1 extended: `test_multi_runner_manifest.sh` 6 assertions → 14 (+8 from Tests 7-10 + +1 from Test 10's trim assertion)
+
+### Dogfood milestone (v0.7.9)
+
+**3/3 user-facing stories shipped first-attempt PASS** under manual takeover (12th consecutive cycle if counting autonomous runs in between). 0 retries. **Multi-cycle CSV milestone**: 27 → 30 rows. **G30 self-validation** (14th consecutive correct LOW classification): tier=LOW score=5 files=2 sensitive=0 → skip; recorded with `automated:true`. **Operator-driven reactive distinction**: this cycle does NOT contradict IDEA_REPORT_v19's "stop the patch-tier loop" recommendation — that signal targets autonomous loop-discovered patches. External code review by the operator is materially different and is allowed to surface follow-up patch work. Full retrospective: `idea-stage/PIPELINE_REPORT_v20.md`. v0.9.0+ backlog: `idea-stage/IDEA_REPORT_v20.md`.
+
 ## [0.7.8] - 2026-04-28
 
 ### Added
