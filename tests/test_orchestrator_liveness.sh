@@ -209,6 +209,40 @@ else
 fi
 rm -rf "$TMP7"
 
+# Test 8: N24 / US-001 (v0.7.2) — QL_RESPAWN_CMD set + STALE -> respawn cmd executed, rc=0
+echo ""
+echo "Test 8: wrap_orchestrator_dispatch QL_RESPAWN_CMD set + stale -> respawn executed rc=0 (wall-clock <10s)"
+TMP8=$(mktemp -d)
+( cd "$TMP8" && git init -q && git config user.email "t@t.t" && git config user.name "t" \
+  && echo "init" > README.md && git add README.md && git commit -qm "init" ) >/dev/null 2>&1
+rc8=0
+out8=$(cd "$TMP8" && QL_RESPAWN_CMD="echo respawned" bash -c "source '$LIB' && wrap_orchestrator_dispatch 2 1" 2>&1) || rc8=$?
+assert "Test 8: QL_RESPAWN_CMD respawn rc=0" "0" "$rc8"
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$out8" | grep -q 'respawned'; then
+  echo "  PASS: respawn command output 'respawned' present in stdout"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: 'respawned' not found in stdout — out: $out8"; FAIL=$((FAIL + 1))
+fi
+rm -rf "$TMP8"
+
+# Test 9: N24 / US-001 (v0.7.2) — QL_RESPAWN_CMD unset + STALE -> handoff + rc=1 (v0.7.1 regression guard)
+echo ""
+echo "Test 9: wrap_orchestrator_dispatch QL_RESPAWN_CMD unset + stale -> handoff rc=1 (regression guard)"
+TMP9=$(mktemp -d)
+( cd "$TMP9" && git init -q && git config user.email "t@t.t" && git config user.name "t" \
+  && echo "init" > README.md && git add README.md && git commit -qm "init" ) >/dev/null 2>&1
+rc9=0
+out9=$(cd "$TMP9" && bash -c "source '$LIB' && wrap_orchestrator_dispatch 2 1" 2>&1) || rc9=$?
+assert "Test 9: unset QL_RESPAWN_CMD fallback rc=1" "1" "$rc9"
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$out9" | grep -qE 'orchestrator-stale signal'; then
+  echo "  PASS: handoff message present (v0.7.1 behavior unchanged)"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: handoff message missing — out: $out9"; FAIL=$((FAIL + 1))
+fi
+rm -rf "$TMP9"
+
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 [[ $FAIL -eq 0 ]] || exit 1
