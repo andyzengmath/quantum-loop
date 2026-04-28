@@ -863,5 +863,23 @@ else
 fi
 
 echo ""
+echo "Test 39: N34 / US-001 (v0.7.6) — _audit_untracked_design_prd_docs helper present"
+TOTAL=$((TOTAL + 1))
+if grep -qE '_audit_untracked_design_prd_docs' "$REPO_ROOT/quantum-loop.sh"; then
+  echo "  PASS: _audit_untracked_design_prd_docs helper defined"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: _audit_untracked_design_prd_docs helper not found"; FAIL=$((FAIL + 1))
+fi
+
+echo ""
+echo "Test 39b: untracked-design-prd row invoked from do_audit ROWS array"
+TOTAL=$((TOTAL + 1))
+if grep -E 'ROWS\+=' "$REPO_ROOT/quantum-loop.sh" | grep -q untracked_design_prd_docs; then
+  echo "  PASS: untracked-design-prd invoked from do_audit"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: untracked-design-prd not invoked from do_audit"; FAIL=$((FAIL + 1))
+fi
+
+echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 exit $((FAIL > 0 ? 1 : 0))

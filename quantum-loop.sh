@@ -274,6 +274,23 @@ _audit_cpc_files() {
   fi
 }
 
+# _audit_untracked_design_prd_docs
+# N34 / US-001 (v0.7.6) — warns when docs/plans/*-design.md or tasks/prd-*.md
+# files are untracked. v0.7.4/v0.7.5 cycles repeatedly left these uncommitted
+# until housekeeping caught them. Mirrors _audit_csv_uncommitted pattern.
+_audit_untracked_design_prd_docs() {
+  local untracked
+  untracked=$(git ls-files --others --exclude-standard docs/plans/ tasks/ 2>/dev/null \
+              | grep -E '^(docs/plans/.+-design\.md|tasks/prd-.+\.md)$' || true)
+  if [[ -z "$untracked" ]]; then
+    printf 'untracked-design-prd|0|0|OK|\n'
+  else
+    local n
+    n=$(printf '%s\n' "$untracked" | grep -c .)
+    printf 'untracked-design-prd|%d|0|WARN|%s\n' "$n" "$(printf '%s' "$untracked" | head -1)"
+  fi
+}
+
 # _audit_csv_uncommitted
 # N29 / US-001 (v0.7.5) — warns when metrics/pre-impl-review-findings.csv has
 # uncommitted changes. v0.7.2 + v0.7.3 advisory hooks fired but their CSV
@@ -445,6 +462,7 @@ do_audit() {
   ROWS+=("$(_audit_test_suites)")
   ROWS+=("$(_audit_pre_impl_review_coverage)")
   ROWS+=("$(_audit_csv_uncommitted)")
+  ROWS+=("$(_audit_untracked_design_prd_docs)")
   # Test-only injection hook: replace the helper-driven ROWS with synthetic
   # newline-delimited rows so tests can exercise the split-summary arithmetic
   # + exit-semantics against the real do_audit, not a private re-implementation.
