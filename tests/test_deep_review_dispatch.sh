@@ -323,6 +323,50 @@ fi
 
 rm -rf "$TMP_M"
 
+# Test 9: US-003 (v0.7.4) — bundle-level real-diff sensitive-path fixture
+echo ""
+echo "Test 9: bundle-level diff with auth/ + *.env paths -> tier=MEDIUM, score>=30, MEDIUM dispatch list"
+TMP9=$(mktemp -d)
+( cd "$TMP9" && git init -q && git config user.email "t@t.t" && git config user.name "t" \
+  && echo "init" > README.md && git add README.md && git commit -qm "init" ) >/dev/null 2>&1
+BASE9=$(cd "$TMP9" && git rev-parse HEAD)
+( cd "$TMP9" && mkdir -p auth config payment && \
+  echo 'function login() {}' > auth/login.js && \
+  echo 'API_KEY=secret' > config/.env && \
+  echo 'function pay() {}' > payment/charge.js && \
+  echo 'const token = "abc"' > config/api-token.js && \
+  git add auth/login.js config/.env payment/charge.js config/api-token.js && \
+  git commit -qm "feat: add auth + env + payment + token" ) >/dev/null 2>&1
+HEAD9=$(cd "$TMP9" && git rev-parse HEAD)
+
+# Compute risk score on the bundle-level diff
+score9=$(cd "$TMP9" && bash -c "source '$LIB' && compute_risk_score '$BASE9' '$HEAD9'" 2>/dev/null)
+tier9=$(bash -c "source '$LIB' && tier_of_score '$score9'" 2>/dev/null)
+
+TOTAL=$((TOTAL + 1))
+if [[ "$tier9" == "MEDIUM" || "$tier9" == "HIGH" || "$tier9" == "CRITICAL" ]]; then
+  echo "  PASS: bundle-level sensitive-path diff tier=$tier9 (>=MEDIUM)"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: bundle-level diff tier=$tier9 (expected >=MEDIUM)"; FAIL=$((FAIL + 1))
+fi
+TOTAL=$((TOTAL + 1))
+if (( score9 >= 30 )); then
+  echo "  PASS: score=$score9 (>=30)"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: score=$score9 (expected >=30)"; FAIL=$((FAIL + 1))
+fi
+
+# Verify MEDIUM dispatch list contains expected reviewers
+reviewers9=$(bash -c "source '$LIB' && dispatch_set MEDIUM" 2>/dev/null)
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$reviewers9" | grep -qE 'oh-my-claudecode:security-reviewer|soliton:synthesizer|oh-my-claudecode:code-reviewer'; then
+  echo "  PASS: MEDIUM dispatch list contains canonical reviewers"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: MEDIUM dispatch list missing canonical reviewers — got: $reviewers9"; FAIL=$((FAIL + 1))
+fi
+
+rm -rf "$TMP9"
+
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 [[ $FAIL -eq 0 ]] || exit 1

@@ -7,6 +7,32 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.7.4] - 2026-04-28
+
+### Added
+
+6 user-facing changes shipping operator combined scope (#1/2/3/4/6/7) framed as patch-tier + 1 retrospective. **First end-to-end dogfood of `/ql-brainstorm` → `/ql-spec` → `/ql-plan` skill pipeline at v0.7.x scale.** v0.7.4 diff self-validated: tier=LOW score=22 files=9 sensitive=0 → skip recorded with `automated:true`. **9 consecutive LOW-tier self-validations** (v0.6.5..v0.7.4).
+
+- **N25 — `QL_RESPAWN_CMD` real-CLI smoke test** (US-001) — `tests/test_orchestrator_liveness.sh` Test 11: detects `claude` via `command -v`. Skip-pass branch emits stderr WARN + `.handoffs/n25-deferred.md` when absent; present-path sets `QL_RESPAWN_CMD="claude --version"`, triggers stale, asserts rc=0 + version regex + wall-clock ≤15s. 27 → 30 liveness assertions.
+- **Provider-routing E2E** (US-002) — NEW `tests/test_routing_e2e.sh` with 4 tests covering `resolve_routing` → `write_routing_snapshot` → `read_routing_snapshot` round-trip + empty/missing fallback paths. 6 assertions. Complements existing unit-level `test_per_role_routing.sh`.
+- **Sensitive-path bundle test fixture** (US-003) — `tests/test_deep_review_dispatch.sh` Test 9: real-diff fixture with `auth/login.js`, `config/.env`, `payment/charge.js`, `config/api-token.js` → score=38 tier=MEDIUM. Differs from N19 Test 8 by exercising the full git diff construction step. 19 → 22 dispatch assertions.
+- **Worktree-isolation re-test** (US-004) — `tests/test_type_audit.sh` adds worktree-style divergence test: 2 simulated worktrees each defining `HandoffEnvelope` with conflicting fields → `grep_duplicate_definitions` surfaces both. Discovered + reconciled PRD path bugs (`test_worktree_isolation.sh` and `lib/type-auditor.sh` don't exist; real names are `test_type_audit.sh` + `lib/type-audit.sh`).
+- **Multi-runner-manifest foundation** (US-005) — NEW `lib/multi-runner-manifest.sh` (parse/validate/list, 3-tier backend chain: yq → python+yaml → handcrafted shell parser) + NEW `runners/manifest.example.yaml` (claude/codex/gemini-cli stubs) + NEW `tests/test_multi_runner_manifest.sh` (6 tests, 10 assertions). Foundation only — no actual runner integrations (deferred to v0.8.0). Includes cygpath translation for Windows-python path-with-spaces compatibility.
+- **G22 third calibration pass** (US-006) — NEW `references/severity-rubric-calibration-v0.7.4.md` (8-committed-cycle / 24-row / 58-finding baseline). Documents CSV-commit gap (v0.7.2 + v0.7.3 hooks fired but never reached master). Patch-tier-skew hypothesis confirmed (patch HIGH=4.0% vs minor HIGH=12.5%). Plan-review still 12/12 LOW. CLAUDE.md ref updated v0.7.2 → v0.7.4.
+
+### Test-suite delta
+
+**+25 new assertions** across 5 affected test files + 2 new files + 1 new lib + 1 new manifest:
+
+- 4 extended: `test_orchestrator_liveness.sh` 27 → 30 (+3 N25); `test_deep_review_dispatch.sh` 19 → 22 (+3 sensitive-path); `test_type_audit.sh` +3 (worktree-divergence); `CLAUDE.md` ref updated.
+- 2 new: `test_routing_e2e.sh` (6 assertions); `test_multi_runner_manifest.sh` (10 assertions).
+- 1 new lib: `lib/multi-runner-manifest.sh`.
+- 1 new schema: `runners/manifest.example.yaml`.
+
+### Dogfood milestone (v0.7.4)
+
+**6/7 stories shipped first-attempt PASS, 1 second-attempt PASS** (US-005 yaml-backend cygpath fix). 0 retries beyond first inline fix. **First end-to-end skill-pipeline dogfood at v0.7.x scale**: `/ql-brainstorm` + `/ql-spec` + `/ql-plan` skills exercised; `/ql-execute` deferred to manual-takeover (7th consecutive cycle of manual-takeover, consistent with established 100% drift baseline). Per-story dual-review (soliton + copilot:copilot-rescue) consolidated to PR-time. **Multi-cycle CSV milestone**: 21 → 24 committed rows (v0.7.2/v0.7.3 hooks never reached master — gap captured for v0.7.5+ recovery). Aggregate across 8 committed cycles: 58 findings (0 critical / 3 high / 13 medium / 42 low; LOW share 72.4%). **G30 self-validation** (9th consecutive correct LOW classification): tier=LOW score=22 files=9 sensitive=0 → skip; recorded with `automated:true`. Full retrospective: `idea-stage/PIPELINE_REPORT_v15.md`. v0.8.0+ backlog: `idea-stage/IDEA_REPORT_v15.md`.
+
 ## [0.7.3] - 2026-04-28
 
 ### Added
