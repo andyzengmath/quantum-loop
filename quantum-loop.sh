@@ -131,9 +131,8 @@ _audit_format_row() {
   # Main line: "<name>: <value> (target <target>) <status>"
   # Column widths: name: padded to 18, value+target padded to 30, status right.
   printf "%-18s %s (target %s) %6s\n" "${name}:" "$value" "$target" "$status"
-  # Drill when FAIL or WARN and non-empty drill (v0.6.5 post-merge fix:
-  # G18 added a WARN drill message for missing-csv but the original
-  # FAIL-only gate suppressed it; soliton-pr-review caught at conf 97.)
+  # Drill prints on FAIL OR WARN because both signal something the operator
+  # should see — a FAIL-only gate would silently suppress WARN drill messages.
   if [[ ( "$status" == "FAIL" || "$status" == "WARN" ) && -n "$drill" ]]; then
     printf "                   └─ %s\n" "$drill"
   fi
@@ -403,18 +402,12 @@ _audit_pre_impl_review_coverage() {
 }
 
 # do_audit
-# Driver for --audit. Calls all 7 metric helpers in canonical order, renders
+# Driver for --audit. Calls all metric helpers in canonical order, renders
 # each row via _audit_format_row, returns 0 if all OK or WARN, else 1.
-# v0.7.0 / G17: pre-impl-review-coverage added as 7th row. WARN states do NOT
-# trigger any_fail — only |FAIL| rows do.
-# v0.6.5 / G26 / US-001: summary line splits into OK / WARN / FAIL counters.
-# Walk ROWS[] once, accumulate ok_count/warn_count/fail_count from |OK| /
-# |WARN| / |FAIL| substrings. Summary now reads
-#   "Summary: <ok>/<total> OK, <warn> WARN, <fail> FAIL."
-# (was: "Summary: <ok>/<total> metrics on target.", which silently counted
-# WARN as on-target and so could mislead an operator on a fresh checkout.)
-# Exit-code semantics preserved: return 1 iff any row contains |FAIL|; WARN
-# rows do NOT trip exit.
+# Walk ROWS once and split counters by status because a single combined
+# counter would silently treat WARN as on-target and mislead the operator.
+# WARN does not trip exit — only FAIL rows do, so a partial-coverage state
+# surfaces visibly without breaking CI.
 do_audit() {
   printf "=== Quantum-loop audit ===\n"
   local -a ROWS=()
@@ -425,10 +418,11 @@ do_audit() {
   ROWS+=("$(_audit_cpc_files)")
   ROWS+=("$(_audit_test_suites)")
   ROWS+=("$(_audit_pre_impl_review_coverage)")
-  # G33 / US-002 (v0.6.6): test-only injection hook. Replaces the helper-driven
-  # ROWS array with synthetic newline-delimited rows so tests can exercise the
-  # split-summary arithmetic + exit-semantics against the REAL do_audit (not a
-  # private re-implementation). Gated on QL_AUDIT_TEST_MODE=1 for production safety.
+  # Test-only injection hook: replace the helper-driven ROWS with synthetic
+  # newline-delimited rows so tests can exercise the split-summary arithmetic
+  # + exit-semantics against the real do_audit, not a private re-implementation.
+  # Gated on QL_AUDIT_TEST_MODE=1 because honoring it in production would let
+  # any environment override audit input.
   if [[ -n "${QL_AUDIT_TEST_ROWS:-}" && "${QL_AUDIT_TEST_MODE:-0}" == "1" ]]; then
     IFS=$'\n' read -d '' -ra ROWS <<< "$QL_AUDIT_TEST_ROWS" || true
   fi

@@ -702,6 +702,88 @@ else
   printf '%s\n' "$out" | sed 's/^/    /'
 fi
 
+# --- v0.6.6 / G34 / US-003: comment-meta-strip assertions -----------------
+#
+# Bloated PR-metadata strings (G-numbers, version tags, soliton-confidence
+# scores) belong in git log + CHANGELOG + retrospective docs, not in the code.
+# These tests scope to the comment ranges associated with _audit_format_row
+# and do_audit and assert two properties:
+#   (a) zero matches of the bloat regex (confidence|G[0-9]+|v0.X.Y|soliton)
+#   (b) at least one load-bearing-WHY phrase (because|why|so that|the WHY)
+#
+# The comment ranges are derived programmatically: for each function, walk
+# from the function-definition line backwards to the previous blank line
+# (function-header), and forward through the body until the closing brace
+# (function-body). Both ranges are concatenated for the regex check.
+
+# extract_function_comments <function_name>
+# Echoes all comment lines (^[[:space:]]*#) in the function-header block AND
+# the function-body. function-header = the contiguous comment block immediately
+# preceding `function_name() {`. function-body = everything from that line until
+# the first column-1 closing brace.
+extract_function_comments() {
+  local fn="$1"
+  awk -v fn="$fn" '
+    /^'"$fn"'\(\) \{/ {
+      # Emit accumulated header buffer, then start tracking body.
+      for (i=1; i<=hbuf_n; i++) print hbuf[i]
+      in_body=1
+      hbuf_n=0
+      next
+    }
+    in_body && /^\}/ { in_body=0; next }
+    in_body && /^[[:space:]]*#/ { print }
+    /^[[:space:]]*#/ {
+      # Buffer header comment (cleared on blank line, flushed on fn-def).
+      hbuf_n++
+      hbuf[hbuf_n] = $0
+      next
+    }
+    /^[[:space:]]*$/ { hbuf_n=0 }
+    { hbuf_n=0 }
+  ' "$REPO_ROOT/quantum-loop.sh"
+}
+
+echo ""
+echo "Test 36a: _audit_format_row comments contain no PR-metadata bloat (G34)"
+fmt_comments=$(extract_function_comments '_audit_format_row')
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$fmt_comments" | grep -qE '(confidence|G[0-9]+|v0\.[0-9]+\.[0-9]+|soliton)'; then
+  echo "  FAIL: _audit_format_row comments still contain PR-metadata bloat:"; FAIL=$((FAIL + 1))
+  printf '%s' "$fmt_comments" | grep -E '(confidence|G[0-9]+|v0\.[0-9]+\.[0-9]+|soliton)' | sed 's/^/    /'
+else
+  echo "  PASS: 0 PR-metadata bloat strings in _audit_format_row comments"; PASS=$((PASS + 1))
+fi
+
+echo ""
+echo "Test 36b: _audit_format_row comments retain explanatory WHY (G34)"
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$fmt_comments" | grep -qE '(because|why|so that|the WHY)'; then
+  echo "  PASS: _audit_format_row comments retain >=1 WHY phrase"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: _audit_format_row comments have no WHY phrase (over-trim)"; FAIL=$((FAIL + 1))
+fi
+
+echo ""
+echo "Test 37a: do_audit comments contain no PR-metadata bloat (G34)"
+do_comments=$(extract_function_comments 'do_audit')
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$do_comments" | grep -qE '(confidence|G[0-9]+|v0\.[0-9]+\.[0-9]+|soliton)'; then
+  echo "  FAIL: do_audit comments still contain PR-metadata bloat:"; FAIL=$((FAIL + 1))
+  printf '%s' "$do_comments" | grep -E '(confidence|G[0-9]+|v0\.[0-9]+\.[0-9]+|soliton)' | sed 's/^/    /'
+else
+  echo "  PASS: 0 PR-metadata bloat strings in do_audit comments"; PASS=$((PASS + 1))
+fi
+
+echo ""
+echo "Test 37b: do_audit comments retain explanatory WHY (G34)"
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$do_comments" | grep -qE '(because|why|so that|the WHY)'; then
+  echo "  PASS: do_audit comments retain >=1 WHY phrase"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: do_audit comments have no WHY phrase (over-trim)"; FAIL=$((FAIL + 1))
+fi
+
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 exit $((FAIL > 0 ? 1 : 0))
