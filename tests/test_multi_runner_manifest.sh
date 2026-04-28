@@ -114,6 +114,83 @@ else
   echo "  FAIL: cli-mode JSON malformed or empty — out: $out6"; FAIL=$((FAIL + 1))
 fi
 
+# Test 7: US-002 v0.7.9 — yq backend selected by default (skip if yq not installed)
+echo ""
+echo "Test 7: parse_manifest default env -> backend: yq (skip if yq not installed)"
+if command -v yq >/dev/null 2>&1; then
+  out7=$(MR_DEBUG=1 bash -c "source '$LIB' && parse_manifest '$EXAMPLE'" 2>&1 >/dev/null)
+  TOTAL=$((TOTAL + 1))
+  if printf '%s' "$out7" | grep -q '\[manifest\] backend: yq'; then
+    echo "  PASS: yq backend used by default"; PASS=$((PASS + 1))
+  else
+    echo "  FAIL: yq backend not selected — stderr: $out7"; FAIL=$((FAIL + 1))
+  fi
+else
+  echo "  SKIP: yq not installed"
+fi
+
+# Test 8: US-002 v0.7.9 — MR_DISABLE_YQ -> backend: python (skip if no python+yaml)
+echo ""
+echo "Test 8: MR_DISABLE_YQ=1 -> backend: python (skip if no python3+yaml)"
+if command -v python3 >/dev/null 2>&1 && python3 -c "import yaml" >/dev/null 2>&1; then
+  out8=$(MR_DISABLE_YQ=1 MR_DEBUG=1 bash -c "source '$LIB' && parse_manifest '$EXAMPLE'" 2>&1 >/dev/null)
+  TOTAL=$((TOTAL + 1))
+  if printf '%s' "$out8" | grep -q '\[manifest\] backend: python'; then
+    echo "  PASS: python backend used when yq disabled"; PASS=$((PASS + 1))
+  else
+    echo "  FAIL: python backend not selected — stderr: $out8"; FAIL=$((FAIL + 1))
+  fi
+else
+  echo "  SKIP: python3+yaml not installed"
+fi
+
+# Test 9: US-002 v0.7.9 — MR_DISABLE_YQ + MR_DISABLE_PYTHON -> backend: shell
+echo ""
+echo "Test 9: MR_DISABLE_YQ=1 MR_DISABLE_PYTHON=1 -> backend: shell"
+TMP9=$(mktemp -d)
+cat > "$TMP9/m9.yaml" <<'EOF'
+runners:
+  - name: claude
+    command: claude
+    version_flag: --version
+EOF
+out9=$(MR_DISABLE_YQ=1 MR_DISABLE_PYTHON=1 MR_DEBUG=1 bash -c "source '$LIB' && parse_manifest '$TMP9/m9.yaml'" 2>&1 >/dev/null)
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$out9" | grep -q '\[manifest\] backend: shell'; then
+  echo "  PASS: shell backend used when yq+python disabled"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: shell backend not selected — stderr: $out9"; FAIL=$((FAIL + 1))
+fi
+rm -rf "$TMP9"
+
+# Test 10: US-002 v0.7.9 — tab-indent + trailing-whitespace fixture via shell backend (Issues 3+4)
+echo ""
+echo "Test 10: tab-indented + trailing-whitespace manifest via shell backend -> trimmed JSON"
+TMP10=$(mktemp -d)
+# Use printf to emit tab characters explicitly (heredoc may collapse them on Git Bash)
+{
+  printf 'runners:\n'
+  printf '\t- name: codex   \n'
+  printf '\t\tcommand: codex  \n'
+  printf '\t\tversion_flag: --version\t\n'
+} > "$TMP10/m10.yaml"
+out10=$(MR_DISABLE_YQ=1 MR_DISABLE_PYTHON=1 bash -c "source '$LIB' && parse_manifest '$TMP10/m10.yaml'" 2>/dev/null)
+rc10=$?
+TOTAL=$((TOTAL + 1))
+if (( rc10 == 0 )); then
+  echo "  PASS: tab-indent parsed via shell backend rc=0"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: tab-indent parse failed rc=$rc10 — out: $out10"; FAIL=$((FAIL + 1))
+fi
+TOTAL=$((TOTAL + 1))
+parsed_name=$(printf '%s' "$out10" | jq -r '.runners[0].name // ""' 2>/dev/null)
+if [[ "$parsed_name" == "codex" ]]; then
+  echo "  PASS: trailing-whitespace stripped from name field (got '$parsed_name')"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: name field not trimmed (got '$parsed_name', expected 'codex')"; FAIL=$((FAIL + 1))
+fi
+rm -rf "$TMP10"
+
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 [[ $FAIL -eq 0 ]] || exit 1
