@@ -737,7 +737,7 @@ fi
 # (function-header), and forward through the body until the closing brace
 # (function-body). Both ranges are concatenated for the regex check.
 
-# extract_function_comments <function_name>
+# extract_function_header_comments <function_name>
 # Echoes the function-header comment block (^[[:space:]]*#) — the contiguous
 # comment lines immediately preceding `function_name() {`.
 #
@@ -749,7 +749,7 @@ fi
 # narrows the awk to match G34's stated scope so a future post-merge fix that
 # legitimately needs a soliton-style comment in a function BODY does not trip
 # this audit.
-extract_function_comments() {
+extract_function_header_comments() {
   local fn="$1"
   awk -v fn="$fn" '
     /^'"$fn"'\(\) \{/ {
@@ -768,13 +768,13 @@ extract_function_comments() {
   ' "$REPO_ROOT/quantum-loop.sh"
 }
 
-# extract_function_full_comments <function_name>
+# extract_function_all_comments <function_name>
 # Echoes ALL comment lines in the function-header block AND the function-body.
 # Used by the WHY-phrase audit (Tests 36b/37b) — G34 trimmed function-headers
 # heavily, so the WHY explanation often legitimately lives in body comments.
 # Body-comment scanning is preserved for that audit only; the bloat audit
-# (Tests 36a/37a) uses extract_function_comments (header-only) per N8.
-extract_function_full_comments() {
+# (Tests 36a/37a) uses extract_function_header_comments (header-only) per N8.
+extract_function_all_comments() {
   local fn="$1"
   awk -v fn="$fn" '
     /^'"$fn"'\(\) \{/ {
@@ -797,7 +797,7 @@ extract_function_full_comments() {
 
 echo ""
 echo "Test 36a: _audit_format_row comments contain no PR-metadata bloat (G34)"
-fmt_comments=$(extract_function_comments '_audit_format_row')
+fmt_comments=$(extract_function_header_comments '_audit_format_row')
 TOTAL=$((TOTAL + 1))
 if printf '%s' "$fmt_comments" | grep -qE '(confidence|G[0-9]+|v0\.[0-9]+\.[0-9]+|soliton)'; then
   echo "  FAIL: _audit_format_row comments still contain PR-metadata bloat:"; FAIL=$((FAIL + 1))
@@ -812,7 +812,7 @@ echo "Test 36b: _audit_format_row comments retain explanatory WHY (G34)"
 # G34 trimmed function-headers heavily, so WHY often legitimately lives
 # in body comments. Test 36a (bloat) stays header-only per G34's stated
 # scope; Test 36b (WHY-presence) widens to body for accurate signal.
-fmt_comments_full=$(extract_function_full_comments '_audit_format_row')
+fmt_comments_full=$(extract_function_all_comments '_audit_format_row')
 TOTAL=$((TOTAL + 1))
 if printf '%s' "$fmt_comments_full" | grep -qE '(because|why|so that|the WHY)'; then
   echo "  PASS: _audit_format_row comments retain >=1 WHY phrase (header+body)"; PASS=$((PASS + 1))
@@ -822,7 +822,7 @@ fi
 
 echo ""
 echo "Test 37a: do_audit comments contain no PR-metadata bloat (G34)"
-do_comments=$(extract_function_comments 'do_audit')
+do_comments=$(extract_function_header_comments 'do_audit')
 TOTAL=$((TOTAL + 1))
 if printf '%s' "$do_comments" | grep -qE '(confidence|G[0-9]+|v0\.[0-9]+\.[0-9]+|soliton)'; then
   echo "  FAIL: do_audit comments still contain PR-metadata bloat:"; FAIL=$((FAIL + 1))
@@ -835,7 +835,7 @@ echo ""
 echo "Test 37b: do_audit comments retain explanatory WHY (G34)"
 # N8 / US-003 (v0.6.8): same scope-widening as Test 36b — WHY-check uses
 # full (header + body) range; bloat-check (Test 37a) stays header-only.
-do_comments_full=$(extract_function_full_comments 'do_audit')
+do_comments_full=$(extract_function_all_comments 'do_audit')
 TOTAL=$((TOTAL + 1))
 if printf '%s' "$do_comments_full" | grep -qE '(because|why|so that|the WHY)'; then
   echo "  PASS: do_audit comments retain >=1 WHY phrase (header+body)"; PASS=$((PASS + 1))
