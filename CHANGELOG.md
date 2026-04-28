@@ -7,6 +7,24 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.7.5] - 2026-04-28
+
+### Added
+
+3-story compact reactive patch closing 2 LOW process gaps surfaced in v0.7.4 dogfood. v0.7.5 self-validation: tier=LOW score=7. **10 consecutive LOW-tier self-validations** (v0.6.5..v0.7.5).
+
+- **N29 — `--audit` csv-uncommitted check** (US-001) — `quantum-loop.sh` adds `_audit_csv_uncommitted` helper. WARN-level when `metrics/pre-impl-review-findings.csv` has uncommitted changes; OK otherwise. +2 audit tests in `tests/test_audit.sh`. Closes the v0.7.2/v0.7.3 process gap where advisory-hook CSV updates never reached master.
+- **N31 — `/ql-spec` SKILL grep-verify instruction** (US-002) — `skills/ql-spec/SKILL.md` Step 1 (Gather Context) adds bullet 5 with grep/ls verification instruction for cited file paths + `[NEW]` annotation convention. Doc-only edit (1 line). Closes v0.7.4 US-004 PRD-AC-drift class of bugs.
+
+### Test-suite delta
+
+- `tests/test_audit.sh` +2 (Tests 38 + 38b)
+- `quantum-loop.sh` +1 audit check + 1 helper
+
+### Dogfood milestone (v0.7.5)
+
+**3/3 stories shipped first-attempt PASS** under manual takeover (8th consecutive cycle). 0 retries. **Multi-cycle CSV milestone**: 24 → 27 committed rows. **G30 self-validation** (10th consecutive LOW): tier=LOW score=7 — smallest score yet (4 files at audit time). Full retrospective: `idea-stage/PIPELINE_REPORT_v16.md`. v0.8.0+ backlog: `idea-stage/IDEA_REPORT_v16.md`.
+
 ## [0.7.4] - 2026-04-28
 
 ### Added

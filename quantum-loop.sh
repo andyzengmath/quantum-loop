@@ -274,6 +274,27 @@ _audit_cpc_files() {
   fi
 }
 
+# _audit_csv_uncommitted
+# N29 / US-001 (v0.7.5) — warns when metrics/pre-impl-review-findings.csv has
+# uncommitted changes. v0.7.2 + v0.7.3 advisory hooks fired but their CSV
+# updates never reached master because operators forgot to stage the file
+# before squash-merge. This is advisory (WARN), not blocking — operators may
+# legitimately have pending hooks mid-cycle.
+_audit_csv_uncommitted() {
+  local csv="metrics/pre-impl-review-findings.csv"
+  if [[ ! -f "$csv" ]]; then
+    printf 'csv-uncommitted|0|0|OK|\n'
+    return
+  fi
+  local porcelain
+  porcelain=$(git status --porcelain "$csv" 2>/dev/null)
+  if [[ -z "$porcelain" ]]; then
+    printf 'csv-uncommitted|0|0|OK|\n'
+  else
+    printf 'csv-uncommitted|1|0|WARN|%s\n' "$(printf '%s' "$porcelain" | head -1)"
+  fi
+}
+
 # _audit_validate_env
 # Validate env-var inputs to the audit before any output is emitted.
 # Per PRD FR-11: QL_AUDIT_TEST_GLOB must match ^[A-Za-z0-9._/*-]+$. On
@@ -423,6 +444,7 @@ do_audit() {
   ROWS+=("$(_audit_cpc_files)")
   ROWS+=("$(_audit_test_suites)")
   ROWS+=("$(_audit_pre_impl_review_coverage)")
+  ROWS+=("$(_audit_csv_uncommitted)")
   # Test-only injection hook: replace the helper-driven ROWS with synthetic
   # newline-delimited rows so tests can exercise the split-summary arithmetic
   # + exit-semantics against the real do_audit, not a private re-implementation.
