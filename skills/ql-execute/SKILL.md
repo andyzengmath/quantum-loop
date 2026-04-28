@@ -34,19 +34,16 @@ The orchestrator will:
 
 ```bash
 # After dispatching the orchestrator subagent (Step 3 of Execution above):
-if [[ "${QL_LIVENESS_ENABLE:-true}" == "true" ]]; then
-  source lib/orchestrator-liveness.sh
-  if ! poll_orchestrator_commits 600 60; then
-    cat <<'HANDOFF'
-[QL-EXECUTE] orchestrator-stale signal. Recovery procedure:
-  1. Read references/orchestrator-takeover.md (manual-takeover SOP).
-  2. Verify drift via git log <BASE>..HEAD --oneline + jq status query.
-  3. Continue the in-progress story manually; commit normally.
-HANDOFF
-    exit 1   # orchestrator-stale signal to parent agent / CI
-  fi
-fi
+source lib/orchestrator-liveness.sh
+wrap_orchestrator_dispatch 600 60 || exit 1
 ```
+
+The `wrap_orchestrator_dispatch` function (v0.7.1 N20 extraction; see
+`lib/orchestrator-liveness.sh`) handles the `QL_LIVENESS_ENABLE` env-var
+check, the `poll_orchestrator_commits` invocation, and the structured
+handoff message internally. The SKILL just calls it and exits 1 on
+STALE so CI / wrapper scripts can distinguish stale-signal exits from
+clean COMPLETE / BLOCKED exits.
 
 **Env var contract:**
 

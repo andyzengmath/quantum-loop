@@ -160,6 +160,55 @@ else
 fi
 rm -rf "$TMP"
 
+# Test 6: N20 / US-002 (v0.7.1) — wrap_orchestrator_dispatch QL_LIVENESS_ENABLE=false silent skip
+echo ""
+echo "Test 6: wrap_orchestrator_dispatch with QL_LIVENESS_ENABLE=false returns 0 silently"
+TMP6=$(mktemp -d)
+( cd "$TMP6" && git init -q && git config user.email "t@t.t" && git config user.name "t" \
+  && echo "init" > README.md && git add README.md && git commit -qm "init" ) >/dev/null 2>&1
+out6=$(cd "$TMP6" && QL_LIVENESS_ENABLE=false bash -c "source '$LIB' && wrap_orchestrator_dispatch 2 1" 2>&1 || true)
+rc6=$(cd "$TMP6" && QL_LIVENESS_ENABLE=false bash -c "source '$LIB' && wrap_orchestrator_dispatch 2 1 >/dev/null 2>&1 ; echo \$?")
+assert "Test 6: opt-out exit code = 0 (silent skip)" "0" "$rc6"
+TOTAL=$((TOTAL + 1))
+if [[ -z "$out6" ]] || [[ "$out6" == "" ]]; then
+  echo "  PASS: opt-out emits no stdout/stderr (silent)"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: opt-out emitted unexpected output: $out6"; FAIL=$((FAIL + 1))
+fi
+rm -rf "$TMP6"
+
+# Test 7: wrap_orchestrator_dispatch default-on with stale repo emits handoff + rc=1
+echo ""
+echo "Test 7: wrap_orchestrator_dispatch default + stale repo -> handoff stdout + rc=1"
+TMP7=$(mktemp -d)
+( cd "$TMP7" && git init -q && git config user.email "t@t.t" && git config user.name "t" \
+  && echo "init" > README.md && git add README.md && git commit -qm "init" ) >/dev/null 2>&1
+t0=$(date +%s)
+rc7=0
+out7=$(cd "$TMP7" && bash -c "source '$LIB' && wrap_orchestrator_dispatch 2 1" 2>&1) || rc7=$?
+t1=$(date +%s)
+elapsed=$((t1 - t0))
+assert "Test 7: stale path exit code = 1" "1" "$rc7"
+TOTAL=$((TOTAL + 1))
+if (( elapsed <= 10 )); then
+  echo "  PASS: stale-path completed within 10s (got ${elapsed}s)"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: stale-path took ${elapsed}s (>10s)"; FAIL=$((FAIL + 1))
+fi
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$out7" | grep -qE 'orchestrator-stale signal'; then
+  echo "  PASS: handoff message emitted to stdout"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: handoff message missing from stdout"; FAIL=$((FAIL + 1))
+fi
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$out7" | grep -q 'references/orchestrator-takeover.md'; then
+  echo "  PASS: handoff cross-links references/orchestrator-takeover.md"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: handoff missing cross-link to takeover SOP"; FAIL=$((FAIL + 1))
+fi
+rm -rf "$TMP7"
+
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 [[ $FAIL -eq 0 ]] || exit 1

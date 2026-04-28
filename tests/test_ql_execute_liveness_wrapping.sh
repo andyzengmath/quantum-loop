@@ -66,14 +66,17 @@ else
   echo "  FAIL: handoff message structure missing"; FAIL=$((FAIL + 1))
 fi
 
-# Test 6: poll_orchestrator_commits invocation present
+# Test 6: wrap_orchestrator_dispatch function reference present
+# v0.7.1 N20: SKILL no longer inlines poll_orchestrator_commits; it calls
+# wrap_orchestrator_dispatch (which encapsulates the env-var check + poll
+# + handoff). Updated assertion to grep for the function reference.
 echo ""
-echo "Test 6: poll_orchestrator_commits invocation in wrapping example"
+echo "Test 6: wrap_orchestrator_dispatch function reference in wrapping example"
 TOTAL=$((TOTAL + 1))
-if grep -q 'poll_orchestrator_commits' "$SKILL"; then
-  echo "  PASS: poll_orchestrator_commits invocation present"; PASS=$((PASS + 1))
+if grep -q 'wrap_orchestrator_dispatch' "$SKILL"; then
+  echo "  PASS: wrap_orchestrator_dispatch reference present"; PASS=$((PASS + 1))
 else
-  echo "  FAIL: poll_orchestrator_commits not invoked in wrapping example"; FAIL=$((FAIL + 1))
+  echo "  FAIL: wrap_orchestrator_dispatch not referenced in wrapping example"; FAIL=$((FAIL + 1))
 fi
 
 echo ""

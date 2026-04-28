@@ -64,6 +64,43 @@ poll_orchestrator_commits() {
   return 1
 }
 
+# wrap_orchestrator_dispatch [timeout_sec] [interval_sec]
+#
+# N20 / US-002 (v0.7.1) — extracts the v0.7.0 N14 SKILL.md inline wrapping
+# logic into a callable function. The /ql-execute SKILL invokes this
+# function instead of inlining the conditional + handoff message.
+#
+# Honors QL_LIVENESS_ENABLE env var:
+#   unset / "true"  -> wrap with poll_orchestrator_commits (default behavior).
+#   "false"         -> silent skip (preserves v0.6.9 dispatch semantics).
+#   any other value -> treated as "true".
+#
+# On STALE: emits the canonical handoff message to stdout (pointer to the
+# orchestrator-takeover SOP + numbered recovery steps) and returns 1.
+# On LIVE / OPT-OUT: returns 0 without printing.
+#
+# Defaults: timeout_sec=600 (10 min), interval_sec=60 (1 min).
+wrap_orchestrator_dispatch() {
+  local timeout_sec="${1:-600}"
+  local interval_sec="${2:-60}"
+
+  if [[ "${QL_LIVENESS_ENABLE:-true}" == "false" ]]; then
+    return 0
+  fi
+
+  if poll_orchestrator_commits "$timeout_sec" "$interval_sec"; then
+    return 0
+  fi
+
+  cat <<'HANDOFF'
+[QL-EXECUTE] orchestrator-stale signal. Recovery procedure:
+  1. Read references/orchestrator-takeover.md (manual-takeover SOP).
+  2. Verify drift via git log <BASE>..HEAD --oneline + jq status query.
+  3. Continue the in-progress story manually; commit normally.
+HANDOFF
+  return 1
+}
+
 fi  # ORCHESTRATOR_LIVENESS_LIB guard
 
 # CLI entry — only when invoked directly (bash lib/orchestrator-liveness.sh).
