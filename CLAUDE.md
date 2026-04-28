@@ -241,21 +241,36 @@ set of numbered siblings.
 
 Operator-side workflow docs that the standard pipeline does not invoke
 automatically — consult them during retrospective writing or before
-designing the next cycle's slate.
+designing the next cycle's slate. Sub-categorized into Orchestrator-related,
+Test-related, and Process-related.
+
+### Orchestrator-related
+
+- [`references/orchestrator-takeover.md`](references/orchestrator-takeover.md):
+  manual-takeover SOP for parent agents detecting orchestrator drift
+  mid-cycle. Pairs with `lib/orchestrator-liveness.sh::poll_orchestrator_commits`
+  (the runtime stale-detection helper) and v0.7.0 N14's `/ql-execute`
+  SKILL-level wrapping. Worked example: v0.6.7 Pattern C → Pattern A
+  verification-failure-driven amendment.
+
+### Test-related
+
+- [`references/test-wallclock-baselines.md`](references/test-wallclock-baselines.md):
+  platform-conditional baseline table (Git Bash vs Linux/CI) for each
+  test-suite command. Reference these instead of absolute test-time
+  targets in PRD ACs.
+
+### Process-related
 
 - [`references/soliton-finding-triage.md`](references/soliton-finding-triage.md):
   validate-before-design workflow for sub-threshold (<85) `/soliton:pr-review`
   findings the operator chooses to address in the next cycle. Worked
   example: v0.6.7 G36 hallucination.
-- [`references/test-wallclock-baselines.md`](references/test-wallclock-baselines.md):
-  platform-conditional baseline table (Git Bash vs Linux/CI) for each
-  test-suite command. Reference these instead of absolute test-time
-  targets in PRD ACs.
-- [`references/orchestrator-takeover.md`](references/orchestrator-takeover.md):
-  manual-takeover SOP for parent agents detecting orchestrator drift
-  mid-cycle. Pairs with `lib/orchestrator-liveness.sh::poll_orchestrator_commits`
-  (the runtime stale-detection helper). Worked example: v0.6.7 Pattern C
-  → Pattern A verification-failure-driven amendment.
+- [`references/severity-rubric-calibration-v0.7.0.md`](references/severity-rubric-calibration-v0.7.0.md):
+  v0.7.0 first calibration pass of `references/finding-severity.md`
+  against the 6-cycle / 18-row CSV baseline. Empirical aggregate:
+  49 findings, 0/3/13/33 (critical/high/medium/low). Re-snapshot at
+  v0.7.x retrospectives via the companion parse-script.
 
 ## Signal Reference
 
