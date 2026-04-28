@@ -844,5 +844,24 @@ else
 fi
 
 echo ""
+echo "Test 38: N29 / US-001 (v0.7.5) — _audit_csv_uncommitted helper present"
+TOTAL=$((TOTAL + 1))
+if grep -qE '_audit_csv_uncommitted' "$REPO_ROOT/quantum-loop.sh"; then
+  echo "  PASS: _audit_csv_uncommitted helper defined in quantum-loop.sh"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: _audit_csv_uncommitted helper not found"; FAIL=$((FAIL + 1))
+fi
+
+echo ""
+echo "Test 38b: csv-uncommitted row appears in do_audit ROWS array"
+TOTAL=$((TOTAL + 1))
+if grep -qE '_audit_csv_uncommitted' "$REPO_ROOT/quantum-loop.sh" && \
+   grep -E 'ROWS\+=' "$REPO_ROOT/quantum-loop.sh" | grep -q csv_uncommitted; then
+  echo "  PASS: csv-uncommitted invoked from do_audit"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: csv-uncommitted not invoked from do_audit"; FAIL=$((FAIL + 1))
+fi
+
+echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 exit $((FAIL > 0 ? 1 : 0))
