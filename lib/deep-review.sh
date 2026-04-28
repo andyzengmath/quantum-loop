@@ -172,8 +172,19 @@ should_dispatch_deep_review() {
       has_test_file=true; break
     fi
   done <<< "$files"
+  # G36 / US-002 (v0.6.7) — defense-in-depth guard. The `|$` alternative
+  # inside the regex below already excludes the empty trailing newline that
+  # `printf '%s\n' ""` produces on a 0-files diff (verified by Test 5 in
+  # tests/test_deep_review_dispatch.sh), so prod_count IS 0 on empty input
+  # today. The explicit `files_changed > 0` short-circuit hardens against
+  # any future refactor that removes the `|$` anchor — without it, the
+  # spurious empty-line count would inflate cg from 0 to 2 (still LOW tier,
+  # but operators would see misleading score=2 in the diagnostic log).
+  # Mirrors the structure used in compute_risk_score above.
   local prod_count=0
-  prod_count=$(printf '%s\n' "$files" | grep -cvE '^(tests?/|$)|(\.test\.|_test\.)' || true)
+  if (( files_changed > 0 )); then
+    prod_count=$(printf '%s\n' "$files" | grep -cvE '^(tests?/|$)|(\.test\.|_test\.)' || true)
+  fi
   local prod_without_test=0
   if [[ "$has_test_file" == false && "$prod_count" -gt 0 ]]; then
     prod_without_test="$prod_count"

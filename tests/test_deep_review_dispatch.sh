@@ -140,6 +140,24 @@ rc=$(QL_DEEP_REVIEW=skip bash -c "source '$LIB' && should_dispatch_deep_review '
 assert "MEDIUM + skip exit code" "1" "$rc"
 assert_grep "MEDIUM + skip logs override" 'skip|QL_DEEP_REVIEW=skip' "$out"
 
+# ----- 5. G36 / US-002 (v0.6.7): 0-files diff (empty patch) → exit 1 (skip) -----
+# Empty input edge case: the diff file has 0 `diff --git` headers. Without
+# a `files_changed > 0` guard around the prod_count computation, the bug
+# at lib/deep-review.sh:176 has `printf '%s\n' ""` produce a single empty
+# line which `grep -cv` counts as 1 non-matching line, spuriously inflating
+# prod_count → cg=2 → score=2 (instead of 0). Decision still resolves to
+# LOW → skip (since 2 ≤ 30), but the diagnostic log shows the wrong
+# intermediate value. Asserting score=0 catches the bug cleanly.
+echo ""
+echo "Test 5: 0-files diff (empty patch) → exit 1 (skip), score=0 files=0"
+EMPTY_DIFF="$TMP/empty.patch"
+: > "$EMPTY_DIFF"
+out=$(bash -c "source '$LIB' && should_dispatch_deep_review '$EMPTY_DIFF'" 2>&1 || true)
+rc=$(bash -c "source '$LIB' && should_dispatch_deep_review '$EMPTY_DIFF' >/dev/null 2>&1 ; echo \$?")
+assert "empty-diff exit code" "1" "$rc"
+assert_grep "empty-diff logs files=0" 'files=0' "$out"
+assert_grep "empty-diff logs score=0 (no spurious cg inflation)" 'score=0' "$out"
+
 rm -rf "$TMP"
 
 echo ""
