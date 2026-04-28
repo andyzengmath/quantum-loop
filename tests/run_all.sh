@@ -138,10 +138,19 @@ if (( PARALLEL_N > 0 )); then
   # xargs invoke a self-recursive run_all.sh with --__one <file> as a private
   # entry-point. This sidesteps the export-f portability issue on MSYS where
   # bash -c subshells don't reliably inherit exported functions.
+  #
+  # G37 / US-003 (v0.6.7): capture xargs's own exit code via `|| xargs_rc=$?`
+  # so a worker that exits non-zero is detected even when its formatted
+  # output line shows "P/N passed" with P>0 (partial-run-then-crash, or
+  # post-assertion cleanup-failure). xargs returns non-zero if ANY child
+  # invocation exits non-zero (POSIX-spec'd behavior, identical on Git Bash
+  # / MSYS / GNU). The grep-based check stays as a belt-and-suspenders
+  # signal for any test that returns 0 despite emitting a "0/N passed" row.
+  xargs_rc=0
   out=$(printf '%s\n' "${TARGET_TESTS[@]}" | \
-        xargs -P "$PARALLEL_N" -I{} bash "${BASH_SOURCE[0]}" --__one '{}' 2>&1 || true)
+        xargs -P "$PARALLEL_N" -I{} bash "${BASH_SOURCE[0]}" --__one '{}' 2>&1) || xargs_rc=$?
   printf '%s\n' "$out"
-  if printf '%s' "$out" | grep -qE ': 0/[0-9]+ passed'; then
+  if (( xargs_rc != 0 )) || printf '%s' "$out" | grep -qE ': 0/[0-9]+ passed'; then
     OVERALL_RC=1
   fi
   # Run any PARALLEL_UNSAFE files sequentially as a follow-up batch.
