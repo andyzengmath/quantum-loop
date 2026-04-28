@@ -70,15 +70,18 @@ poll_orchestrator_commits() {
 # logic into a callable function. The /ql-execute SKILL invokes this
 # function instead of inlining the conditional + handoff message.
 #
-# Honors QL_LIVENESS_ENABLE env var:
-#   unset / "true"  -> wrap with poll_orchestrator_commits (default behavior).
-#   "false"         -> silent skip (preserves v0.6.9 dispatch semantics).
-#   any other value -> treated as "true".
+# N24 / US-001 (v0.7.2) — adds QL_RESPAWN_CMD auto-respawn path. When set
+# to a non-empty string, the command is executed via `bash -c` on STALE
+# instead of emitting the manual-takeover handoff. QL_RESPAWN_CMD is an
+# operator-controlled env var (trusted invocation, not user input).
 #
-# On STALE: emits the canonical handoff message to stdout (pointer to the
-# orchestrator-takeover SOP + numbered recovery steps) and returns 1.
+# Honors env vars:
+#   QL_LIVENESS_ENABLE  unset/"true" -> wrap with poll (default).
+#                       "false"      -> silent skip, return 0.
+#   QL_RESPAWN_CMD      non-empty    -> execute via `bash -c` on STALE, return its rc.
+#                       empty/unset  -> emit canonical handoff message, return 1.
+#
 # On LIVE / OPT-OUT: returns 0 without printing.
-#
 # Defaults: timeout_sec=600 (10 min), interval_sec=60 (1 min).
 wrap_orchestrator_dispatch() {
   local timeout_sec="${1:-600}"
@@ -90,6 +93,18 @@ wrap_orchestrator_dispatch() {
 
   if poll_orchestrator_commits "$timeout_sec" "$interval_sec"; then
     return 0
+  fi
+
+  # N24: auto-respawn path — operator supplies a fully-specified orchestrator
+  # invocation (e.g. `claude --skill ql-execute`) via QL_RESPAWN_CMD.
+  if [[ -n "${QL_RESPAWN_CMD:-}" ]]; then
+    printf "[QL-EXECUTE] orchestrator-stale — respawning via QL_RESPAWN_CMD\n" >&2
+    bash -c "${QL_RESPAWN_CMD}"
+    local respawn_rc=$?
+    if [[ "$respawn_rc" -ne 0 ]]; then
+      printf "[QL-EXECUTE] QL_RESPAWN_CMD exited %d — respawn may have failed\n" "$respawn_rc" >&2
+    fi
+    return $respawn_rc
   fi
 
   cat <<'HANDOFF'
