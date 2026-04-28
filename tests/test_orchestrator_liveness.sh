@@ -120,6 +120,40 @@ else
   echo "  FAIL: default values not found in lib source"; FAIL=$((FAIL + 1))
 fi
 
+# Test 5: N16 / US-004 (v0.7.0) — interval_sec=0 guard
+echo ""
+echo "Test 5: poll_orchestrator_commits 10 0 returns 1 with ERROR log (interval_sec=0 guard)"
+TMP=$(mktemp -d)
+( cd "$TMP" && git init -q && git config user.email "t@t.t" && git config user.name "t" \
+  && echo "init" > README.md && git add README.md && git commit -qm "init" ) >/dev/null 2>&1
+
+t0=$(date +%s)
+out=$(cd "$TMP" && bash -c "source '$LIB' && poll_orchestrator_commits 10 0" 2>&1 || true)
+rc=$(cd "$TMP" && bash -c "source '$LIB' && poll_orchestrator_commits 10 0 >/dev/null 2>&1 ; echo \$?")
+t1=$(date +%s)
+elapsed=$((t1 - t0))
+
+assert "interval_sec=0 guard exit code = 1" "1" "$rc"
+TOTAL=$((TOTAL + 1))
+if (( elapsed <= 2 )); then
+  echo "  PASS: guard returns within 2s (no infinite-loop hazard)"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: guard took ${elapsed}s (expected <2s)"; FAIL=$((FAIL + 1))
+fi
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$out" | grep -qE '^\[LIVENESS\] ERROR: interval_sec must be > 0'; then
+  echo "  PASS: ERROR stderr log line emitted (NOT STALE)"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: ERROR log line missing (or wrong format)"; FAIL=$((FAIL + 1))
+fi
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$out" | grep -qE 'STALE'; then
+  echo "  FAIL: STALE log emitted on guard path (should be ERROR only)"; FAIL=$((FAIL + 1))
+else
+  echo "  PASS: no STALE log on guard path (correct — fail-fast before timeout loop)"; PASS=$((PASS + 1))
+fi
+rm -rf "$TMP"
+
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 [[ $FAIL -eq 0 ]] || exit 1
