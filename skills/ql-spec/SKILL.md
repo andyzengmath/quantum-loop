@@ -53,6 +53,7 @@ Treat `brainstorm.decided` as binding (already agreed — do not re-litigate), `
 2. Check for existing quantum.json to understand any in-progress features.
 3. Read project files (package.json, README, existing code structure) to understand the tech stack.
 4. Re-read `.handoffs/brainstorm.md`'s `remaining` list — it IS the starting backlog of clarifying questions.
+5. **N31 / v0.7.5 — grep-verify cited file paths.** Before citing any file path in an AC (e.g., `tests/test_X.sh`, `lib/Y.sh`), run a grep/ls verification that the path actually exists in the codebase. If the path is being **created** by this PRD, annotate with `[NEW]` in parentheses to disambiguate. This prevents the AC-drift class of error where the spec phase hallucinates plausible-looking file paths that don't exist. Worked example: v0.7.4 US-004 cited `tests/test_worktree_isolation.sh` and `lib/type-auditor.sh` — neither existed; real names were `tests/test_type_audit.sh` + `lib/type-audit.sh`.
 
 ## Step 2: Ask Clarifying Questions
 
