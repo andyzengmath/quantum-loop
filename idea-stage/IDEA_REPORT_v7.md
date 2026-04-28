@@ -87,12 +87,29 @@ Severity distribution (6/6 rows): all MEDIUM or LOW; no CRITICAL or HIGH. Consis
 **Severity:** LOW (process gap). Patterns harvested in this report's §"codebasePatterns harvested" but not yet in the JSON.
 **Path:** Append p009-p011 to `quantum.json.codebasePatterns` as part of US-007's commit (this story).
 
+## New gaps from post-push `/soliton:pr-review` on PR #67
+
+Soliton ran post-push at risk score 30/100 (LOW), matching v0.6.6's own G30 self-validation. 4 findings surfaced; 2 critical were addressed inline in commit `c47e038`. 2 sub-threshold (below 85 confidence) queued here. Plus 1 pre-existing hang surfaced during the diagnostic.
+
+| Gap | Source | Score | Status |
+|---|---|---:|---|
+| ~~**G33-bug: `IFS=$'\n' read -d '' -ra ROWS` collapses all rows into ROWS[0]**~~ | soliton correctness | 95 | **ADDRESSED** in `c47e038` (replaced with `mapfile -t`). |
+| ~~**G31-bug: `run_one` runs each test file twice — side effects double-execute**~~ | soliton correctness | 90 | **ADDRESSED** in `c47e038` (single bash invocation with tmpfile capture). The orchestrator's empty `.omc/phase-N-evidence/v0.6.6-test-suite.log` was downstream evidence — re-running `tests/run_all.sh` after the fix produces non-empty output. |
+| **G35: `tests/test_audit.sh` Test 4 hangs since at least v0.6.5 master** | soliton diagnostic (pre-existing surfaced during fix verification) | n/a | **NEW backlog item.** `set -euo pipefail` inheritance from sourcing `quantum-loop.sh` (line 4) into a test that runs `out=$(do_audit 2>&1); rc=$?` causes the subshell to abort on the first non-zero command inside `do_audit`. Reproduced by checking out `master` quantum-loop.sh + tests/test_audit.sh and running the test — Test 4 hangs identically. Hidden by the run_one double-execution bug (G31-bug above) which produced empty test logs that never tripped the test-suite-fail signal. v0.6.7 should either (a) wrap `do_audit` calls in `set +e` blocks within tests, or (b) restructure `do_audit` to never propagate non-zero exits during normal operation. 0.5-1 stories. |
+| **G36: `should_dispatch_deep_review` empty-input false `prod_count`** | soliton correctness | 82 | Sub-threshold. `lib/deep-review.sh:176` `grep -cvE '^(tests?/\|$)\|(\.test\.\|_test\.)'` on an empty `$files` string returns 1 (the empty-line trailing newline counts as non-matching), spuriously inflating `prod_count` when no diff files exist. Guard with `if [[ "$files_changed" -gt 0 ]]; then ... fi` mirroring existing pattern in `compute_risk_score`. 0.25 stories. |
+| **G37: `--parallel` mode failure detection misses tests that exit non-zero with passing Results line** | soliton correctness | 80 | Sub-threshold. `tests/run_all.sh:137-139` checks only `grep -qE ': 0/[0-9]+ passed'` against concatenated parallel output. A test exiting 1 but printing `Results: 3/3 passed` (e.g., partial-run output before crash) would not trip the failure signal. Capture xargs exit code via `xargs_rc=0; ... || xargs_rc=$?` and OR with the grep check. 0.25 stories. |
+
+The G35 + G36 + G37 triple is a cohesive v0.6.7 follow-up — all three address gaps in v0.6.6's quality-gate infrastructure (test runner, deep-review classifier, audit parser).
+
 ## Recommendation for v0.6.7 or v0.7.0
 
 **v0.6.7 candidate slate (patch-tier):**
-1. **N1** — wire `should_dispatch_deep_review` into orchestrator's actual Step 4B.5 control flow.
-2. **N2** — `_audit_test_suites` doc clarification (1 line).
-3. **N5** — append codebasePatterns p009-p011 to quantum.json.
+1. **G35** — fix `test_audit.sh` Test 4 hang (highest-priority — pre-existing since v0.6.5+ master; hidden by G31-bug; surfaces immediately now that run_all.sh works correctly).
+2. **N1** — wire `should_dispatch_deep_review` into orchestrator's actual Step 4B.5 control flow.
+3. **G36** — guard `should_dispatch_deep_review` empty-input branch.
+4. **G37** — `--parallel` mode failure detection via xargs_rc capture.
+5. **N2** — `_audit_test_suites` doc clarification (1 line).
+6. **N5** — append codebasePatterns p009-p011 to quantum.json.
 
 **v0.7.0 candidate slate (minor tier — needs more accumulated evidence):**
 1. **G22** — severity rubric calibration once CSV reaches ~10-12 rows.
