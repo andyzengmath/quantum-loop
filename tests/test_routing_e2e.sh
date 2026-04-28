@@ -85,6 +85,38 @@ echo "Test 4: read_routing_snapshot on missing quantum.json returns {}"
 out4=$(bash -c "source '$RUNNER' && read_routing_snapshot '/tmp/nonexistent-quantum-$(date +%s).json'" 2>/dev/null)
 assert "Test 4: missing file returns {}" "{}" "$out4"
 
+# Test 5: US-003 / N30 (v0.8.0) — multi-runner routing snapshot (claude+codex+copilot)
+echo ""
+echo "Test 5: resolve_routing claude codex copilot -> 3 distinct providers + populated versions"
+if ! command -v codex >/dev/null 2>&1 || ! command -v copilot >/dev/null 2>&1; then
+  printf "[ROUTING-E2E-T5] WARN: codex or copilot CLI absent — skip-pass\n" >&2
+  TOTAL=$((TOTAL + 1))
+  echo "  PASS: skip-pass (one or more runners absent)"; PASS=$((PASS + 1))
+else
+  out5=$(bash -c "source '$RUNNER' && resolve_routing claude codex copilot" 2>/dev/null)
+  TOTAL=$((TOTAL + 1))
+  p5=$(printf '%s' "$out5" | jq -r '.planner')
+  c5=$(printf '%s' "$out5" | jq -r '.critic')
+  e5=$(printf '%s' "$out5" | jq -r '.executor')
+  if [[ "$p5" == "claude" && "$c5" == "codex" && "$e5" == "copilot" ]]; then
+    echo "  PASS: 3 distinct providers resolved (planner=claude critic=codex executor=copilot)"; PASS=$((PASS + 1))
+  else
+    echo "  FAIL: providers unexpected (got planner=$p5 critic=$c5 executor=$e5)"; FAIL=$((FAIL + 1))
+  fi
+  TOTAL=$((TOTAL + 1))
+  if printf '%s' "$out5" | jq -e '.versions.codex // "" | length > 0' >/dev/null 2>&1; then
+    echo "  PASS: versions.codex populated"; PASS=$((PASS + 1))
+  else
+    echo "  FAIL: versions.codex empty — out: $out5"; FAIL=$((FAIL + 1))
+  fi
+  TOTAL=$((TOTAL + 1))
+  if printf '%s' "$out5" | jq -e '.versions.copilot // "" | length > 0' >/dev/null 2>&1; then
+    echo "  PASS: versions.copilot populated"; PASS=$((PASS + 1))
+  else
+    echo "  FAIL: versions.copilot empty — out: $out5"; FAIL=$((FAIL + 1))
+  fi
+fi
+
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 [[ $FAIL -eq 0 ]] || exit 1

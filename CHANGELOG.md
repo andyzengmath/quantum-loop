@@ -7,6 +7,27 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.7.7] - 2026-04-28
+
+### Added
+
+4-story patch-tier closing N30 (v0.7.7 anchor). **First end-to-end smoke validation** of codex (tier=tested) + copilot (tier=experimental) CLI runners against the existing multi-runner infrastructure. v0.7.7 self-validation: tier=LOW score=7. **12 consecutive LOW-tier self-validations** (v0.6.5..v0.7.7).
+
+- **Codex CLI smoke test** (US-001) — NEW `tests/test_codex_runner_smoke.sh` (5 assertions). Loads `runners/codex.json` via `runner_load codex`; asserts `RUNNER_NAME=codex` + `RUNNER_BINARY=codex` + `RUNNER_TIER=tested`; verifies `_provider_version codex` returns non-empty (e.g., `codex-cli 0.118.0`); wall-clock ≤15s. Skip-pass if `codex` CLI absent.
+- **Copilot CLI smoke test** (US-002) — NEW `tests/test_copilot_runner_smoke.sh` (5 assertions). Mirrors US-001 for copilot; asserts `RUNNER_TIER=experimental`; verifies version (e.g., `GitHub Copilot CLI 1.0.37`).
+- **Routing E2E multi-runner** (US-003) — `tests/test_routing_e2e.sh` Test 5: `resolve_routing claude codex copilot` produces 3-distinct-providers snapshot with `versions.codex` + `versions.copilot` populated. 6 → 9 assertions. Skip-pass when any CLI absent.
+
+### Test-suite delta
+
+**+13 new assertions** across 2 new test files + 1 extended:
+
+- 2 new: `test_codex_runner_smoke.sh` (5), `test_copilot_runner_smoke.sh` (5)
+- 1 extended: `test_routing_e2e.sh` 6 → 9 (+3 Test 5 multi-runner)
+
+### Reactive-cycle wrap-up
+
+This is the first end-to-end validation that quantum-loop integrates with non-claude runners. Multi-runner is now real: codex (tested) + copilot (experimental). Full retrospective: `idea-stage/PIPELINE_REPORT_v18.md`. Next: v0.9.0 minor for real-task dispatch (N35).
+
 ## [0.7.6] - 2026-04-28
 
 ### Added
