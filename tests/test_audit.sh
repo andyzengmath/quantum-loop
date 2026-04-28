@@ -95,26 +95,30 @@ line_count=$(printf '%s' "$out" | awk 'END{print NR}')
 assert "empty-drill WARN = 1 line" "1" "$line_count"
 
 # Test 4: do_audit stub returns 0 and prints header
-# G35 / US-001 (v0.6.7): wrap the do_audit capture in `set +e ... set -e`.
-# Sourcing quantum-loop.sh inherits its `set -euo pipefail`. Without the
-# wrapper, any non-zero exit *inside* the do_audit subshell capture
-# propagates errexit out of the $(...) substitution and aborts the test
-# script silently — Test 4 (and every test after it) never runs to
-# completion, hanging tests/run_all.sh's run_one capture indefinitely.
-# v0.6.6's run_one fix exposed the previously-swallowed abort.
+# G35 / US-001 (v0.6.7): use the two-invocation idiom (Platform Notes /
+# pattern p008-A) to capture stdout AND exit code separately, with
+# `|| true` on the stdout capture. Sourcing quantum-loop.sh inherits its
+# `set -euo pipefail`. Without the `|| true`, any non-zero exit inside
+# the do_audit subshell propagates errexit out of the $(...) substitution
+# and aborts the test script silently — Test 4 (and every test after it)
+# would never run to completion, hanging tests/run_all.sh's run_one
+# capture indefinitely. v0.6.6's run_one fix exposed this previously-
+# swallowed abort. Pattern A is preferred over an inline `set +e ... set -e`
+# block here so this file stays under Pattern D (no literal set -e in
+# the file), keeping the test_test_helpers.sh corpus audit clean.
 #
 # Run do_audit in a clean tmp repo (matching Test 5's pattern) so the
 # "stub happy path" test does not depend on the developer's working repo
 # state (e.g. >10 remote branches makes do_audit exit 1 environmentally).
+# do_audit is read-only — invoking twice (once for stdout, once for rc)
+# has no observable side effects.
 echo ""
 echo "Test 4: do_audit stub happy path"
 TMP=$(setup_audit_repo)
 mkdir -p "$TMP/.omc/phase-99-evidence"
 printf '=== Results: 1/1 passed, 0 failed ===\n' > "$TMP/.omc/phase-99-evidence/test_x.log"
-set +e
-out=$(cd "$TMP" && do_audit 2>&1)
-rc=$?
-set -e
+out=$(cd "$TMP" && do_audit 2>&1 || true)
+rc=$(cd "$TMP" && do_audit >/dev/null 2>&1 ; echo $?)
 assert "do_audit exits 0" "0" "$rc"
 case "$out" in
   *"=== Quantum-loop audit ==="*"Summary:"*)
