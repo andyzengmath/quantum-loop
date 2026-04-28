@@ -7,6 +7,19 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.7.8] - 2026-04-28
+
+### Added
+
+3-story compact reactive closing N36 + N37 from IDEA_REPORT_v18. Trivial scope (1-line lib edit + 7-line yaml header note). G30 score=9 LOW (13th consecutive).
+
+- **N36 — runner_load error message hint** (US-001) — `lib/runner.sh::runner_load` now appends a hint sentence when given an invalid name (e.g., a manifest path): "Hint: pass the runner name (e.g., 'codex'), not the manifest path. The manifest is auto-resolved from runners/<name>.json." Closes the v0.7.7 US-001/US-002 onboarding paper-cut.
+- **N37 — manifest.example.yaml deprecation note** (US-002) — `runners/manifest.example.yaml` header now explicitly states it is documentation-only; `runners/*.json` per-runner manifests are the runtime-authoritative source. Surfaced in v0.7.7 PIPELINE_REPORT_v18.
+
+### Reactive-cycle wrap-up
+
+v0.7.4 → v0.7.5 → v0.7.6 → v0.7.7 → v0.7.8 has closed every reactive item from the v0.7.4 dogfood + v0.7.7 multi-runner integration. Patch-tier track is again drained. v0.9.0 minor needs operator scope (N35 real-task dispatch as natural anchor).
+
 ## [0.7.7] - 2026-04-28
 
 ### Added

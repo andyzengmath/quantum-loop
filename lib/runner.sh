@@ -22,6 +22,7 @@ runner_load() {
   # Validate tool name: alphanumeric, hyphens, underscores only (prevents path traversal)
   if [[ ! "$tool_name" =~ ^[A-Za-z0-9_-]+$ ]]; then
     printf "ERROR: Invalid runner name: '%s' (must be alphanumeric with hyphens/underscores)\n" "$tool_name" >&2
+    printf "Hint: pass the runner name (e.g., 'codex'), not the manifest path. The manifest is auto-resolved from runners/<name>.json.\n" >&2
     return 1
   fi
 

@@ -1,5 +1,12 @@
 # Multi-runner manifest example (US-005 / v0.7.4)
-# Foundation only — runner integrations land in v0.8.0+.
+#
+# DEPRECATION NOTE (v0.7.8 N37): This file is documentation only. The
+# authoritative per-runner manifests live at `runners/*.json` (one JSON
+# per runner, schema in `schemas/runner.schema.json`). This yaml example
+# explores an aggregate-manifest concept that is NOT used by `lib/runner.sh`
+# at runtime; runner_load reads the per-runner JSON manifests directly.
+# Kept as a reference for future dispatcher-level config. If you want to
+# add a new runner, copy an existing `runners/<name>.json` and edit it.
 runners:
   - name: claude
     command: claude
