@@ -100,11 +100,18 @@ fi
 run_one() {
   local f="$1"
   local rel="${f#"$REPO_ROOT/"}"
-  local out rc
-  # Two-invocation idiom (CLAUDE.md Platform Notes): run twice — once for
-  # stdout (with || true to absorb non-zero), once for exit code.
-  out=$(bash "$f" 2>&1 || true)
-  rc=$(bash "$f" >/dev/null 2>&1 ; echo $?)
+  local rc tmp
+  # Single invocation via tmpfile. The earlier "two-invocation idiom" copy
+  # (CLAUDE.md Platform Notes) runs the entire test file twice — fine for
+  # cheap operations, but test files have real side effects (mktemp dirs,
+  # state writes, network) that must NOT execute twice. Soliton-pr-review
+  # caught at confidence 90.
+  tmp=$(mktemp)
+  bash "$f" >"$tmp" 2>&1
+  rc=$?
+  local out
+  out=$(cat "$tmp")
+  rm -f "$tmp"
   # Parse "=== Results: <P>/<T> passed, <F> failed ===" if present, else
   # default to a coarse 0/1 based on rc.
   local pt
