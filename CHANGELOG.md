@@ -7,6 +7,28 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.7.1] - 2026-04-28
+
+### Added
+
+4 user-facing changes addressing v0.7.0's IDEA_REPORT_v11 v0.7.1 slate (N18, N19, N20, N21) + 1 retrospective. **Seventh multi-cycle populated-CSV run** — ledger 18 → 21 rows. Patch-tier; 5-story compact bundle. v0.7.1's own diff was self-validated: tier=LOW score=25 files=10 sensitive=0 → skip recorded with `automated:true`. **7 consecutive LOW-tier self-validations** (v0.6.5..v0.7.1).
+
+- **N19 — G30 dispatch gate end-to-end MEDIUM-tier fixture** (US-001) — `tests/test_deep_review_dispatch.sh` Test 8 (4 new assertions): synthesizes patch with sensitive_hits=2 (auth/login.js + .env) → should_dispatch_deep_review returns 0 (dispatch); dispatch_set MEDIUM returns 4 canonical reviewers (oh-my-claudecode:code-reviewer, soliton:synthesizer, oh-my-claudecode:security-reviewer, oh-my-claudecode:test-engineer). Closes the v0.7.0 PIPELINE_REPORT_v11 calibration-insight gap (MEDIUM/HIGH/CRITICAL branches now exercised end-to-end). 15 → 19 dispatch tests.
+- **N20 — `wrap_orchestrator_dispatch` runtime extraction** (US-002) — `lib/orchestrator-liveness.sh` adds NEW `wrap_orchestrator_dispatch [timeout_sec] [interval_sec]` function. Honors `QL_LIVENESS_ENABLE` env var (default true; false silent skip). Invokes `poll_orchestrator_commits`; on STALE emits canonical handoff message (cross-link to `references/orchestrator-takeover.md` + numbered recovery steps) and returns 1. `skills/ql-execute/SKILL.md` replaces inline `if [[ ${QL_LIVENESS_ENABLE:-true} == "true" ]]; then ...` example with single-line `wrap_orchestrator_dispatch || exit 1`. Tests 6 + 7 (6 new assertions): opt-out silent rc=0; default + stale tmp repo → handoff stdout + rc=1 + cross-link. 12 → 18 liveness tests. `tests/test_ql_execute_liveness_wrapping.sh` Test 6 grep updated to verify the function reference (replacing the v0.7.0 poll_orchestrator_commits inline grep).
+- **N18 — plan-review MEDIUM second example** (US-003) — `references/finding-severity.md` plan-review MEDIUM row gains a second worked example joined by `**OR**`: `single-story-wave-bottleneck-masked` (dag-validator single-story-wave warning that's structurally correct but informational, masking a real serialization risk). Closes v0.7.0 G22 calibration insight that plan-review emitted ONLY LOW findings (9/9 across 6 cycles).
+- **N21 — parse-script aggregate suppress zero-row** (US-004) — `references/severity-rubric-calibration-parse.sh` per-stage aggregate awk adds `rows++` counter and `if (rows == 0) exit` before printing `**Aggregate**:` line. v0.7.0 PR #71 soliton conf-75 sub-threshold carry-over closed.
+
+### Test-suite delta
+
+**+10 new assertions** across 2 extended test files + 0 new files:
+
+- 2 extended: `test_deep_review_dispatch.sh` 15 → 19 (+4 N19 Test 8); `test_orchestrator_liveness.sh` 12 → 18 (+6 N20 Tests 6 + 7)
+- 1 modified (count unchanged): `test_ql_execute_liveness_wrapping.sh` 6 → 6 (Test 6 grep target updated)
+
+### Dogfood milestone (v0.7.1)
+
+**4/4 user-facing stories shipped first-attempt PASS** under manual takeover (5th consecutive cycle). 0 retries. **Multi-cycle CSV milestone**: 18 → 21 rows. Aggregate across 7 cycles: 53 findings (0 critical / 3 high / 12 medium / 38 low; LOW share 71.7%). **G30 self-validation** (7th consecutive correct LOW classification): tier=LOW score=25 files=10 sensitive=0 → skip; recorded with `automated:true`. **3-layer + extraction recovery infrastructure complete**: v0.6.8 prose / v0.6.9 lib helper / v0.7.0 SKILL prose / v0.7.1 SKILL → callable function. **Bundle size pattern**: 7-7-7-7-5-6-5; patch-tier track increasingly drained. v0.8.0 minor-tier framing recommended for next substantive cycle (G22 second calibration pass + bundle-tier comparison data). Full retrospective: `idea-stage/PIPELINE_REPORT_v12.md`. v0.8.0+ backlog: `idea-stage/IDEA_REPORT_v12.md`.
+
 ## [0.7.0] - 2026-04-28
 
 **MINOR bump rationale:** First non-patch release in 5 cycles. Patch-tier backlog drained over v0.6.5..v0.6.9 (5 consecutive LOW-tier patch releases). v0.7.0 ships substantive G22 calibration analysis + N14 SKILL-level runtime control-flow change + 3 LOW-priority cleanups. The version bump deliberately skips 0.6.10 to signal v0.6.x patch-track closure.
