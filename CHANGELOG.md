@@ -7,6 +7,25 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.7.3] - 2026-04-28
+
+### Added
+
+1 user-facing change closing N28 (3 test-adequacy gaps surfaced by internal code review of v0.7.2) + 1 housekeeping/retrospective story. **Ninth multi-cycle populated-CSV run** — ledger 24 → 27 rows. Patch-tier; 2-story compact bundle (smallest yet). v0.7.3 self-validated: tier=LOW score=2 files=1 sensitive=0 → skip recorded with `automated:true` (US-001-only diff; US-002 docs/manifests bumps the file count). **9 consecutive LOW-tier self-validations** (v0.6.5..v0.7.3).
+
+- **N28 — test-adequacy fixes (US-001)** — `tests/test_orchestrator_liveness.sh` Test 8 gains a 4th assertion greping `out8` for `[QL-EXECUTE] orchestrator-stale — respawning via QL_RESPAWN_CMD` (lib's stderr diagnostic). Test 10 gains 2 new assertions: wall-clock guard `(( elapsed <= 10 ))` matching Test 8 pattern, and grep for `QL_RESPAWN_CMD exited 42 — respawn may have failed` (lib's failing-respawn diagnostic added in v0.7.2 soliton fix). 24 → 27 liveness tests. First v0.7.x cycle triggered by internal code review (vs operator/soliton).
+- **Housekeeping + retrospective (US-002)** — `docs/plans/2026-04-28-v0.7.2-bundle-design.md` and `tasks/prd-v0.7.2-bundle.md` committed (housekeeping; were authored during v0.7.2 cycle but never staged). PIPELINE_REPORT_v14 + IDEA_REPORT_v14 written. CHANGELOG [0.7.3] entry. 3-manifest version bump 0.7.2 → 0.7.3.
+
+### Test-suite delta
+
+**+3 new assertions** in 1 modified test file:
+
+- 1 extended: `test_orchestrator_liveness.sh` 24 → 27 (+3 N28 — Test 8 +1 / Test 10 +2)
+
+### Dogfood milestone (v0.7.3)
+
+**2/2 user-facing stories shipped first-attempt PASS** under manual takeover (7th consecutive cycle). 0 retries. **Multi-cycle CSV milestone**: 24 → 27 rows. Aggregate across 9 cycles: 61 findings (0 critical / 3 high / 13 medium / 45 low; LOW share 73.8%). **G30 self-validation** (9th consecutive correct LOW classification): tier=LOW score=2 files=1 sensitive=0 → skip; recorded with `automated:true`. **Smallest bundle yet (2 stories)** — patch-tier track maturity continues. **First internal-review-driven cycle** — N28 was surfaced by an internal code review pass on v0.7.2 (vs operator/soliton in prior cycles). Full retrospective: `idea-stage/PIPELINE_REPORT_v14.md`. v0.8.0+ backlog: `idea-stage/IDEA_REPORT_v14.md`.
+
 ## [0.7.2] - 2026-04-28
 
 ### Added
