@@ -81,9 +81,15 @@ COMMIT_B=$(cd "$TMP" && git rev-parse HEAD)
 ( sleep 2 && cd "$TMP" && git reset --hard "$COMMIT_B" >/dev/null 2>&1 ) &
 bg_pid=$!
 
+# Soliton-pr-review caught at confidence 90 (v0.6.9 PR #70): the previous
+# pattern `out=$(... || true)` followed by `rc=$?` captures the exit code
+# of the assignment's subshell (always 0 due to `|| true` swallowing the
+# inner exit), making the rc-assertion below vacuously always-pass. Fix:
+# capture exit code via `out=$(...) || rc=$?` so the inner exit propagates
+# without aborting under set -uo pipefail.
 t0=$(date +%s)
-out=$(cd "$TMP" && bash -c "source '$LIB' && poll_orchestrator_commits 10 1" 2>&1 || true)
-rc=$?
+rc=0
+out=$(cd "$TMP" && bash -c "source '$LIB' && poll_orchestrator_commits 10 1" 2>&1) || rc=$?
 t1=$(date +%s)
 elapsed=$((t1 - t0))
 wait $bg_pid 2>/dev/null

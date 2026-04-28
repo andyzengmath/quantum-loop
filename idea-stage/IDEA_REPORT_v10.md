@@ -60,6 +60,18 @@ Severity distribution: **0 crit / 2 high / 11 med / 28 low**. LOW remains 68 %. 
 **Severity:** MEDIUM. Manual operators won't get auto-detect; only callers of the helper do.
 **Path:** v0.7.0 candidate. Update `/ql-execute` SKILL.md to invoke `poll_orchestrator_commits` after spawning the orchestrator subagent; on STALE, hand off via `references/orchestrator-takeover.md`. Or wrap as a parent-side bash script that operates on the orchestrator process. 0.5-1 stories. Couples with the broader v0.7.0 SKILL formalization track.
 
+### N16 — `poll_orchestrator_commits` interval_sec=0 infinite-loop guard
+**Surfaced:** `/soliton:pr-review` correctness agent on PR #70 (confidence 82 — sub-threshold of 85; queued).
+**Symptom:** if a caller passes `interval_sec=0` to `lib/orchestrator-liveness.sh::poll_orchestrator_commits`, `sleep 0` is a no-op and `elapsed` never increases past 0 — the `(( elapsed < timeout_sec ))` loop runs forever burning CPU. The library defaults (60) are safe, but the function is documented as caller-supplied; CLI mode passes `"$@"` directly.
+**Severity:** LOW (defensive). Current callers always use defaults or sensible values.
+**Path:** v0.7.0 doc/code edit. Add a guard at the top of the function: `if (( interval_sec <= 0 )); then printf "[LIVENESS] ERROR: interval_sec must be > 0 (got %s)\n" "$interval_sec" >&2; return 1; fi`. 0.1 stories.
+
+### N17 — `bench_wallclock_baseline_drift.sh` REPO_ROOT single-quote unsafe
+**Surfaced:** `/soliton:pr-review` correctness agent on PR #70 (confidence 65 — sub-threshold; queued).
+**Symptom:** `time eval "(cd '$REPO_ROOT' && $cmd)"` breaks if REPO_ROOT contains a single quote. Current repo paths are safe (no quotes); a future clone to `/home/user/andy's-repos/quantum-loop` would syntax-error.
+**Severity:** LOW (theoretical; not exploitable in current setups).
+**Path:** v0.7.0 nit. Replace with `printf %q` quoting: `safe_cmd=$(printf '(cd %q && %s)' "$REPO_ROOT" "$cmd"); time eval "$safe_cmd"`. 0.1 stories.
+
 ### N15 — Process references CLAUDE.md section growth
 **Surfaced:** v0.6.9 added the 3rd entry (orchestrator-takeover) joining v0.6.8's N7 (soliton-finding-triage) and N9 (test-wallclock-baselines). At 4+ entries the section may benefit from sub-categorization (orchestrator-related vs test-related vs process-related).
 **Severity:** LOW (organizational taste).
