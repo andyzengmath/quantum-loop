@@ -247,6 +247,10 @@ designing the next cycle's slate.
   validate-before-design workflow for sub-threshold (<85) `/soliton:pr-review`
   findings the operator chooses to address in the next cycle. Worked
   example: v0.6.7 G36 hallucination.
+- [`references/test-wallclock-baselines.md`](references/test-wallclock-baselines.md):
+  platform-conditional baseline table (Git Bash vs Linux/CI) for each
+  test-suite command. Reference these instead of absolute test-time
+  targets in PRD ACs.
 
 ## Signal Reference
 
