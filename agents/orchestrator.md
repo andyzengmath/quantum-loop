@@ -1370,6 +1370,8 @@ After the manual checks above pass, dispatch the risk-adaptive multi-reviewer pi
 
 The decision is recorded in `quantum.json.reviews[<feature-id>].deepReview` with shape `{tier, decision, rationale, automated}`. The `automated: true` flag distinguishes rule-driven decisions from hand-edited entries.
 
+N1 / US-004 (v0.6.7) — the gate is now load-bearing: explicit `if/else` containment ensures the dispatch pipeline runs ONLY when `should_dispatch_deep_review` returns 0. Pre-N1, the if-block recorded the skip decision and execution fell through to the live pipeline (steps 1-7 ran unconditionally). Post-N1, steps 1-7 live inside the else branch.
+
 ```bash
 # 0. Apply the dispatch gate FIRST. Skip the entire pipeline on LOW (or skip override).
 git diff "$BASE_SHA..HEAD" > "$REPO_ROOT/.quantum-feature-diff.patch"
@@ -1380,41 +1382,42 @@ if ! bash -c "source '$REPO_ROOT/lib/deep-review.sh' && should_dispatch_deep_rev
     "$JSON_PATH" > "$JSON_PATH.tmp" && mv "$JSON_PATH.tmp" "$JSON_PATH"
   rm -f "$REPO_ROOT/.quantum-feature-diff.patch"
   # proceed to Step 4C
+else
+  rm -f "$REPO_ROOT/.quantum-feature-diff.patch"
+
+  # 1. Compute risk score + tier from feature diff + intent-drift signal
+  SCORE=$(bash "$REPO_ROOT/lib/deep-review.sh" score-from-quantum "$JSON_PATH" "$BASE_SHA" "HEAD")
+  TIER=$(bash  "$REPO_ROOT/lib/deep-review.sh" tier "$SCORE")
+  echo "[DEEP-REVIEW] Risk score=$SCORE tier=$TIER"
+
+  # 2. Get the reviewer set for the tier
+  REVIEWERS=$(bash "$REPO_ROOT/lib/deep-review.sh" dispatch-set "$TIER")
+
+  # 3. Build the context package passed to every reviewer
+  INTENT_TEXT=$(jq -r '.userIntent.text // ""' "$JSON_PATH")
+  CONTEXT=$(bash "$REPO_ROOT/lib/deep-review.sh" context "$BASE_SHA" "HEAD" "$PRD_PATH" "$INTENT_TEXT" "$TIER")
+
+  # 4. Dispatch each reviewer in parallel via the Agent tool, passing CONTEXT
+  #    as the argument payload. Collect each reviewer's findings array into a
+  #    single JSON array-of-arrays ALL_FINDINGS.
+
+  # 5. Run the aggregation pipeline
+  AGG=$(printf '%s' "$ALL_FINDINGS" | bash "$REPO_ROOT/lib/deep-review.sh" aggregate "$REPO_ROOT")
+  VERDICT=$(jq -r '.verdict' <<< "$AGG")
+
+  # 6. Persist into quantum.reviews[<feature-id>].deepReview
+  jq --arg fid "$FEATURE_ID" --argjson agg "$AGG" --argjson score "$SCORE" --arg tier "$TIER" \
+    '.reviews[$fid] = {deepReview: ($agg + {risk_score: $score, tier: $tier})}' \
+    "$JSON_PATH" > "$JSON_PATH.tmp" && mv "$JSON_PATH.tmp" "$JSON_PATH"
+
+  # 7. Act on verdict
+  case "$VERDICT" in
+    BLOCKS_MERGE)          echo "[DEEP-REVIEW] BLOCKED — refusing COMPLETE" >&2; exit 1 ;;
+    REQUEST_CHANGES)       echo "[DEEP-REVIEW] REQUEST_CHANGES — creating fix-story" >&2 ;;
+    APPROVE_WITH_COMMENTS) echo "[DEEP-REVIEW] comments logged to codebasePatterns" >&2 ;;
+    APPROVE)               echo "[DEEP-REVIEW] clean" >&2 ;;
+  esac
 fi
-rm -f "$REPO_ROOT/.quantum-feature-diff.patch"
-
-# 1. Compute risk score + tier from feature diff + intent-drift signal
-SCORE=$(bash "$REPO_ROOT/lib/deep-review.sh" score-from-quantum "$JSON_PATH" "$BASE_SHA" "HEAD")
-TIER=$(bash  "$REPO_ROOT/lib/deep-review.sh" tier "$SCORE")
-echo "[DEEP-REVIEW] Risk score=$SCORE tier=$TIER"
-
-# 2. Get the reviewer set for the tier
-REVIEWERS=$(bash "$REPO_ROOT/lib/deep-review.sh" dispatch-set "$TIER")
-
-# 3. Build the context package passed to every reviewer
-INTENT_TEXT=$(jq -r '.userIntent.text // ""' "$JSON_PATH")
-CONTEXT=$(bash "$REPO_ROOT/lib/deep-review.sh" context "$BASE_SHA" "HEAD" "$PRD_PATH" "$INTENT_TEXT" "$TIER")
-
-# 4. Dispatch each reviewer in parallel via the Agent tool, passing CONTEXT
-#    as the argument payload. Collect each reviewer's findings array into a
-#    single JSON array-of-arrays ALL_FINDINGS.
-
-# 5. Run the aggregation pipeline
-AGG=$(printf '%s' "$ALL_FINDINGS" | bash "$REPO_ROOT/lib/deep-review.sh" aggregate "$REPO_ROOT")
-VERDICT=$(jq -r '.verdict' <<< "$AGG")
-
-# 6. Persist into quantum.reviews[<feature-id>].deepReview
-jq --arg fid "$FEATURE_ID" --argjson agg "$AGG" --argjson score "$SCORE" --arg tier "$TIER" \
-  '.reviews[$fid] = {deepReview: ($agg + {risk_score: $score, tier: $tier})}' \
-  "$JSON_PATH" > "$JSON_PATH.tmp" && mv "$JSON_PATH.tmp" "$JSON_PATH"
-
-# 7. Act on verdict
-case "$VERDICT" in
-  BLOCKS_MERGE)          echo "[DEEP-REVIEW] BLOCKED — refusing COMPLETE" >&2; exit 1 ;;
-  REQUEST_CHANGES)       echo "[DEEP-REVIEW] REQUEST_CHANGES — creating fix-story" >&2 ;;
-  APPROVE_WITH_COMMENTS) echo "[DEEP-REVIEW] comments logged to codebasePatterns" >&2 ;;
-  APPROVE)               echo "[DEEP-REVIEW] clean" >&2 ;;
-esac
 ```
 
 The tier table scales reviewer count from 2 (LOW) to 7 (CRITICAL, adds cross-provider critic via `omc ask codex --agent-prompt critic`). See `skills/ql-deep-review/SKILL.md` for per-tier reviewer mapping.

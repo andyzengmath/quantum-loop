@@ -140,7 +140,84 @@ rc=$(QL_DEEP_REVIEW=skip bash -c "source '$LIB' && should_dispatch_deep_review '
 assert "MEDIUM + skip exit code" "1" "$rc"
 assert_grep "MEDIUM + skip logs override" 'skip|QL_DEEP_REVIEW=skip' "$out"
 
+# ----- 5. G36 / US-002 (v0.6.7): 0-files diff (empty patch) → exit 1 (skip) -----
+# Empty input edge case: the diff file has 0 `diff --git` headers. Without
+# a `files_changed > 0` guard around the prod_count computation, the bug
+# at lib/deep-review.sh:176 has `printf '%s\n' ""` produce a single empty
+# line which `grep -cv` counts as 1 non-matching line, spuriously inflating
+# prod_count → cg=2 → score=2 (instead of 0). Decision still resolves to
+# LOW → skip (since 2 ≤ 30), but the diagnostic log shows the wrong
+# intermediate value. Asserting score=0 catches the bug cleanly.
+echo ""
+echo "Test 5: 0-files diff (empty patch) → exit 1 (skip), score=0 files=0"
+EMPTY_DIFF="$TMP/empty.patch"
+: > "$EMPTY_DIFF"
+out=$(bash -c "source '$LIB' && should_dispatch_deep_review '$EMPTY_DIFF'" 2>&1 || true)
+rc=$(bash -c "source '$LIB' && should_dispatch_deep_review '$EMPTY_DIFF' >/dev/null 2>&1 ; echo \$?")
+assert "empty-diff exit code" "1" "$rc"
+assert_grep "empty-diff logs files=0" 'files=0' "$out"
+assert_grep "empty-diff logs score=0 (no spurious cg inflation)" 'score=0' "$out"
+
 rm -rf "$TMP"
+
+# ----- 6. N1 / US-004 (v0.6.7): orchestrator.md Step 4B.5 wires the gate -----
+# Structural assertion: agents/orchestrator.md Step 4B.5 must contain BOTH
+# the `if ! ` invocation of should_dispatch_deep_review AND a standalone
+# `else` line, AND `score-from-quantum` (the first live-pipeline step)
+# must live BETWEEN the `else` and the closing `fi`. Pre-N1, the dispatch
+# pipeline ran unconditionally because there was no `else` containing it.
+echo ""
+echo "Test 6: orchestrator.md Step 4B.5 wires should_dispatch_deep_review with else-branch containment"
+ORCH="$REPO_ROOT/agents/orchestrator.md"
+# Extract the Step 4B.5 region: from the bash code-fence after the
+# "### 4B.5: Deep-review aggregation" header through the closing fence.
+# Strip trailing \r defensively per CLAUDE.md Platform Notes — orchestrator.md
+# may be checked out with CRLF line endings (Git autocrlf=true on Windows OR
+# mixed encoding from prior edits). awk preserves \r on lines it reads from a
+# CRLF file, so the downstream `grep -qE '^else$'` and `awk /^else$/` patterns
+# would fail to match `else\r`. The `tr -d '\r'` strip neutralizes this.
+step_4b5=$(awk '
+  /^### 4B\.5: Deep-review aggregation/ {found=1}
+  found && /^```bash/ {inblock=1; next}
+  found && inblock && /^```/ {inblock=0; exit}
+  found && inblock {print}
+' "$ORCH" | tr -d '\r')
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$step_4b5" | grep -qE '^if ! .*should_dispatch_deep_review'; then
+  echo "  PASS: Step 4B.5 contains 'if ! ...should_dispatch_deep_review' gate invocation"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: Step 4B.5 missing 'if ! ...should_dispatch_deep_review'"
+  FAIL=$((FAIL + 1))
+fi
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$step_4b5" | grep -qE '^else$'; then
+  echo "  PASS: Step 4B.5 contains standalone 'else' line"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: Step 4B.5 missing 'else' branch (gate is informational, not load-bearing)"
+  FAIL=$((FAIL + 1))
+fi
+TOTAL=$((TOTAL + 1))
+# Use awk to confirm score-from-quantum line index is BETWEEN `else` and closing `fi` line index.
+contained=$(printf '%s' "$step_4b5" | awk '
+  /^else$/ {else_idx=NR}
+  /score-from-quantum/ {score_idx=NR}
+  /^fi$/ {fi_idx=NR}
+  END {
+    if (else_idx > 0 && score_idx > else_idx && (fi_idx == 0 || score_idx < fi_idx))
+      print "yes"
+    else
+      print "no"
+  }
+')
+if [[ "$contained" == "yes" ]]; then
+  echo "  PASS: score-from-quantum lives inside else-branch (between else and fi)"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: score-from-quantum is NOT contained in the else-branch"
+  FAIL=$((FAIL + 1))
+fi
 
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="

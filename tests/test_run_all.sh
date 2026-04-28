@@ -122,6 +122,34 @@ assert_grep "--parallel runs all 3 files (test_a/b/c)" 'tests/test_a\.sh.*passed
 
 rm -rf "$TMP"
 
+# ----- 4. G37 / US-003 (v0.6.7): --parallel detects non-zero exit even when -----
+# the test's output line says "P/N passed" for P>0 (e.g. partial-run output
+# before crash, or a test that fails on a final cleanup step after passing
+# all assertions). Pre-fix: tests/run_all.sh:144 only checked grep for
+# `: 0/[0-9]+ passed` — missed this case → false-green run_all status.
+# Post-fix: xargs_rc capture catches the non-zero exit regardless of output.
+echo ""
+echo "Test 4: --parallel detects exit-1-with-passing-Results-line via xargs_rc"
+TMP2=$(mktemp -d)
+mkdir -p "$TMP2/tests"
+cat > "$TMP2/tests/test_d.sh" <<'PARTIAL_FAIL'
+#!/usr/bin/env bash
+echo "test_d"
+echo "  PASS: assertion-1"
+echo "=== Results: 1/1 passed, 0 failed ==="
+# Crashes AFTER printing the passing Results line — partial-run scenario.
+exit 1
+PARTIAL_FAIL
+chmod +x "$TMP2/tests/test_d.sh"
+( cd "$TMP2" && git init -q && git config user.email "t@t.t" && git config user.name "t"
+  git checkout -q -b master
+  git add tests/test_d.sh
+  git commit -qm "fixture-d" ) >/dev/null 2>&1
+
+rc=$(cd "$TMP2" && bash "$RUN_ALL" --parallel 2 >/dev/null 2>&1 ; echo $?)
+assert "--parallel catches exit 1 even with 'P/N passed' P>0 output" "1" "$rc"
+rm -rf "$TMP2"
+
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 [[ $FAIL -eq 0 ]] || exit 1
