@@ -58,6 +58,12 @@ This is genuinely architectural work: introduces a new control-flow pattern. **P
 **Severity:** LOW (cosmetic — CSV is canonical; report drift doesn't affect production).
 **Path:** ad-hoc audit during a future housekeeping cycle. Run `lib/finding-persist.sh` directly with multiple findings per stage and verify CSV row counts match. If the layer truncates, fix; if the report writer over-counts, fix the report writer.
 
+### N46 — QL_RESPAWN_CMD respawn-output not re-parsed
+
+**Status:** NEW (acknowledged limitation in v0.8.1 US-006 fix). When `wrap_orchestrator_dispatch` fires on STALE with `QL_RESPAWN_CMD` set, the respawn command runs but its stdout/stderr is NOT captured back into `OUTPUT`, and `runner_parse_output` is NOT re-invoked. Result: even a successful respawn (rc=0) leaves `SIGNAL_RESULT` at the original failed value, so the post-wrap case-statement still marks the story failed.
+**Severity:** MEDIUM (operators with `QL_RESPAWN_CMD` configured may be confused that their respawn ran but the story still appears failed).
+**Path:** v0.9.0+ alongside N42 (real per-wave dispatch). Proper fix: capture respawn output, re-feed through `runner_parse_output`, update SIGNAL_RESULT/SIGNAL_CONFIDENCE before falling into the case statement.
+
 ### N45 — External-helper working-tree noise
 
 **Status:** NEW (recurring). External-process modifications to test files appeared between v0.7.10 and v0.8.0 (stashed as `wip-pre-v0.8.0-external-edits`) and again between v0.8.0 and v0.8.1 (stashed as `v0.8.1-pre: external-helper edits 2026-04-29`). Pattern: CRLF normalization + minor content additions to dispatch tests + cleanup traps in test_timeout.sh.

@@ -23,6 +23,17 @@ Honest framing: v0.8.1 is the diagnostic; v0.9.0 should be the cure (N42 — rea
 | 3 | US-001 | Dogfood `--coordinator` end-to-end → grew into real fix | first-attempt PASS (scope grew per PRD's escalation clause) |
 | 4 | US-002 | Capture v0.8.1 dogfood synthesis | first-attempt PASS |
 | 5 | US-005 | Retrospective + IDEA_REPORT_v23 + version bump 0.8.0 → 0.8.1 | this report |
+| 6 | US-006 | Post-PR-review inline fix (Soliton-caught CRITICAL: dead-code guard regression) | first-attempt PASS |
+
+## Post-push soliton review outcome
+
+`/soliton:pr-review --pr 84` ran after the v0.8.1 branch was pushed and PR opened. **Two CRITICAL findings (confidence 97 + 88)** in the v0.8.1 US-001 wires:
+
+1. **Finding 1 (CRITICAL, conf 97):** The original v0.8.1 US-001 guard `if [[ -z "$SIGNAL_RESULT" ]]` was always false — `runner_parse_output` always sets `SIGNAL_RESULT` before returning (lib/runner.sh:277-311). The wire was dead code. **Same anti-pattern as the original N33 root cause #1, repeating one layer deeper than the v0.8.0 cycle.** Honest framing: the v0.8.1 dogfood found the v0.8.0 defect via static-grep; the soliton agent found the v0.8.1 fix had the same defect via end-to-end reading.
+
+2. **Finding 3 (improvement, conf 88):** The `*` (unknown-signal) case marked status=failed but never incremented `retries.attempts`. Pre-existing bug exposed by review. Created an effective infinite-retry loop on stories that hit this branch.
+
+US-006 ships both fixes inline + a Test 1b that explicitly checks for the reachable guard form (not the dead `-z` form). Security agent: FINDINGS_NONE. Risk score: 46/MEDIUM (no sensitive paths).
 
 ## The dogfood finding (verbatim)
 
