@@ -10,11 +10,10 @@
     "promptDelivery": "positional",
     "promptFlag": null,
     "headlessFlags": [
-      "-q"
+      "exec"
     ],
     "autoApproveFlags": [
-      "--approval-mode",
-      "full-auto"
+      "--full-auto"
     ],
     "outputFlags": [],
     "extraFlags": [],
