@@ -1551,11 +1551,19 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
   # v0.8.1 / US-001 (N39 dogfood) — wire ql_wrap_subagent_dispatch into the
   # production runner loop. The function was defined in v0.8.0 US-001 but
   # had zero callers in quantum-loop.sh — exactly N33 root cause #1
-  # repeating. Now invoked when SIGNAL_RESULT is empty/unknown (drift
-  # suspect): polls briefly to confirm whether the runner committed work
-  # despite producing no recognizable signal, and fires QL_RESPAWN_CMD if
-  # configured. Honors QL_LIVENESS_ENABLE=false for opt-out (silent skip).
-  if [[ -z "${SIGNAL_RESULT:-}" ]]; then
+  # repeating. v0.8.1 / US-006 (post-PR-review fix): the original guard was
+  # `[[ -z "$SIGNAL_RESULT" ]]` which is always false because
+  # runner_parse_output ALWAYS sets SIGNAL_RESULT before returning (exact
+  # match, heuristic fallback, or "STORY_FAILED" no-signal default). The
+  # corrected guard fires on STORY_FAILED with non-exact confidence — the
+  # actual "drift suspect" condition: the runner failed but we used
+  # heuristics or fallback to classify it. Limitation: when QL_RESPAWN_CMD
+  # is set and the wrap respawns successfully, the respawn's output is NOT
+  # re-parsed (SIGNAL_RESULT stays at STORY_FAILED). This is a soft-fire
+  # diagnostic only. Operators wanting full re-entry should use the
+  # quantum-loop iteration loop's natural retry path. Tracked as N46 for
+  # v0.9.0+ along with N42 (real per-wave dispatch).
+  if [[ "${SIGNAL_RESULT:-}" == "STORY_FAILED" && "${SIGNAL_CONFIDENCE:-}" != "exact" ]]; then
     ql_wrap_subagent_dispatch 5 1 "" >&2 || true
   fi
 
@@ -1587,10 +1595,17 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
       exit 1
       ;;
     *)
+      # v0.8.1 / US-006 (post-PR-review fix): increment retries.attempts and
+      # append to failureLog so a story that repeatedly hits the unknown-signal
+      # branch eventually exhausts retries and surfaces as BLOCKED. The prior
+      # implementation set status=failed without incrementing attempts,
+      # creating an effective infinite retry loop (story remains eligible
+      # because attempts < maxAttempts perpetually). Mirrors the STORY_FAILED
+      # branch's retry accounting.
       printf "WARNING: No recognized signal in output. Story may not have completed cleanly.\n"
       printf "Last 10 lines of output:\n"
       echo "$OUTPUT" | tail -10
-      json_atomic_update ".stories |= map(if .id == \"$STORY_ID\" then .startedAt = null | .status = \"failed\" else . end)"
+      json_atomic_update ".stories |= map(if .id == \"$STORY_ID\" then .startedAt = null | .status = \"failed\" | .retries.attempts += 1 | .retries.failureLog += [{\"phase\": \"no_signal\", \"timestamp\": (now | todate)}] else . end)"
       ;;
   esac
 

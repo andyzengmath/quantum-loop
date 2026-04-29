@@ -62,6 +62,24 @@ else
   FAIL=$((FAIL + 1))
 fi
 
+# Test 1b: the caller's guard must be REACHABLE. v0.8.1 PR-review caught a
+# regression: original guard was `[[ -z "$SIGNAL_RESULT" ]]` which is always
+# false (runner_parse_output always sets SIGNAL_RESULT). The corrected guard
+# fires on STORY_FAILED with non-exact confidence. This test asserts the
+# guard is NOT the dead `-z SIGNAL_RESULT` form.
+echo ""
+echo "Test 1b: ql_wrap_subagent_dispatch guard is reachable (not the dead -z SIGNAL_RESULT form)"
+# Find the guard line preceding the caller. If it's the dead `-z` form, fail.
+dead_guard=$(grep -B 1 'ql_wrap_subagent_dispatch [0-9"]' "$QUANTUM_LOOP" 2>/dev/null | grep -cE '\[\[ -z "?\$\{?SIGNAL_RESULT' || true)
+reachable_guard=$(grep -B 1 'ql_wrap_subagent_dispatch [0-9"]' "$QUANTUM_LOOP" 2>/dev/null | grep -cE 'SIGNAL_RESULT.*==.*STORY_FAILED|SIGNAL_RESULT.*!=.*STORY_PASSED' || true)
+if (( dead_guard == 0 && reachable_guard >= 1 )); then
+  echo "  PASS: guard fires on a runtime-reachable condition (no dead -z guard)"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: guard appears to be the dead -z SIGNAL_RESULT form (dead=$dead_guard, reachable=$reachable_guard)"
+  FAIL=$((FAIL + 1))
+fi
+
 # Test 2: $COORDINATOR_MODE is consulted (not just assigned).
 echo ""
 echo "Test 2: COORDINATOR_MODE is consulted (read) outside of flag-parsing assignment"
