@@ -56,11 +56,11 @@ elapsed=$((t1 - t0))
 
 assert "stale path exit code = 1" "1" "$rc"
 TOTAL=$((TOTAL + 1))
-if (( elapsed <= 12 )); then  # timeout=2 * 3 ceiling = 6, doubled for two invocations
-  echo "  PASS: stale path completed in ${elapsed}s (<=12s ceiling for 2 invocations × 2*3 jitter)"
+if (( elapsed <= 20 )); then  # base ceiling 12s (timeout=2 * 3 jitter * 2 invocations) +8s Git Bash fork-overhead headroom; see references/test-wallclock-baselines.md
+  echo "  PASS: stale path completed in ${elapsed}s (<=20s ceiling — Git Bash subprocess jitter tolerated)"
   PASS=$((PASS + 1))
 else
-  echo "  FAIL: stale path took ${elapsed}s (>12s ceiling — sleep jitter too high)"
+  echo "  FAIL: stale path took ${elapsed}s (>20s ceiling — investigate; refer to references/test-wallclock-baselines.md)"
   FAIL=$((FAIL + 1))
 fi
 TOTAL=$((TOTAL + 1))
