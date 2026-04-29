@@ -328,6 +328,48 @@ else
   rm -rf "$TMP11"
 fi
 
+# Test 12: US-002 (v0.8.0 N33) — worktree-aware poll_orchestrator_commits, STALE worktree
+echo ""
+echo "Test 12: poll_orchestrator_commits with WORKTREE_PATH on stale worktree -> rc=1"
+TMP12=$(mktemp -d)
+( cd "$TMP12" && git init -q && git config user.email "t@t.t" && git config user.name "t" \
+  && echo "init" > README.md && git add README.md && git commit -qm "init" ) >/dev/null 2>&1
+mkdir -p "$TMP12/wt"
+( cd "$TMP12" && git worktree add -q "$TMP12/wt" -b feature ) >/dev/null 2>&1
+rc12=0
+# Use poll_orchestrator_commits with a 4th arg = worktree path; STALE on the worktree path
+out12=$(cd "$TMP12" && bash -c "source '$LIB' && poll_orchestrator_commits 2 1 \"\" '$TMP12/wt'" 2>&1 || true)
+rc12=$(cd "$TMP12" && bash -c "source '$LIB' && poll_orchestrator_commits 2 1 \"\" '$TMP12/wt' >/dev/null 2>&1; echo \$?")
+assert "Test 12: worktree-path STALE rc=1" "1" "$rc12"
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$out12" | grep -qE '\[LIVENESS\] STALE'; then
+  echo "  PASS: STALE log emitted for worktree path"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: STALE log missing for worktree path — out: $out12"; FAIL=$((FAIL + 1))
+fi
+rm -rf "$TMP12"
+
+# Test 13: US-002 — worktree-aware poll detects LIVE when worktree HEAD advances
+echo ""
+echo "Test 13: poll_orchestrator_commits with WORKTREE_PATH detects worktree HEAD advance"
+TMP13=$(mktemp -d)
+( cd "$TMP13" && git init -q && git config user.email "t@t.t" && git config user.name "t" \
+  && echo "init" > README.md && git add README.md && git commit -qm "init" ) >/dev/null 2>&1
+( cd "$TMP13" && git worktree add -q "$TMP13/wt" -b feature ) >/dev/null 2>&1
+( sleep 2 && cd "$TMP13/wt" && echo "B" > a.txt && git add a.txt && git commit -qm "advance" >/dev/null 2>&1 ) &
+bg_pid=$!
+rc13=0
+out13=$(cd "$TMP13" && bash -c "source '$LIB' && poll_orchestrator_commits 10 1 \"\" '$TMP13/wt'" 2>&1) || rc13=$?
+wait $bg_pid 2>/dev/null
+assert "Test 13: worktree-path LIVE rc=0" "0" "$rc13"
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$out13" | grep -qE '\[LIVENESS\] new commit'; then
+  echo "  PASS: new-commit log emitted for worktree path"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: new-commit log missing for worktree path — out: $out13"; FAIL=$((FAIL + 1))
+fi
+rm -rf "$TMP13"
+
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 [[ $FAIL -eq 0 ]] || exit 1
