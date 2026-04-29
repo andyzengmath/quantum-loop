@@ -78,3 +78,41 @@ The coordinator is the addition; nothing is removed in v0.8.0. v0.8.1 will dogfo
 ## Liveness
 
 Your spawn is wrapped by `quantum-loop.sh::ql_wrap_subagent_dispatch` (v0.8.0 N33 / US-001). If you don't commit within `QL_LIVENESS_ENABLE`'s timeout, the parent receives a STALE signal and either falls back to manual takeover (per `references/orchestrator-takeover.md`) or auto-respawns via `QL_RESPAWN_CMD` (v0.7.2 N24).
+
+## Interaction with `--parallel` (v0.8.2 / US-004)
+
+**`--coordinator` and `--parallel` are mutually exclusive.** v0.9.0 N42 will enforce this at CLI parse time; v0.8.2 documents the policy.
+
+**Why:** the parallel path (`quantum-loop.sh` lines ~1101-1430) already implements wave-based dispatch with worktrees, agent monitoring, merge-back, and regression testing. The coordinator pattern (this agent) spawns implementer subagents internally per wave. Combining them would produce nested parallelism (worktree-of-worktrees) that doesn't compose on Git.
+
+**Operator guidance:**
+- Use `--parallel` for the existing worktree-driven wave dispatch (v0.7.x foundation; battle-tested).
+- Use `--coordinator` (v0.9.0+) for the per-wave subagent dispatch with bounded context.
+- Do not combine.
+
+If both flags are supplied, v0.9.0 will exit with an error: `--coordinator and --parallel are mutually exclusive (see agents/coordinator.md § "Interaction with --parallel")`.
+
+## quantum.json field ownership (v0.8.2 / US-004)
+
+When the coordinator pattern is active, two writers update quantum.json: the coordinator (this agent, per-wave) and the parent loop (`quantum-loop.sh`, between waves). Without an explicit ownership boundary, the non-atomic `tmp+mv` pattern can produce last-writer-wins on overlapping fields.
+
+**Coordinator owns (writes):**
+- `execution.completedWaves` — append a wave-completion record at end-of-wave.
+- `progress` — append per-wave learnings if `codebasePatterns` were harvested.
+- `stories[].review.specCompliance.*` and `stories[].review.codeQuality.*` for stories the coordinator dispatched in its wave.
+
+**Parent loop owns (writes):**
+- `stories[].status` — set to `passed`/`failed` based on aggregated wave signal.
+- `stories[].retries.attempts` and `stories[].retries.failureLog` — incremented on retry.
+- `stories[].startedAt` — set/cleared as iteration boundaries.
+- `updatedAt` — top-level timestamp; refreshed each iteration.
+
+**Coordinator must NOT write** the parent-owned fields above. **Parent must NOT write** `execution.completedWaves`. If a future feature needs cross-boundary writes, the contract should be re-negotiated with an explicit lock or a single-writer per field.
+
+This ownership boundary is informational for v0.8.2; v0.9.0 N42's per-wave dispatch implementation must respect it.
+
+## Forward references
+
+- v0.9.0 N42: real per-wave dispatch (replace single-spawn loop in `quantum-loop.sh` with wave-driven loop). See `idea-stage/IDEA_REPORT_v23.md` § "N42".
+- v0.9.0 N43: parallel-with-dispatch wrap pattern (deferred). See `idea-stage/IDEA_REPORT_v23.md` § "N43".
+- v0.8.2 / US-002: `runner_parse_output` extended to recognize `WAVE_PASSED`/`WAVE_FAILED` (this agent's signals). See `lib/runner.sh:283`.
