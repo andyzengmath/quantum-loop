@@ -661,6 +661,18 @@ ql_wrap_subagent_dispatch() {
   wrap_orchestrator_dispatch "$@"
 }
 
+# v0.8.1 / US-001 (N39 dogfood) — surface that --coordinator does NOT yet
+# alter the dispatch path in the shell-driven runner loop. The coordinator
+# agent definition (agents/coordinator.md) and spawn helper
+# (lib/spawn.sh::spawn_coordinator) exist and pass presence-check tests, but
+# no caller wires them into the per-iteration dispatch below. v0.8.0 shipped
+# with this gap unsurfaced (presence-only ACs); v0.8.1 dogfood caught it.
+# Tracked as N42 in idea-stage/IDEA_REPORT_v23.md — production wiring is the
+# next minor-tier scope (v0.9.0+).
+if [[ "$COORDINATOR_MODE" == "true" ]]; then
+  printf "WARN: --coordinator flag set but per-wave dispatch is not yet wired into the shell-driven runner loop. spawn_coordinator() is defined but has no caller in quantum-loop.sh. Falling back to legacy single-spawn behavior. See N42 in idea-stage/IDEA_REPORT_v23.md.\n" >&2
+fi
+
 # Load runner manifest (validates tool name, binary existence, sets RUNNER_* vars)
 runner_load "$TOOL" || exit 1
 runner_ensure_instructions || true
@@ -1535,6 +1547,17 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
 
   # Parse runner output for signals (uses heuristics if enabled for non-Claude runners)
   runner_parse_output "$OUTPUT" "$RUNNER_EXIT"
+
+  # v0.8.1 / US-001 (N39 dogfood) — wire ql_wrap_subagent_dispatch into the
+  # production runner loop. The function was defined in v0.8.0 US-001 but
+  # had zero callers in quantum-loop.sh — exactly N33 root cause #1
+  # repeating. Now invoked when SIGNAL_RESULT is empty/unknown (drift
+  # suspect): polls briefly to confirm whether the runner committed work
+  # despite producing no recognizable signal, and fires QL_RESPAWN_CMD if
+  # configured. Honors QL_LIVENESS_ENABLE=false for opt-out (silent skip).
+  if [[ -z "${SIGNAL_RESULT:-}" ]]; then
+    ql_wrap_subagent_dispatch 5 1 "" >&2 || true
+  fi
 
   case "$SIGNAL_RESULT" in
     COMPLETE)
