@@ -105,11 +105,32 @@ runner_parse_output "<quantum>WAVE_PASSING</quantum>" 0 "." 2>/dev/null
 # Should fall through to the no-signal default (STORY_FAILED, high confidence).
 assert_eq "non-canonical not matched" "STORY_FAILED" "$SIGNAL_RESULT"
 assert_eq "fallback confidence high"  "high"         "$SIGNAL_CONFIDENCE"
+# v0.8.3 / US-003 (post-v0.8.2 review tightening): explicit assertion that
+# confidence is NOT "exact" — guards against a regression that breaks the
+# regex entirely (returns empty for all inputs), which would otherwise
+# trivially pass the negative test by always hitting the no-signal default.
+TOTAL=$((TOTAL + 1))
+if [[ "$SIGNAL_CONFIDENCE" != "exact" ]]; then
+  echo "  PASS: negative test confidence is not 'exact' (regex actively rejected, not trivially passing)"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: confidence is 'exact' — negative test trivially passed; regex may be broken"
+  FAIL=$((FAIL + 1))
+fi
 
 echo ""
 echo "Test 10: bare 'WAVE_PASSED' without quantum tags does NOT match"
 runner_parse_output "Output mentions WAVE_PASSED but no quantum tags" 0 "." 2>/dev/null
 assert_eq "untagged not matched"      "STORY_FAILED" "$SIGNAL_RESULT"
+# v0.8.3 / US-003: same non-exact-confidence guard as Test 9.
+TOTAL=$((TOTAL + 1))
+if [[ "$SIGNAL_CONFIDENCE" != "exact" ]]; then
+  echo "  PASS: negative test confidence is not 'exact' (regex actively rejected, not trivially passing)"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: confidence is 'exact' — negative test trivially passed; regex may be broken"
+  FAIL=$((FAIL + 1))
+fi
 
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
