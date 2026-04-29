@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
-# US-002 (v0.8.0) — copilot CLI real smoke test.
+# US-002 (v0.8.0) — copilot CLI smoke test (HEALTH-CHECK LAYER).
 #
-# First end-to-end validation that the multi-runner infrastructure
-# integrates with GitHub Copilot CLI. Skip-pass if copilot absent.
+# v0.7.10 N35 reframe: this is the SMOKE layer — version-probe health check
+# that verifies binary present + manifest loadable. The complementary
+# DISPATCH layer (`tests/test_copilot_dispatch.sh`) verifies real-task
+# end-to-end (prompt -> output). Both layers skip-pass when copilot is not
+# installed. See CLAUDE.md "Multi-runner test layers".
 
 set -uo pipefail
 
