@@ -547,7 +547,7 @@ Record the agent_id and start time.
 
 Wait for agent completion notifications. Do NOT poll in a loop — Claude Code automatically notifies when background agents complete. If you need to check status proactively:
 1. Use `TaskOutput` with `block: false, timeout: 5000`
-2. Check output for `<quantum>STORY_PASSED</quantum>` or `<quantum>STORY_FAILED</quantum>`
+2. **v0.8.0 / US-005 (N33) — canonical signal parsing.** Pass the captured output through `runner_parse_subagent_output` (in `lib/runner.sh`) instead of grepping `<quantum>...</quantum>` directly. The wrapper routes through the shared `runner_parse_output` chain (claim-check, heuristic fallback when enabled) so detection state matches the shell-side path used by `lib/spawn.sh`. Sets `SIGNAL_RESULT`, `SIGNAL_CONFIDENCE`, `SIGNAL_CLAIM_FINDINGS` globals. Coordinator agents (`agents/coordinator.md`) use the same path.
 
 **Watchdog tick (Phase 17 wiring, P2.6; migrated to reap_agent in P5.A1 / US-001):** once per check cycle, consult `lib/watchdog.sh` for staleness. Three explicit calls fire here: (1) **age-tier check** via `watchdog.sh poll`, (2) **circuit-breaker check** via `watchdog.sh circuit`, and (3) **circuit-breaker reset on STORY_PASSED** via `watchdog.sh reset` (see the success-handler below).
 
