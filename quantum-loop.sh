@@ -692,6 +692,16 @@ if [[ "$PARALLEL_MODE" == "true" ]]; then
   source "$SCRIPT_DIR/lib/resilience.sh" || { printf "ERROR: lib/resilience.sh not found\n"; exit 1; }
 fi
 
+# v0.8.3 / US-001 (4th-layer N33 closure): also source lib/spawn.sh under
+# COORDINATOR_MODE so v0.9.0 N42's spawn_coordinator() is defined at call
+# time. Without this, --coordinator path hits "command not found" before
+# reaching the dispatch loop. Architect post-v0.8.2 review caught this gap.
+# Idempotent: lib/spawn.sh has its own source-guard so re-sourcing is safe.
+if [[ "$COORDINATOR_MODE" == "true" ]]; then
+  source "$SCRIPT_DIR/lib/dag-query.sh" || { printf "ERROR: lib/dag-query.sh not found\n"; exit 1; }
+  source "$SCRIPT_DIR/lib/spawn.sh" || { printf "ERROR: lib/spawn.sh not found\n"; exit 1; }
+fi
+
 # =============================================================================
 # Archive previous run if branch changed
 # =============================================================================
@@ -1593,6 +1603,24 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
       printf "===========================================\n"
       print_summary_table
       exit 1
+      ;;
+    WAVE_PASSED)
+      # v0.8.3 / US-001 (4th-layer N33 closure): wave-level signal from
+      # agents/coordinator.md (WAVE_PASSED = all stories in wave passed).
+      # v0.8.3 wires the case branch so the parser-recognized signal doesn't
+      # fall into the *) wildcard. Story-status semantics here treat the
+      # wave as a single-story-progressing unit; v0.9.0 N42 will refine to
+      # multi-story update once spawn_coordinator is wired into the
+      # dispatch path.
+      printf "Wave (story %s) PASSED. Continuing to next iteration...\n" "$STORY_ID"
+      json_atomic_update ".stories |= map(if .id == \"$STORY_ID\" then .status = \"passed\" | .startedAt = null else . end)"
+      ;;
+    WAVE_FAILED)
+      # v0.8.3 / US-001 (4th-layer N33 closure): wave-level failure signal.
+      # Mirrors STORY_FAILED retry accounting; v0.9.0 N42 may refine to
+      # per-wave-story failure attribution.
+      printf "Wave (story %s) FAILED (attempt %d). Will retry if attempts remain.\n" "$STORY_ID" "$((STORY_ATTEMPT + 1))"
+      json_atomic_update ".stories |= map(if .id == \"$STORY_ID\" then .status = \"failed\" | .startedAt = null | .retries.attempts += 1 | .retries.failureLog += [{\"phase\": \"wave_failed\", \"timestamp\": (now | todate)}] else . end)"
       ;;
     *)
       # v0.8.1 / US-006 (post-PR-review fix): increment retries.attempts and
