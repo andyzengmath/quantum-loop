@@ -361,7 +361,8 @@ for ($iteration = 1; $iteration -le $MaxIterations; $iteration++) {
 
     # Process output signals (relaxed whitespace regex + heuristic fallback)
     $signalResult = $null
-    $signalRegex = '<quantum>\s*(STORY_PASSED|STORY_FAILED|COMPLETE|BLOCKED)\s*</quantum>'
+    # v0.8.3 / US-002 (4th-layer N33 closure): mirrors lib/runner.sh:283 — must include all 6 signals.
+    $signalRegex = '<quantum>\s*(STORY_PASSED|STORY_FAILED|COMPLETE|BLOCKED|WAVE_PASSED|WAVE_FAILED)\s*</quantum>'
     $matches_found = [regex]::Matches($output, $signalRegex)
     if ($matches_found.Count -gt 0) {
         $signalResult = $matches_found[$matches_found.Count - 1].Groups[1].Value  # last wins
@@ -403,6 +404,19 @@ for ($iteration = 1; $iteration -le $MaxIterations; $iteration++) {
             Write-Host "===========================================" -ForegroundColor Red
             Show-Summary
             exit 1
+        }
+        "WAVE_PASSED" {
+            # v0.8.3 / US-002 (4th-layer N33 closure): wave-level pass; mirrors STORY_PASSED.
+            # v0.9.0 N42 may refine wave-to-story mapping in PowerShell parity once bash has it.
+            Write-Host "Wave (story $storyId) PASSED. Continuing..." -ForegroundColor Green
+            $tmp = jq --arg id $storyId '.stories |= map(if .id == $id then .startedAt = null else . end)' quantum.json
+            $tmp | Set-Content -Path quantum.json -Encoding UTF8 -NoNewline
+        }
+        "WAVE_FAILED" {
+            # v0.8.3 / US-002 (4th-layer N33 closure): wave-level failure; mirrors STORY_FAILED.
+            Write-Host "Wave (story $storyId) FAILED (attempt $([int]$storyAttempt + 1)). Will retry if attempts remain." -ForegroundColor Yellow
+            $tmp = jq --arg id $storyId '.stories |= map(if .id == $id then .startedAt = null else . end)' quantum.json
+            $tmp | Set-Content -Path quantum.json -Encoding UTF8 -NoNewline
         }
         default {
             Write-Host "WARNING: No recognized signal. Story may not have completed cleanly." -ForegroundColor Yellow
