@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# US-001 (v0.8.0) — codex CLI real smoke test.
+# US-001 (v0.8.0) — codex CLI smoke test (HEALTH-CHECK LAYER).
 #
-# First end-to-end validation that the multi-runner infrastructure
-# (runners/codex.json + runners/hooks/codex-hooks.sh + lib/runner.sh)
-# integrates with the actual codex CLI binary. Skip-pass if codex is
-# not on PATH (CI may not install it).
+# v0.7.10 N35 reframe: this is the SMOKE layer — version-probe health check
+# that verifies binary present + manifest loadable. The complementary
+# DISPATCH layer (`tests/test_codex_dispatch.sh`) verifies real-task
+# end-to-end (prompt -> output). Both layers skip-pass when codex is not
+# installed. See CLAUDE.md "Multi-runner test layers".
 
 set -uo pipefail
 

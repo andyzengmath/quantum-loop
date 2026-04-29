@@ -260,6 +260,24 @@ Test-related, and Process-related.
   test-suite command. Reference these instead of absolute test-time
   targets in PRD ACs.
 
+### Multi-runner test layers
+
+Multi-runner tests are split into two complementary layers (v0.7.10 N35):
+
+- **Smoke** (`tests/test_<runner>_runner_smoke.sh`) — version-probe health
+  check. Verifies the binary is on PATH and the manifest schema loads.
+  Cheap (<5s). Always green when the binary is installed correctly.
+- **Dispatch** (`tests/test_<runner>_dispatch.sh`,
+  `tests/test_runner_dispatch.sh`, `tests/test_multi_runner_dispatch_e2e.sh`) —
+  real-task end-to-end. Loads the manifest, builds the invocation chain,
+  evaluates a tiny prompt, asserts rc=0 + non-empty stdout. Catches manifest
+  drift when the underlying CLI changes flags (worked example: v0.7.10
+  caught the codex `-q` → `exec` subcommand migration). Skip-aware on
+  missing binaries; ≤60s per runner.
+
+The dispatch layer entry-point is `lib/runner.sh::runner_dispatch <name>
+<prompt>` — composes `runner_load` + `runner_build_cmd` + `eval`.
+
 ### Process-related
 
 - [`references/soliton-finding-triage.md`](references/soliton-finding-triage.md):

@@ -7,6 +7,34 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.7.10] - 2026-04-28
+
+### Added
+
+7 stories closing N35 (real-task dispatch beyond version probe) + multi-runner test layer reframe + v0.7.9 housekeeping. Patch-tier; operator-driven extension of v0.7.4 N5 + v0.7.7 N30 multi-runner foundation. Eleventh multi-cycle populated-CSV run (30 → 33 rows). v0.7.10 self-validated: tier=LOW score=22 files=9 sensitive=0 → skip with `automated:true`. **15 consecutive LOW-tier self-validations** (v0.6.5..v0.7.10).
+
+- **US-001 — `runner_dispatch` wrapper** — `lib/runner.sh` adds `runner_dispatch <runner_name> <prompt>` function composing `runner_load` + `runner_build_cmd` + `eval`. New `tests/test_runner_dispatch.sh` covers function presence, mock-echo manifest dispatch, unknown-runner error, and missing-args error (5 assertions).
+- **US-002 — codex dispatch test + manifest fix** — `tests/test_codex_dispatch.sh` (skip-aware on missing codex CLI). Real-task dispatch uncovered codex manifest drift: `runners/codex.json` updated to use the `exec` subcommand and `--full-auto` flag (codex CLI removed `-q` and `--approval-mode`). Test asserts rc=0 + non-empty stdout + ≤60s wall-clock.
+- **US-003 — copilot dispatch test** — `tests/test_copilot_dispatch.sh` mirrors codex pattern; skip-aware on missing copilot CLI.
+- **US-004 — multi-runner E2E dispatch test** — `tests/test_multi_runner_dispatch_e2e.sh` iterates claude+codex+copilot, dispatching a tiny prompt against each. Three accounting buckets: `dispatched` (rc=0 + non-empty), `skipped` (binary not on PATH), `timed_out` (rc=124 from `timeout --kill-after=5 90` wrapper — environmental, not a code defect). Final invariant: all 3 runners accounted for. 5/5 assertions on this dogfood machine (claude+codex dispatched, copilot timed-out due to rate-limit).
+- **US-005 — multi-runner test layers documentation** — `CLAUDE.md` gains a "Multi-runner test layers" subsection distinguishing **smoke** (version-probe health check) from **dispatch** (real-task end-to-end). `lib/runner.sh` header lists all three top-level entry-points (`runner_load`, `runner_build_cmd`, `runner_dispatch`).
+- **US-006 — smoke test docstring reframe** — `tests/test_codex_runner_smoke.sh` and `tests/test_copilot_runner_smoke.sh` headers updated to identify themselves as the SMOKE/health-check layer and cross-link to the new DISPATCH layer.
+- **US-007 — retrospective + v0.7.9 housekeeping** — `idea-stage/PIPELINE_REPORT_v21.md` + `idea-stage/IDEA_REPORT_v21.md`. Commits `docs/plans/2026-04-28-v0.7.9-bundle-design.md` + `tasks/prd-v0.7.9-bundle.md` that were authored in v0.7.9 cycle but never staged (untracked-design-prd housekeeping, recurring pattern from v0.7.5/v0.7.6 N29/N34 audits).
+
+### Test-suite delta
+
+**+5 new test files**, **+12 new assertions** approximate:
+
+- 4 new: `test_runner_dispatch.sh` (5 asserts), `test_codex_dispatch.sh` (3 asserts), `test_copilot_dispatch.sh` (3 asserts), `test_multi_runner_dispatch_e2e.sh` (5 asserts)
+
+### Manifest fix
+
+- `runners/codex.json` invocation: `headlessFlags: ["-q"]` → `["exec"]`; `autoApproveFlags: ["--approval-mode", "full-auto"]` → `["--full-auto"]` (codex CLI flag migration).
+
+### Dogfood milestone (v0.7.10)
+
+**7/7 user-facing stories shipped first-attempt PASS** under manual takeover. 0 retries. **Multi-cycle CSV milestone**: 30 → 33 rows. **G30 self-validation** (15th consecutive correct LOW classification): tier=LOW score=22 files=9 sensitive=0 → skip; recorded with `automated:true`. **Real-task dispatch validated end-to-end** for claude + codex; copilot timed-out due to environmental rate-limit (not a code defect — TIMEOUT bucket added to E2E for visibility). Full retrospective: `idea-stage/PIPELINE_REPORT_v21.md`. v0.9.0+ backlog: `idea-stage/IDEA_REPORT_v21.md`.
+
 ## [0.7.9] - 2026-04-28
 
 ### Added

@@ -4,6 +4,12 @@
 #
 # Usage: source lib/runner.sh; runner_load "claude"
 # After loading, all RUNNER_* variables are set for command building.
+#
+# Top-level entry-points:
+#   runner_load <name>             — Load and validate a runner manifest.
+#   runner_build_cmd <prompt>      — Build the invocation shell command.
+#   runner_dispatch <name> <prompt> — Real-task dispatch end-to-end (v0.7.10 N35).
+# See CLAUDE.md "Multi-runner test layers" for the smoke vs. dispatch split.
 
 RUNNER_LIB_DIR="${RUNNER_LIB_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 
@@ -592,4 +598,25 @@ runner_build_cmd() {
 
   printf '%s' "$cmd"
   return 0
+}
+
+# runner_dispatch(name, prompt) — N35 / US-001 (v0.7.10)
+# Real-task dispatch entry-point: loads the runner manifest, builds the
+# invocation command, evaluates it. Composes runner_load + runner_build_cmd +
+# eval so callers + dispatch tests can address real-task invocation through
+# a single function (smoke tests still verify version probe + manifest load
+# only — see CLAUDE.md "Multi-runner test layers").
+#
+# Returns the runner's exit code. Stdout is the runner's stdout; stderr
+# passes through. Caller is responsible for capturing/redirecting as needed.
+runner_dispatch() {
+  local name="${1:?runner_dispatch: runner_name required}"
+  local prompt="${2:?runner_dispatch: prompt required}"
+  if ! runner_load "$name"; then
+    return 1
+  fi
+  local cmd
+  cmd=$(runner_build_cmd "$prompt") || return 1
+  eval "$cmd"
+  return $?
 }
