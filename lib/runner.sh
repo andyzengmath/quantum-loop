@@ -593,3 +593,24 @@ runner_build_cmd() {
   printf '%s' "$cmd"
   return 0
 }
+
+# runner_dispatch(name, prompt) — N35 / US-001 (v0.7.10)
+# Real-task dispatch entry-point: loads the runner manifest, builds the
+# invocation command, evaluates it. Composes runner_load + runner_build_cmd +
+# eval so callers + dispatch tests can address real-task invocation through
+# a single function (smoke tests still verify version probe + manifest load
+# only — see CLAUDE.md "Multi-runner test layers").
+#
+# Returns the runner's exit code. Stdout is the runner's stdout; stderr
+# passes through. Caller is responsible for capturing/redirecting as needed.
+runner_dispatch() {
+  local name="${1:?runner_dispatch: runner_name required}"
+  local prompt="${2:?runner_dispatch: prompt required}"
+  if ! runner_load "$name"; then
+    return 1
+  fi
+  local cmd
+  cmd=$(runner_build_cmd "$prompt") || return 1
+  eval "$cmd"
+  return $?
+}
