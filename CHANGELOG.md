@@ -7,6 +7,37 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.8.4] - 2026-04-29
+
+### Added — patch-tier (post-v0.8.3 review hotfix — final v0.8.x close)
+
+4 implementation stories closing all residual findings from the v0.8.3 multi-perspective post-merge review (architect + code-reviewer + security agents). After v0.8.4, **the v0.8.x track is fully closed with zero deferred findings**. v0.9.0 N42 (real per-wave coordinator dispatch) is the next minor-tier scope, awaiting operator confirmation. v0.8.4 self-validated: tier=LOW score=≤25 files=≤7 sensitive=0 → skip with `automated:true`. **20 consecutive LOW-tier self-validations** (v0.6.5..v0.8.4).
+
+- **US-001 — PS `WAVE_FAILED` retry accounting parity (MEDIUM from v0.8.3 code-reviewer)** — `quantum-loop.ps1:415-418` `"WAVE_FAILED"` arm now mirrors the bash branch's full retry-accounting jq expression (`status=failed`, `retries.attempts++`, append `failureLog` with `phase: "wave_failed"`). Prior arm only cleared `startedAt`, leaving an infinite-retry loop in the PS path. Same defect class as v0.8.1 US-006 fix on bash side.
+- **US-002 — PS `$storyId` defense-in-depth regex validation (LOW from v0.8.3 security-reviewer)** — Added regex validation after `$storyId` extraction (around line 285) mirroring `quantum-loop.sh:1471` (`^[A-Za-z0-9_-]+$`). `jq --arg` already treats values as strings (no jq injection), but defense-in-depth guards against future code paths.
+- **US-003 — lib/spawn.sh idempotency source guard (LOW from v0.8.3 code-reviewer)** — Added `_QL_SPAWN_SH` guard at top of `lib/spawn.sh`. The v0.8.3 source-gate comment claimed "lib/spawn.sh has its own source-guard"; v0.8.4 makes the comment accurate. Idempotent re-sourcing now guaranteed.
+- **US-004 — update 4 implementer-scoped docs to reference WAVE_* signals (cosmetic from v0.8.3 architect)** — `CLAUDE.md` Signal Reference, `skills/ql-execute/SKILL.md` signal table, `runners/preamble.md` signal protocol, and `templates/quantum-loop.ps1` user-template comment all now reference WAVE_PASSED/WAVE_FAILED with appropriate context (coordinator pattern; implementer-scoped vs wave-scoped clarification).
+- **US-005 — retrospective + IDEA_REPORT_v26 + version bump 0.8.3 → 0.8.4** — this entry.
+
+### Test-suite delta
+
+No new tests; the source-guard idempotency was verified inline (double-source returns 0 silently with no error).
+
+### Architectural observations
+
+**v0.8.x track FINAL CLOSE.** Four cycles shipped: v0.8.0 (architectural minor — N33 closure infrastructure), v0.8.1 (validation patch — found 2 inert pieces), v0.8.2 (review hotfix — primary signal regex + CRLF + ceilings + docs), v0.8.3 (4th-layer hotfix — heuristic regex + case switch + source gate + PS parity + test tightening), v0.8.4 (final hotfix — PS retry parity + storyId validation + spawn.sh guard + 4 cosmetic doc gaps). All findings from all 4 multi-perspective post-merge reviews are now closed.
+
+The 4-layer N33 anti-pattern saga is the strongest validation of p012 (anti-presence-only AC) in the codebase. The pattern is reusable: when introducing a recovery wrapper, opt-in flag, OR a signal that another component must recognize, search ALL parallel consumer sites before declaring closure.
+
+### Honest scope drift
+
+- US-001 + US-002 committed atomically (same file, both small, no logical separation worth a commit boundary).
+- US-004 added a comment-only annotation to `templates/quantum-loop.ps1` rather than extending its signal-handling branches — the user template is implementer-scoped and never sees WAVE_* signals at runtime.
+
+### Dogfood milestone (v0.8.4)
+
+**4/4 user-facing stories shipped first-attempt PASS** under manual takeover. 0 retries (17th consecutive cycle). **Multi-cycle CSV milestone**: 46 → 49 rows (3 advisory rows; design/prd/plan all 1 LOW). **G30 self-validation** (20th consecutive correct LOW): tier=LOW score=≤25 files=≤7 sensitive=0 → skip; recorded with `automated:true`. **v0.8.x track FULLY CLOSED.** v0.9.0 N42 prerequisites all met; backlog catalogued in `idea-stage/IDEA_REPORT_v26.md`. Full retrospective: `idea-stage/PIPELINE_REPORT_v26.md`.
+
 ## [0.8.3] - 2026-04-29
 
 ### Added — patch-tier (post-v0.8.2 review hotfix — close the WAVE_* anti-pattern across all sites)

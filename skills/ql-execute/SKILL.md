@@ -80,6 +80,8 @@ On Windows, use `/ql-execute` instead of the shell script for reliable execution
 | `<quantum>BLOCKED</quantum>` | No executable stories remain |
 | `<quantum>STORY_PASSED</quantum>` | One story completed (more remain) |
 | `<quantum>STORY_FAILED</quantum>` | One story failed (will retry if attempts remain) |
+| `<quantum>WAVE_PASSED</quantum>` | All stories in a coordinator wave passed (v0.8.0+ coordinator pattern; see `agents/coordinator.md`) |
+| `<quantum>WAVE_FAILED</quantum>` | One or more wave stories failed (parent decides retry/abort) |
 
 ## Post-review slop-cleanup hook (Phase 9 / P1.6)
 

@@ -301,3 +301,5 @@ The dispatch layer entry-point is `lib/runner.sh::runner_dispatch <name>
 | `<quantum>STORY_FAILED</quantum>` | Story failed, will be retried next iteration |
 | `<quantum>COMPLETE</quantum>` | All stories passed, feature is done |
 | `<quantum>BLOCKED</quantum>` | No executable stories remain (all blocked or exhausted retries) |
+| `<quantum>WAVE_PASSED</quantum>` | All stories in this wave passed (coordinator pattern, v0.8.0+; see `agents/coordinator.md`) |
+| `<quantum>WAVE_FAILED</quantum>` | One or more stories in this wave failed (coordinator pattern, v0.8.0+; parent decides retry/abort) |
