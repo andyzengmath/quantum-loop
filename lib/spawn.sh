@@ -5,6 +5,18 @@
 # Requires: lib/common.sh (for _validate_story_id)
 # Interactive spawning uses the Task tool directly (not a shell function).
 
+# v0.8.4 / US-003: idempotency source guard. Code-reviewer post-v0.8.3 caught
+# that quantum-loop.sh:696's COORDINATOR_MODE source-gate comment claims
+# "lib/spawn.sh has its own source-guard" — but the guard didn't exist.
+# Re-sourcing was benign (initialization is side-effect-free) but the comment
+# was inaccurate. This guard makes it accurate AND prevents accidental
+# duplicate sourcing if both PARALLEL_MODE and COORDINATOR_MODE source-gates
+# fire in a future code path.
+if [[ -n "${_QL_SPAWN_SH:-}" ]]; then
+  return 0 2>/dev/null || true
+fi
+readonly _QL_SPAWN_SH=1
+
 # Source shared utilities
 SPAWN_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SPAWN_LIB_DIR/common.sh" || { printf "ERROR: common.sh not found\n" >&2; return 1 2>/dev/null || exit 1; }
