@@ -4,6 +4,17 @@
 **Cycle:** v0.8.1
 **Mission:** Empirically validate that v0.8.0's N33 closure (`ql_wrap_subagent_dispatch` wired into `quantum-loop.sh` + `--coordinator` flag opt-in) actually fires in production.
 
+## Final verdict (US-002 synthesis)
+
+| Claim (from PRD US-002) | Status | Evidence anchor |
+|---|---|---|
+| Coordinator agent dispatched | ❌ BROKEN → ⚠️ DEGRADED post-fix | quantum-loop.sh:553/559 set var; pre-fix had 0 readers; post-fix WARN is observable but real per-wave dispatch is N42 |
+| `wrap_orchestrator_dispatch` invoked in production | ❌ BROKEN → ✅ WORKED post-fix | quantum-loop.sh:1559 now calls `ql_wrap_subagent_dispatch 5 1 ""` when `SIGNAL_RESULT` is empty |
+| Worktree-aware poll accurate | ✅ WORKED (test-only) | tests/test_orchestrator_liveness.sh Tests 12+13 cover; real-cycle validation deferred to N42 |
+| Coordinator stayed within bounded context | ⚠️ DEGRADED / N/A | No real coordinator dispatch (defect 1); structural-only evidence (orchestrator.md 1743→1007 lines, 13 modules) |
+
+**Quorum:** all 4 claims have explicit verdicts (no UNKNOWN entries). Two pre-fix BROKEN findings are explicit defects in v0.8.0; both received minimal viable fixes in v0.8.1. Two findings remain DEGRADED/N/A pending the larger N42 work (real per-wave dispatch). v0.8.1 is the diagnostic; v0.9.0 should be the cure.
+
 ## TL;DR
 
 **v0.8.0 shipped two pieces of inert infrastructure** with presence-only ACs.
