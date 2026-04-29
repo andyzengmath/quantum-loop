@@ -623,6 +623,20 @@ fi
 source "$SCRIPT_DIR/lib/common.sh" || { printf "ERROR: lib/common.sh not found\n"; exit 1; }
 source "$SCRIPT_DIR/lib/json-atomic.sh" || { printf "ERROR: lib/json-atomic.sh not found\n"; exit 1; }
 source "$SCRIPT_DIR/lib/runner.sh" || { printf "ERROR: lib/runner.sh not found\n"; exit 1; }
+source "$SCRIPT_DIR/lib/orchestrator-liveness.sh" || { printf "ERROR: lib/orchestrator-liveness.sh not found\n"; exit 1; }
+
+# v0.8.0 / US-001 (N33) — Wire recovery infrastructure for orchestrator/coordinator
+# subagent dispatch. Callers wrap their long-running agent-spawn (e.g., the
+# v0.8.0 coordinator pattern in US-004, or external supervisor scripts) with
+# this helper so STALE detection actually fires in production. Honors
+# QL_LIVENESS_ENABLE (default true) and QL_RESPAWN_CMD env vars.
+#
+# Usage: ql_wrap_subagent_dispatch [TIMEOUT_SEC] [INTERVAL_SEC] [WORKTREE_PATH]
+#   Returns rc=0 when commits land within timeout (LIVE / OPT-OUT).
+#   Returns rc=1 when STALE (emits canonical handoff message to stdout).
+ql_wrap_subagent_dispatch() {
+  wrap_orchestrator_dispatch "$@"
+}
 
 # Load runner manifest (validates tool name, binary existence, sets RUNNER_* vars)
 runner_load "$TOOL" || exit 1
