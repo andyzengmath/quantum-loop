@@ -4,6 +4,12 @@
 #
 # Usage: source lib/runner.sh; runner_load "claude"
 # After loading, all RUNNER_* variables are set for command building.
+#
+# Top-level entry-points:
+#   runner_load <name>             — Load and validate a runner manifest.
+#   runner_build_cmd <prompt>      — Build the invocation shell command.
+#   runner_dispatch <name> <prompt> — Real-task dispatch end-to-end (v0.7.10 N35).
+# See CLAUDE.md "Multi-runner test layers" for the smoke vs. dispatch split.
 
 RUNNER_LIB_DIR="${RUNNER_LIB_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 
