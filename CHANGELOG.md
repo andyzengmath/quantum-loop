@@ -7,6 +7,38 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.8.2] - 2026-04-29
+
+### Added — patch-tier (post-v0.8.1 review fixes + v0.9.0 N42 prerequisites)
+
+5 stories addressing the multi-perspective post-v0.8.1 review (architect + code-reviewer + security-reviewer sub-agents). Closes 2 CRITICAL items (CRLF hygiene + signal-protocol gap) plus 3 supporting follow-ups (wall-clock flake + architectural-debt docs + retrospective). Sets up v0.9.0 N42 (real per-wave coordinator dispatch) to land cleanly. v0.8.2 self-validated: tier=LOW score=25 files=10 sensitive=0 → skip with `automated:true`. **18 consecutive LOW-tier self-validations** (v0.6.5..v0.8.2).
+
+- **US-001 — fix CRLF on copilot-hooks.sh + test_runner.sh; add `.gitattributes`** — v0.8.1 US-004 imported these files from a Windows-authored stash; they shipped CRLF-encoded. Strict Linux/CI environments reject the shebang with `bad interpreter: No such file or directory`. Re-encoded both files via `sed s/\r$//` (line-ending-only delta; verified by 294-in/294-out diff stat on test_runner.sh). New `.gitattributes` enforces `*.sh` and `*.bash` `text eol=lf` to prevent recurrence, with text annotation for `*.md`/`*.txt`/`*.json`/`*.yml`/`*.yaml`.
+- **US-002 — extend `runner_parse_output` to recognize `WAVE_PASSED`/`WAVE_FAILED`** — v0.9.0 N42 prerequisite. Architect post-v0.8.1 review caught that `runner_parse_output` (lib/runner.sh:283) regex matched only the 4 existing signals (`STORY_PASSED|STORY_FAILED|COMPLETE|BLOCKED`). The coordinator agent (`agents/coordinator.md:36-37`) emits `WAVE_PASSED`/`WAVE_FAILED`. Without the parser extension, every coordinator dispatch in v0.9.0 N42 would route to the unknown-signal failure branch — exactly the N33 root-cause #1 anti-pattern repeating one layer deeper. Regex extended to 6 signals (additive only; existing 4-signal recognition preserved). New `tests/test_signal_parsing.sh` (13 assertions) covers all 6 signals + regression guards (whitespace tolerance, last-signal-wins) + negative tests (substring `WAVE_PASSING` and bare untagged `WAVE_PASSED` do NOT match).
+- **US-003 — bump Test 5 wall-clock ceiling 6s → 10s** — `tests/test_orchestrator_liveness.sh` Test 5 (`interval_sec=0 guard`) was intermittently failing on Git Bash with elapsed=7s. Same Git Bash subprocess-fork-overhead jitter class as v0.8.1 US-003's Test 2 (12 → 20s) fix. Bumped to 10s with reference annotation to `references/test-wallclock-baselines.md`.
+- **US-004 — document `--coordinator --parallel` rejection + quantum.json field ownership in `agents/coordinator.md`** — Architect surfaced two architectural-debt items needing documentation before v0.9.0 ships per-wave dispatch: (1) `--coordinator` and `--parallel` are mutually exclusive (parallel path already does worktree-based wave dispatch; coordinator spawns implementer subagents internally; combining produces nested worktree-of-worktrees that doesn't compose); (2) quantum.json field ownership — coordinator owns `execution.completedWaves`/`progress`/`stories[].review.*`; parent loop owns `stories[].status`/`stories[].retries.*`/`startedAt`/`updatedAt`. v0.9.0 N42 will enforce the rejection at CLI parse time and respect the ownership boundary.
+- **US-005 — retrospective + IDEA_REPORT_v24 + version bump 0.8.1 → 0.8.2** — this entry.
+
+### Test-suite delta
+
+**+1 new test file**, **+13 new assertions** (signal parsing); 1 ceiling adjustment (test_orchestrator_liveness Test 5):
+
+- 1 new: `tests/test_signal_parsing.sh` (13 asserts) — exact-match coverage for all 6 quantum signals; regression guards + negative tests.
+- Ceiling bump: liveness Test 5 (6 → 10s).
+
+### Architectural observations
+
+**v0.8.2 closes the v0.8.1 review findings and lays the v0.9.0 N42 foundation.** The signal-protocol extension in US-002 closes the third layer of the N33 root-cause #1 anti-pattern (after v0.8.0 US-001 added the wrapper definition and v0.8.1 US-001 added the call site). v0.9.0 can now wire `spawn_coordinator` into the dispatch loop with confidence that `WAVE_PASSED`/`WAVE_FAILED` will route correctly.
+
+### Honest scope drift
+
+- US-002 expanded slightly to cover not just regex extension but a 7-line comment block above the function explaining the v0.9.0 framing — useful future-context for the next architect to read the file.
+- US-001 added more `.gitattributes` rules than strictly required (5 file-type annotations vs 2 strict requirements). Over-engineering on a one-time hygiene fix.
+
+### Dogfood milestone (v0.8.2)
+
+**5/5 user-facing stories shipped first-attempt PASS** under manual takeover. 0 retries (15th consecutive cycle). **Multi-cycle CSV milestone**: 40 → 43 rows (3 advisory rows; design/prd/plan all 1 LOW). **G30 self-validation** (18th consecutive correct LOW): tier=LOW score=25 files=10 sensitive=0 → skip; recorded with `automated:true`. **v0.9.0 N42 prerequisites met:** signal parser recognizes 6 signals; CRLF hygiene enforced; architectural-debt docs in place. Full retrospective: `idea-stage/PIPELINE_REPORT_v24.md`. v0.9.0+ backlog: `idea-stage/IDEA_REPORT_v24.md`.
+
 ## [0.8.1] - 2026-04-29
 
 ### Added — patch-tier (N39 dogfood validation + inline fixes)

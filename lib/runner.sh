@@ -266,8 +266,17 @@ _runner_apply_claim_check() {
 # SIGNAL_CONFIDENCE from exact/high to medium without changing SIGNAL_RESULT.
 # Sets globals:
 #   SIGNAL_RESULT          — "STORY_PASSED" | "STORY_FAILED" | "COMPLETE" | "BLOCKED"
+#                          — | "WAVE_PASSED" | "WAVE_FAILED"  (v0.8.2 / US-002, v0.9.0 N42 prerequisite)
 #   SIGNAL_CONFIDENCE      — "exact" | "high" | "medium"
 #   SIGNAL_CLAIM_FINDINGS  — "clean" | "hedge:N stale:M polite-stop:K"
+#
+# v0.8.2 / US-002 (v0.9.0 N42 prerequisite): the 6-signal regex includes the
+# WAVE_PASSED / WAVE_FAILED signals emitted by agents/coordinator.md (cf.
+# lib/spawn.sh::build_coordinator_prompt). Without this, v0.9.0 N42 wires
+# would route every coordinator dispatch into the unknown-signal failure
+# branch — exactly N33 root cause #1 ("recovery infrastructure inert; zero
+# production callers") repeating one layer deeper. The architect sub-agent
+# review of v0.8.1 caught this gap.
 runner_parse_output() {
   local output="$1"
   local exit_code="$2"
@@ -280,7 +289,7 @@ runner_parse_output() {
 
   # Always try exact signal match first (even for Claude)
   local signals
-  signals=$(echo "$output" | grep -oE '<quantum>[[:space:]]*(STORY_PASSED|STORY_FAILED|COMPLETE|BLOCKED)[[:space:]]*</quantum>' || true)
+  signals=$(echo "$output" | grep -oE '<quantum>[[:space:]]*(STORY_PASSED|STORY_FAILED|COMPLETE|BLOCKED|WAVE_PASSED|WAVE_FAILED)[[:space:]]*</quantum>' || true)
 
   if [[ -n "$signals" ]]; then
     local last_signal

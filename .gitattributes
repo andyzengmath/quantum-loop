@@ -1,0 +1,16 @@
+# Git line-ending normalization for shell scripts and text formats.
+# Added in v0.8.2 / US-001 after CRLF was found in copilot-hooks.sh and
+# test_runner.sh (imported from a Windows-authored stash in v0.8.1).
+# Strict Linux/CI environments reject `#!/usr/bin/env bash\r` with
+# "bad interpreter: No such file or directory".
+
+# Shell scripts and bash modules — always LF, regardless of OS.
+*.sh   text eol=lf
+*.bash text eol=lf
+
+# Plain text formats — keep platform-native line endings (auto).
+*.md   text
+*.txt  text
+*.json text
+*.yml  text
+*.yaml text

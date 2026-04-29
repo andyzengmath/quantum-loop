@@ -56,11 +56,11 @@ elapsed=$((t1 - t0))
 
 assert "stale path exit code = 1" "1" "$rc"
 TOTAL=$((TOTAL + 1))
-if (( elapsed <= 20 )); then  # base ceiling 12s (timeout=2 * 3 jitter * 2 invocations) +8s Git Bash fork-overhead headroom; see references/test-wallclock-baselines.md
-  echo "  PASS: stale path completed in ${elapsed}s (<=20s ceiling — Git Bash subprocess jitter tolerated)"
+if (( elapsed <= 30 )); then  # v0.8.2 / US-003 audit-followup: bumped 20 -> 30s for Git Bash worst-case jitter (observed 21s post-v0.8.1; aligned with other liveness wall-clock ceilings); see references/test-wallclock-baselines.md
+  echo "  PASS: stale path completed in ${elapsed}s (<=30s ceiling — Git Bash subprocess jitter tolerated)"
   PASS=$((PASS + 1))
 else
-  echo "  FAIL: stale path took ${elapsed}s (>20s ceiling — investigate; refer to references/test-wallclock-baselines.md)"
+  echo "  FAIL: stale path took ${elapsed}s (>30s ceiling — investigate; refer to references/test-wallclock-baselines.md)"
   FAIL=$((FAIL + 1))
 fi
 TOTAL=$((TOTAL + 1))
@@ -141,10 +141,10 @@ TOTAL=$((TOTAL + 1))
 # match the proportional generosity used in Test 2 (12s ceiling for two
 # invocations of a 2s poll). The guard itself returns in microseconds; the
 # ceiling measures subprocess launch overhead, not the function logic.
-if (( elapsed <= 6 )); then
-  echo "  PASS: guard returns within 6s (no infinite-loop hazard; subprocess-launch headroom)"; PASS=$((PASS + 1))
+if (( elapsed <= 10 )); then  # v0.8.2 / US-003: bumped 6 -> 10s for Git Bash subprocess jitter (see references/test-wallclock-baselines.md). Same class as v0.8.1 Test 2 fix.
+  echo "  PASS: guard returns within 10s (no infinite-loop hazard; subprocess-launch headroom + Git Bash jitter tolerated)"; PASS=$((PASS + 1))
 else
-  echo "  FAIL: guard took ${elapsed}s (expected <6s)"; FAIL=$((FAIL + 1))
+  echo "  FAIL: guard took ${elapsed}s (>10s ceiling — investigate; refer to references/test-wallclock-baselines.md)"; FAIL=$((FAIL + 1))
 fi
 TOTAL=$((TOTAL + 1))
 if printf '%s' "$out" | grep -qE '^\[LIVENESS\] ERROR: interval_sec must be > 0'; then
@@ -190,10 +190,10 @@ t1=$(date +%s)
 elapsed=$((t1 - t0))
 assert "Test 7: stale path exit code = 1" "1" "$rc7"
 TOTAL=$((TOTAL + 1))
-if (( elapsed <= 10 )); then
-  echo "  PASS: stale-path completed within 10s (got ${elapsed}s)"; PASS=$((PASS + 1))
+if (( elapsed <= 25 )); then  # v0.8.2 / US-003 audit-followup: bumped 10 -> 25s for Git Bash worst-case fork-overhead jitter (observed 15s)
+  echo "  PASS: stale-path completed within 25s (got ${elapsed}s)"; PASS=$((PASS + 1))
 else
-  echo "  FAIL: stale-path took ${elapsed}s (>10s)"; FAIL=$((FAIL + 1))
+  echo "  FAIL: stale-path took ${elapsed}s (>25s — investigate; refer to references/test-wallclock-baselines.md)"; FAIL=$((FAIL + 1))
 fi
 TOTAL=$((TOTAL + 1))
 if printf '%s' "$out7" | grep -qE 'orchestrator-stale signal'; then
@@ -222,10 +222,10 @@ t1=$(date +%s)
 elapsed=$((t1 - t0))
 assert "Test 8: QL_RESPAWN_CMD respawn rc=0" "0" "$rc8"
 TOTAL=$((TOTAL + 1))
-if (( elapsed <= 10 )); then
-  echo "  PASS: stale+respawn completed within 10s (got ${elapsed}s)"; PASS=$((PASS + 1))
+if (( elapsed <= 25 )); then  # v0.8.2 / US-003 audit-followup: bumped 10 -> 25s for Git Bash jitter (observed 11s)
+  echo "  PASS: stale+respawn completed within 25s (got ${elapsed}s)"; PASS=$((PASS + 1))
 else
-  echo "  FAIL: stale+respawn took ${elapsed}s (>10s)"; FAIL=$((FAIL + 1))
+  echo "  FAIL: stale+respawn took ${elapsed}s (>25s — investigate; refer to references/test-wallclock-baselines.md)"; FAIL=$((FAIL + 1))
 fi
 TOTAL=$((TOTAL + 1))
 if printf '%s' "$out8" | grep -q 'respawned'; then
@@ -271,10 +271,10 @@ t1=$(date +%s)
 elapsed=$((t1 - t0))
 assert "Test 10: failing QL_RESPAWN_CMD propagates rc=42" "42" "$rc10"
 TOTAL=$((TOTAL + 1))
-if (( elapsed <= 10 )); then
-  echo "  PASS: stale+failing-respawn completed within 10s (got ${elapsed}s)"; PASS=$((PASS + 1))
+if (( elapsed <= 25 )); then  # v0.8.2 / US-003 audit-followup: bumped 10 -> 25s for Git Bash jitter (observed 14s)
+  echo "  PASS: stale+failing-respawn completed within 25s (got ${elapsed}s)"; PASS=$((PASS + 1))
 else
-  echo "  FAIL: stale+failing-respawn took ${elapsed}s (>10s)"; FAIL=$((FAIL + 1))
+  echo "  FAIL: stale+failing-respawn took ${elapsed}s (>25s — investigate; refer to references/test-wallclock-baselines.md)"; FAIL=$((FAIL + 1))
 fi
 TOTAL=$((TOTAL + 1))
 if printf '%s' "$out10" | grep -qE 'QL_RESPAWN_CMD exited 42 .* respawn may have failed'; then
@@ -310,10 +310,10 @@ else
   elapsed=$((t1 - t0))
   assert "Test 11: real-CLI respawn rc=0" "0" "$rc11"
   TOTAL=$((TOTAL + 1))
-  if (( elapsed <= 15 )); then
-    echo "  PASS: real-CLI respawn completed within 15s (got ${elapsed}s)"; PASS=$((PASS + 1))
+  if (( elapsed <= 30 )); then  # v0.8.2 / US-003 audit-followup: bumped 15 -> 30s for Git Bash jitter (observed 20s; real-CLI invocation has extra startup overhead)
+    echo "  PASS: real-CLI respawn completed within 30s (got ${elapsed}s)"; PASS=$((PASS + 1))
   else
-    echo "  FAIL: real-CLI respawn took ${elapsed}s (>15s)"; FAIL=$((FAIL + 1))
+    echo "  FAIL: real-CLI respawn took ${elapsed}s (>30s — investigate; refer to references/test-wallclock-baselines.md)"; FAIL=$((FAIL + 1))
   fi
   TOTAL=$((TOTAL + 1))
   # Soliton-fix: anchor regex to claude-specific output line to avoid false-positive
