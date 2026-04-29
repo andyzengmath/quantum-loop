@@ -34,16 +34,35 @@
 if [[ -z "${ORCHESTRATOR_LIVENESS_LIB+x}" ]]; then
 readonly ORCHESTRATOR_LIVENESS_LIB=1
 
-# poll_orchestrator_commits(timeout_sec, interval_sec, base_sha)
+# poll_orchestrator_commits(timeout_sec, interval_sec, base_sha, worktree_path)
+#
+# US-002 / v0.8.0 (N33) — when WORKTREE_PATH (4th arg) is set and not "."
+# or empty, all git rev-parse calls target that path via `git -C <path>`.
+# This eliminates false-positive STALE in worktree-parallel mode where the
+# orchestrator subagent commits to .ql-wt/<story>/ on a feature branch and
+# the parent repo's HEAD does not advance.
 poll_orchestrator_commits() {
   local timeout_sec="${1:-600}"
   local interval_sec="${2:-60}"
-  local base_sha="${3:-$(git rev-parse HEAD 2>/dev/null)}"
+  local base_sha_arg="${3:-}"
+  local worktree_path="${4:-}"
+
+  # Build git -C prefix when polling a worktree path.
+  local git_dir_arg=()
+  if [[ -n "$worktree_path" && "$worktree_path" != "." ]]; then
+    git_dir_arg=(-C "$worktree_path")
+  fi
+
+  local base_sha
+  if [[ -n "$base_sha_arg" ]]; then
+    base_sha="$base_sha_arg"
+  else
+    base_sha=$(git "${git_dir_arg[@]}" rev-parse HEAD 2>/dev/null)
+  fi
 
   # N16 / US-004 (v0.7.0) — fail-fast on bad interval_sec. Without this guard,
   # interval_sec=0 makes `sleep 0` a no-op and `elapsed` never increases past 0
-  # — the loop runs forever burning CPU. Soliton-pr-review caught at confidence
-  # 82 on PR #70 (v0.6.9 sub-threshold; carried forward to v0.7.0).
+  # — the loop runs forever burning CPU.
   if (( interval_sec <= 0 )); then
     printf "[LIVENESS] ERROR: interval_sec must be > 0 (got %s)\n" "$interval_sec" >&2
     return 1
@@ -54,7 +73,7 @@ poll_orchestrator_commits() {
     sleep "$interval_sec"
     elapsed=$((elapsed + interval_sec))
     local cur_sha
-    cur_sha=$(git rev-parse HEAD 2>/dev/null)
+    cur_sha=$(git "${git_dir_arg[@]}" rev-parse HEAD 2>/dev/null)
     if [[ "$cur_sha" != "$base_sha" ]]; then
       printf "[LIVENESS] new commit %s observed at +%ds\n" "${cur_sha:0:8}" "$elapsed" >&2
       return 0
@@ -86,12 +105,16 @@ poll_orchestrator_commits() {
 wrap_orchestrator_dispatch() {
   local timeout_sec="${1:-600}"
   local interval_sec="${2:-60}"
+  # US-002 / v0.8.0 (N33) — optional 3rd arg propagates to poll_orchestrator_commits
+  # for worktree-aware polling. When set and not "."/"", liveness polls the
+  # worktree's HEAD instead of the caller's pwd HEAD.
+  local worktree_path="${3:-}"
 
   if [[ "${QL_LIVENESS_ENABLE:-true}" == "false" ]]; then
     return 0
   fi
 
-  if poll_orchestrator_commits "$timeout_sec" "$interval_sec"; then
+  if poll_orchestrator_commits "$timeout_sec" "$interval_sec" "" "$worktree_path"; then
     return 0
   fi
 

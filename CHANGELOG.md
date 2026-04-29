@@ -7,6 +7,41 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.8.0] - 2026-04-28
+
+### Added — minor-tier (N33 orchestrator drift root-cause closure)
+
+7 stories closing N33 (12+ consecutive cycles of orchestrator drift requiring manual takeover). **First minor-tier release since v0.7.0** (8 cycles). Twelfth multi-cycle populated-CSV run. v0.8.0 self-validated: tier=LOW score=25 files=22 sensitive=0 → skip with `automated:true`. **16 consecutive LOW-tier self-validations** (v0.6.5..v0.8.0).
+
+Root cause synthesis (5 parallel research agents): the recovery infrastructure (5 layers shipped v0.6.8..v0.7.2) was **inert** — `wrap_orchestrator_dispatch` had **zero production callers**. `quantum-loop.sh` did not source `lib/orchestrator-liveness.sh`. The `agents/orchestrator.md` agent definition consumed ~30% of context window (1,743 lines / ~39,900 tokens) before any work began. No per-story re-prompt for orchestrator. Signal protocol asymmetry between shell-side and agent-side parsing. `git rev-parse HEAD` mismatch in worktree mode.
+
+- **US-001 — wire recovery infrastructure into `quantum-loop.sh`** — sources `lib/orchestrator-liveness.sh`; new `ql_wrap_subagent_dispatch` helper for callers (US-004 coordinator + external supervisor scripts). Recovery layers are now reachable in production code.
+- **US-002 — worktree-aware `poll_orchestrator_commits`** — extends signature to accept optional `WORKTREE_PATH` 4th arg (and `wrap_orchestrator_dispatch` 3rd arg). Eliminates false-positive STALE in worktree-parallel mode where orchestrator commits land under `.ql-wt/<story>/` on feature branches. Tests 12 + 13 (4 new assertions on worktree-path STALE + LIVE detection). 22 → 26 liveness assertions.
+- **US-003 — modularize `agents/orchestrator.md`** — extracts 13 optional/conditional sections to `agents/orchestrator-modules/*.md` (slop-cleanup, dead-code-detection, intent-graph, skeleton-drift, constant-scan, hyclone, type-audit, full-feature-review, init-and-routing, observations, reground, contract-promotion, quantum-json-fields). Each section in `orchestrator.md` replaced with a stub reference + activation guard. **1,743 → 1,007 lines (42% reduction)**, exceeds initial AC drift target (≤700 lines) but delivers substantive context-window relief.
+- **US-004 — per-wave coordinator pattern** — new `agents/coordinator.md` defines a thin per-wave subagent (one wave per invocation, then exits). New `lib/spawn.sh::spawn_coordinator` + `build_coordinator_prompt` helpers. New `--coordinator` opt-in flag in `quantum-loop.sh` (default `--legacy-orchestrator` preserves existing single-spawn behavior). v0.8.1 dogfood will validate end-to-end.
+- **US-005 — signal protocol unification** — new `runner_parse_subagent_output` wrapper in `lib/runner.sh` routes subagent output through the canonical `runner_parse_output` chain (claim-check + heuristic fallback). `agents/orchestrator.md` and `agents/coordinator.md` updated to cite the wrapper instead of ad-hoc `<quantum>...</quantum>` grep on TaskOutput.
+- **US-006 — integration tests** — new `tests/test_quantum_loop_recovery.sh` (5 asserts) verifies recovery wiring fires on stale stub orchestrator. New `tests/test_coordinator_dispatch.sh` (7 asserts) verifies coordinator agent file + spawn helpers + flag parsing. Plus +4 worktree-path assertions in extended liveness test.
+- **US-007 — retrospective + IDEA_REPORT_v22 + version bump 0.7.10 → 0.8.0** — first minor since v0.7.0 (8 cycles).
+
+### Test-suite delta
+
+**+16 new assertions across 3 test files**:
+- 1 extended: `test_orchestrator_liveness.sh` 22 → 26 (+4)
+- 2 new: `test_quantum_loop_recovery.sh` (5) + `test_coordinator_dispatch.sh` (7)
+
+### Architectural rationale (minor-tier)
+
+This is the **first new architectural concept since the multi-runner foundation (v0.7.4 N5)** — introduces (a) production wiring for previously-inert infrastructure, (b) a per-wave coordinator pattern (vs the long-running monolithic orchestrator), (c) modular orchestrator definition (13 lazy-loaded modules), (d) unified signal handling. **Genuinely minor-tier**, validated by the operator.
+
+### Honest scope drift
+
+- US-003 AC said `agents/orchestrator.md` ≤ 700 lines; actual = 1,007 lines. The 42% reduction is substantive but doesn't hit the original target. Further reduction would require extracting Step 3B (Parallel Execution) core logic, which carries regression risk and was deferred.
+- US-006 ships unit/integration coverage; full coordinator-pattern dogfood validation is deferred to v0.8.1 (running a real cycle through the new path).
+
+### Dogfood milestone (v0.8.0)
+
+**7/7 user-facing stories shipped first-attempt PASS** under manual takeover. 0 retries. **Multi-cycle CSV milestone**: 33 → 36 rows (3 advisory rows). Aggregate severity now includes 1 MEDIUM finding (first MEDIUM in 8+ cycles — healthy signal for substantive minor work). **G30 self-validation**: tier=LOW score=25 files=22 sensitive=0 → skip; recorded with `automated:true`. **N33 root-cause closure**: 12+ consecutive manual-takeover cycles addressed via 4 layers of fixes; v0.8.1 validation will confirm whether auto-recovery actually fires in a real cycle. Full retrospective: `idea-stage/PIPELINE_REPORT_v22.md`. v0.8.x backlog: `idea-stage/IDEA_REPORT_v22.md`.
+
 ## [0.7.10] - 2026-04-28
 
 ### Added

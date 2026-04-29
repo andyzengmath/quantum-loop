@@ -311,6 +311,21 @@ runner_parse_output() {
   return 0
 }
 
+# runner_parse_subagent_output(captured_output, exit_code, [worktree_path])
+# v0.8.0 / US-005 (N33) — canonical signal-parsing entry-point for orchestrator
+# and coordinator agents. Replaces the ad-hoc <quantum>...</quantum> grep on
+# TaskOutput that the legacy orchestrator does inline. By routing through the
+# shared runner_parse_output, agents pick up the heuristic fallback (when
+# enabled) and the claim-check confidence demotion automatically. State after
+# the call: SIGNAL_RESULT, SIGNAL_CONFIDENCE, SIGNAL_CLAIM_FINDINGS are set.
+#
+# Note: orchestrator/coordinator subagents are typically claude-runner where
+# heuristic fallback is disabled by default; this wrapper still goes through
+# runner_parse_output so the canonical claim-check gate fires either way.
+runner_parse_subagent_output() {
+  runner_parse_output "$@"
+}
+
 # =============================================================================
 # P5.B1 / US-009 — Per-role provider routing with resolved-routing snapshot.
 # =============================================================================
