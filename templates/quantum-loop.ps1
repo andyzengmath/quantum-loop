@@ -168,7 +168,12 @@ for ($iteration = 1; $iteration -le $MaxIterations; $iteration++) {
         Write-Host "Claude process error: $_" -ForegroundColor Red
     }
 
-    # Process output signals
+    # Process output signals.
+    # v0.8.4 / US-004: this user-facing template handles story-level dispatch only.
+    # WAVE_PASSED/WAVE_FAILED signals (v0.8.0+ coordinator pattern) are emitted by
+    # `agents/coordinator.md` agents in the plugin repo and are NOT seen by user
+    # projects. See quantum-loop.ps1 (plugin path) + agents/coordinator.md for
+    # the wave-level signal handling.
     if ($output -match "<quantum>COMPLETE</quantum>") {
         Write-Host ""
         Write-Host "===========================================" -ForegroundColor Green

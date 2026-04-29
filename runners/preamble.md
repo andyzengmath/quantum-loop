@@ -12,6 +12,8 @@ YOU MUST output exactly one of these signals before exiting. The orchestrator re
 | `<quantum>STORY_FAILED</quantum>` | Story failed — a task, test, or review did not pass |
 | `<quantum>COMPLETE</quantum>` | All stories in quantum.json are now passed |
 | `<quantum>BLOCKED</quantum>` | No executable stories remain (dependencies unmet or retries exhausted) |
+| `<quantum>WAVE_PASSED</quantum>` | (coordinator only, v0.8.0+) All stories in a coordinator wave passed; for implementer runners ignore this signal |
+| `<quantum>WAVE_FAILED</quantum>` | (coordinator only, v0.8.0+) One or more stories in a coordinator wave failed; for implementer runners ignore this signal |
 
 **Output the signal as the LAST thing before you stop.** Do not embed it in code blocks or comments.
 
