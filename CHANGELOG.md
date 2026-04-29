@@ -7,6 +7,39 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.8.1] - 2026-04-29
+
+### Added — patch-tier (N39 dogfood validation + inline fixes)
+
+5 stories validating v0.8.0's N33 closure + 2 inline fixes surfaced during pre-flight. **Honest finding:** v0.8.0 shipped two pieces of inert infrastructure with presence-only ACs — exactly N33 root cause #1 repeating one layer deeper. v0.8.1 dogfood caught both and ships the minimal viable wires + a regression-guard test. v0.8.1 self-validated: tier=LOW score=25 files=10 sensitive=0 → skip with `automated:true`. **17 consecutive LOW-tier self-validations** (v0.6.5..v0.8.1).
+
+- **US-003 — Test 2 wall-clock ceiling 12s → 20s** — `tests/test_orchestrator_liveness.sh` Test 2 was failing 33/34 on Git Bash with elapsed=18s against the 12s ceiling. Bumped to 20s with reference annotation to `references/test-wallclock-baselines.md` (Git Bash fork-overhead jitter documented there). Verified 34/34 passes.
+- **US-004 — copilot-hooks defensive flags + paired test updates** — `runners/hooks/copilot-hooks.sh::pre_spawn` now appends 5 additional defensive flags: `--max-autopilot-continues 0` (cap autopilot recursion), `--silent` (reduce CLI noise), `--no-color` (strip ANSI for clean stdout parsing), `--stream off` (disable progressive output), `--no-remote` (disable remote control surface). `tests/test_runner.sh` paired updates: copilot_hook test gains 5 assertions; codex test now references manifest-driven flag arrays. `tests/test_copilot_dispatch.sh` ceiling bumped 60s → 150s for real-network LLM dispatch. Verified test_runner.sh 43/43, test_copilot_runner_smoke.sh 5/5, test_copilot_dispatch.sh 3/3.
+- **US-001 — wire `ql_wrap_subagent_dispatch` + `COORDINATOR_MODE` in quantum-loop.sh** — **The dogfood finding.** Static-analysis grep against `quantum-loop.sh` exposed two defects in <30s: (1) `COORDINATOR_MODE` was set by `--coordinator`/`--legacy-orchestrator` but never read; (2) `ql_wrap_subagent_dispatch` was defined but had zero callers. Both are exactly the same anti-pattern as N33 root cause #1. Fixes: (a) `COORDINATOR_MODE=true` now emits a WARN to stderr at startup; (b) `ql_wrap_subagent_dispatch 5 1 ""` is invoked post-`runner_parse_output` when `SIGNAL_RESULT` is empty (drift suspect). New `tests/test_v081_wiring.sh` (4 assertions) guards against the "presence-only AC" anti-pattern: counts CALL sites not just definitions, and smoke-tests the actual `--coordinator` invocation against a stub repo.
+- **US-002 — capture v0.8.1 dogfood synthesis** — `idea-stage/dogfood-v0.8.1-findings.md` includes a "Final verdict" block addressing each of the 4 minimum claims (no UNKNOWN entries). Two BROKEN→fixed (`wrap_orchestrator_dispatch` invoked: BROKEN→WORKED; coordinator dispatch: BROKEN→DEGRADED with WARN). Two remain DEGRADED pending the larger N42 work (real per-wave dispatch).
+- **US-005 — retrospective + IDEA_REPORT_v23 + version bump 0.8.0 → 0.8.1** — this entry.
+
+### Test-suite delta
+
+**+1 new test file**, **+5 new assertions** (test_runner.sh copilot_hook), **+ceiling adjustments** (test_orchestrator_liveness Test 2 + test_copilot_dispatch Test 1):
+
+- 1 new: `test_v081_wiring.sh` (4 asserts) — anti-presence-only regression guard
+- Ceiling bumps: liveness Test 2 (12 → 20s), copilot dispatch Test 1 (60 → 150s)
+- Paired: test_runner.sh +5 copilot_hook assertions
+
+### Architectural observations
+
+**v0.8.1 is the diagnostic; v0.9.0 should be the cure.** v0.8.0's N33 closure was structurally complete but functionally inert. v0.8.1 ships minimal viable wires + a regression-guard test, but the *real* coordinator-driven dispatch (per-wave spawn, bounded context per invocation) remains future work. Tracked as N42 in `idea-stage/IDEA_REPORT_v23.md`.
+
+### Honest scope drift
+
+- US-001 grew from "small dogfood + observe" to "ship a real fix" per the PRD's escalation clause. Wire-fix scope was bounded (~15 LOC across `quantum-loop.sh` + 1 new test); did not need a full re-architecting.
+- US-004 expanded to also bump `tests/test_copilot_dispatch.sh` ceiling 60→150s (real-network jitter; not strictly the new defensive flags' fault but exposed by them).
+
+### Dogfood milestone (v0.8.1)
+
+**5/5 user-facing stories shipped first-attempt PASS** under manual takeover. 0 retries (14th consecutive cycle). **Multi-cycle CSV milestone**: 37 → 40 rows (3 advisory rows; design/prd/plan all 1 LOW). **G30 self-validation** (17th consecutive correct LOW): tier=LOW score=25 files=10 sensitive=0 → skip; recorded with `automated:true`. **N39 dogfood verdict:** v0.8.0 N33 closure was inert; v0.8.1 ships the wires + regression-guard test; v0.9.0+ will deliver the real per-wave dispatch (N42). Full retrospective: `idea-stage/PIPELINE_REPORT_v23.md`. v0.9.0+ backlog: `idea-stage/IDEA_REPORT_v23.md`.
+
 ## [0.8.0] - 2026-04-28
 
 ### Added — minor-tier (N33 orchestrator drift root-cause closure)
