@@ -284,6 +284,16 @@ for ($iteration = 1; $iteration -le $MaxIterations; $iteration++) {
         .[0].id // empty
     ' quantum.json
 
+    # v0.8.4 / US-002 (defense-in-depth): validate $storyId format before any
+    # downstream jq/file-path interpolation. Mirrors quantum-loop.sh:1471 bash
+    # validation (^[A-Za-z0-9_-]+$). jq --arg already treats values as data,
+    # but defense-in-depth guards against future code paths that might splice
+    # $storyId into a more sensitive context.
+    if (-not [string]::IsNullOrWhiteSpace($storyId) -and $storyId -ne "null" -and $storyId -notmatch '^[A-Za-z0-9_-]+$') {
+        Write-Error "Invalid storyId format: '$storyId' (must be alphanumeric with hyphens/underscores)"
+        exit 1
+    }
+
     if ([string]::IsNullOrWhiteSpace($storyId) -or $storyId -eq "null") {
         $allPassed = jq '[.stories[].status] | all(. == "passed")' quantum.json
         if ($allPassed -eq "true") {
@@ -413,9 +423,13 @@ for ($iteration = 1; $iteration -le $MaxIterations; $iteration++) {
             $tmp | Set-Content -Path quantum.json -Encoding UTF8 -NoNewline
         }
         "WAVE_FAILED" {
-            # v0.8.3 / US-002 (4th-layer N33 closure): wave-level failure; mirrors STORY_FAILED.
+            # v0.8.4 / US-001 (post-v0.8.3 review hotfix): full retry accounting parity
+            # with bash WAVE_FAILED) branch (quantum-loop.sh:1620-1625). Code-reviewer
+            # caught that the prior PS arm only cleared startedAt — leaving an infinite-
+            # retry loop in the PS path (story stayed eligible forever). Mirrors the
+            # bash jq expression: status=failed, retries.attempts++, append failureLog.
             Write-Host "Wave (story $storyId) FAILED (attempt $([int]$storyAttempt + 1)). Will retry if attempts remain." -ForegroundColor Yellow
-            $tmp = jq --arg id $storyId '.stories |= map(if .id == $id then .startedAt = null else . end)' quantum.json
+            $tmp = jq --arg id $storyId '.stories |= map(if .id == $id then .status = "failed" | .startedAt = null | .retries.attempts += 1 | .retries.failureLog += [{"phase": "wave_failed", "timestamp": (now | todate)}] else . end)' quantum.json
             $tmp | Set-Content -Path quantum.json -Encoding UTF8 -NoNewline
         }
         default {
