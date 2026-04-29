@@ -112,8 +112,8 @@ echo "Test: runner_build_cmd_codex (positional)"
 runner_load "codex" 2>/dev/null
 cmd=$(runner_build_cmd "implement story" 2>/dev/null)
 assert_contains "codex binary" "codex" "$cmd"
-assert_contains "headless -q" "-q" "$cmd"
-assert_contains "approval-mode" "approval-mode" "$cmd"
+assert_contains "codex headless flags" "$RUNNER_HEADLESS_FLAGS" "$cmd"
+assert_contains "codex auto-approve flags" "$RUNNER_AUTO_APPROVE_FLAGS" "$cmd"
 assert_contains "has preamble" "REQUIRED SIGNALS" "$cmd"
 
 echo "Test: runner_build_cmd_stdin (amp)"
@@ -166,7 +166,12 @@ echo "Test: runner_build_cmd_copilot_hook"
 runner_load "copilot" 2>/dev/null
 cmd=$(runner_build_cmd "do stuff" 2>/dev/null)
 assert_contains "copilot hook injects --autopilot" "--autopilot" "$cmd"
+assert_contains "copilot hook caps autopilot continuations" "--max-autopilot-continues 0" "$cmd"
 assert_contains "copilot hook injects --no-ask-user" "--no-ask-user" "$cmd"
+assert_contains "copilot hook injects --silent" "--silent" "$cmd"
+assert_contains "copilot hook injects --no-color" "--no-color" "$cmd"
+assert_contains "copilot hook disables streaming" "--stream off" "$cmd"
+assert_contains "copilot hook disables remote control" "--no-remote" "$cmd"
 # Verify hook cleanup: load claude next — should NOT have copilot flags
 runner_load "claude" 2>/dev/null
 cmd2=$(runner_build_cmd "do stuff" 2>/dev/null)
@@ -243,6 +248,7 @@ rm -rf "$TMPD"
 echo "Test: runner_load_unsafe_manifest_flags"
 TMPD=$(mktemp -d)
 mkdir -p "$TMPD/runners" "$TMPD/lib"
+mkdir -p "$MOCK_DIR"
 echo '#!/usr/bin/env bash' > "$MOCK_DIR/safecli"
 chmod +x "$MOCK_DIR/safecli"
 cat > "$TMPD/runners/safecli.json" << 'EOF'
