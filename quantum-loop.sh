@@ -40,6 +40,10 @@ MAX_RETRIES=3
 TOOL="claude"
 PARALLEL_MODE=false
 MAX_PARALLEL=4
+# v0.8.0 / US-004 (N33) — coordinator mode: per-wave subagent dispatch instead
+# of long-running orchestrator. Default false (legacy orchestrator) for v0.8.0;
+# v0.8.1 dogfood will validate before flipping default.
+COORDINATOR_MODE=false
 STALE_TIMEOUT=20
 QL_CRITIC="${QL_CRITIC:-auto}"      # P5.A2 / US-002 default
 QL_PLANNER="${QL_PLANNER:-auto}"    # P5.B1 / US-009 default
@@ -161,6 +165,13 @@ _audit_drill_join() {
   printf '%s' "$out"
 }
 
+_audit_trim_branch_line() {
+  local branch_line="${1:-}"
+  branch_line="${branch_line#\*}"
+  branch_line="${branch_line#"${branch_line%%[![:space:]]*}"}"
+  printf '%s' "$branch_line"
+}
+
 # _audit_branches_local
 # Counts local branches excluding master/HEAD; emits OK row if count <=
 # QL_AUDIT_BRANCH_MAX (default 10) else FAIL with first-3 drill.
@@ -169,8 +180,7 @@ _audit_branches_local() {
   local -a names=()
   local b
   while IFS= read -r b; do
-    b="${b#\* }"
-    b="${b# }"
+    b=$(_audit_trim_branch_line "$b")
     [[ -z "$b" || "$b" == "master" || "$b" == "HEAD" ]] && continue
     names+=("$b")
   done < <({ git branch 2>/dev/null ; } || true)
@@ -192,7 +202,7 @@ _audit_branches_remote() {
   local -a names=()
   local b
   while IFS= read -r b; do
-    b="${b# }"
+    b=$(_audit_trim_branch_line "$b")
     [[ -z "$b" ]] && continue
     [[ "$b" == *"HEAD"* ]] && continue
     [[ "$b" == "origin/master" ]] && continue
@@ -534,6 +544,19 @@ while [[ $# -gt 0 ]]; do
       ;;
     --parallel)
       PARALLEL_MODE=true
+      shift
+      ;;
+    --coordinator)
+      # v0.8.0 / US-004 (N33) — opt-in per-wave coordinator pattern.
+      # Default in v0.8.0 is --legacy-orchestrator (preserves single-spawn).
+      # See agents/coordinator.md for the agent definition.
+      COORDINATOR_MODE=true
+      shift
+      ;;
+    --legacy-orchestrator)
+      # Explicit opt-out from --coordinator (v0.8.0 default; for forward
+      # compat when a future release flips the default to coordinator).
+      COORDINATOR_MODE=false
       shift
       ;;
     --max-parallel)

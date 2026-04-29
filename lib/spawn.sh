@@ -143,3 +143,61 @@ spawn_autonomous() {
 
   printf "%s" "$pid"
 }
+
+# build_coordinator_prompt(wave_id, story_ids, prd_path, json_path) — v0.8.0 / US-004 (N33)
+# Builds the prompt for a per-wave coordinator subagent. The coordinator
+# handles ONE wave at a time and exits, addressing the orchestrator drift
+# root-cause (12+ consecutive manual-takeover cycles in legacy mode).
+# See agents/coordinator.md for the full agent definition.
+build_coordinator_prompt() {
+  local wave_id="$1"
+  local story_ids="$2"
+  local prd_path="${3:-tasks/prd.md}"
+  local json_path="${4:-quantum.json}"
+
+  cat <<COORD_PROMPT
+You are the per-wave coordinator. Read agents/coordinator.md for your full
+instructions. Your scope: handle EXACTLY ONE wave, then exit.
+
+Wave ID: ${wave_id}
+Story IDs: ${story_ids}
+PRD path: ${prd_path}
+Quantum path: ${json_path}
+
+Spawn implementer subagents for each story (or run sequentially if
+forceSequential is true), aggregate signals via runner_parse_output, run
+wave-end checks (type audit, constant scan, hyclone), update quantum.json,
+cleanup worktrees, then signal:
+
+  <quantum>WAVE_PASSED</quantum>  if all stories passed
+  <quantum>WAVE_FAILED</quantum>  if any failed
+  <quantum>BLOCKED</quantum>      if a precondition was unmet
+
+Do NOT iterate to the next wave — the parent shell handles wave iteration.
+COORD_PROMPT
+}
+
+# spawn_coordinator(wave_id, story_ids [, prd_path, json_path]) — v0.8.0 / US-004
+# Builds and emits the coordinator-spawn command on stdout. The actual
+# subagent dispatch is done via the Task tool by quantum-loop.sh (the
+# parent shell), not from this helper. Caller wraps with
+# ql_wrap_subagent_dispatch from lib/orchestrator-liveness.sh.
+spawn_coordinator() {
+  local wave_id="${1:?spawn_coordinator: wave_id required}"
+  local story_ids="${2:?spawn_coordinator: story_ids required}"
+  local prd_path="${3:-tasks/prd.md}"
+  local json_path="${4:-quantum.json}"
+
+  local prompt
+  prompt=$(build_coordinator_prompt "$wave_id" "$story_ids" "$prd_path" "$json_path")
+
+  # Use the runner adapter to construct the actual claude/codex/copilot
+  # invocation. Falls back to a plain claude --print if runner not loaded.
+  if type runner_build_cmd >/dev/null 2>&1 && [[ -n "${RUNNER_NAME:-}" ]]; then
+    runner_build_cmd "$prompt"
+  else
+    local escaped
+    escaped=$(printf '%q' "$prompt")
+    printf "claude --print --dangerously-skip-permissions -p %s" "$escaped"
+  fi
+}
