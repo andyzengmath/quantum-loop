@@ -141,10 +141,10 @@ TOTAL=$((TOTAL + 1))
 # match the proportional generosity used in Test 2 (12s ceiling for two
 # invocations of a 2s poll). The guard itself returns in microseconds; the
 # ceiling measures subprocess launch overhead, not the function logic.
-if (( elapsed <= 6 )); then
-  echo "  PASS: guard returns within 6s (no infinite-loop hazard; subprocess-launch headroom)"; PASS=$((PASS + 1))
+if (( elapsed <= 10 )); then  # v0.8.2 / US-003: bumped 6 -> 10s for Git Bash subprocess jitter (see references/test-wallclock-baselines.md). Same class as v0.8.1 Test 2 fix.
+  echo "  PASS: guard returns within 10s (no infinite-loop hazard; subprocess-launch headroom + Git Bash jitter tolerated)"; PASS=$((PASS + 1))
 else
-  echo "  FAIL: guard took ${elapsed}s (expected <6s)"; FAIL=$((FAIL + 1))
+  echo "  FAIL: guard took ${elapsed}s (>10s ceiling — investigate; refer to references/test-wallclock-baselines.md)"; FAIL=$((FAIL + 1))
 fi
 TOTAL=$((TOTAL + 1))
 if printf '%s' "$out" | grep -qE '^\[LIVENESS\] ERROR: interval_sec must be > 0'; then
