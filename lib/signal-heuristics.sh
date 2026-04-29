@@ -29,8 +29,12 @@ parse_agent_output() {
   fi
 
   # Rule 2: Check for exact quantum signals (relaxed whitespace)
+  # v0.8.3 / US-001 (4th-layer N33 closure): regex mirrors lib/runner.sh:283
+  # — both must include all 6 signals (4 STORY_*/COMPLETE/BLOCKED + 2 WAVE_*)
+  # so the heuristic-fallback path doesn't silently drop wave signals when
+  # exact match fails on non-Claude runners with heuristicFallback: true.
   local signals
-  signals=$(echo "$output" | grep -oE '<quantum>[[:space:]]*(STORY_PASSED|STORY_FAILED|COMPLETE|BLOCKED)[[:space:]]*</quantum>' || true)
+  signals=$(echo "$output" | grep -oE '<quantum>[[:space:]]*(STORY_PASSED|STORY_FAILED|COMPLETE|BLOCKED|WAVE_PASSED|WAVE_FAILED)[[:space:]]*</quantum>' || true)
 
   if [[ -n "$signals" ]]; then
     # Last signal wins when multiple are found
