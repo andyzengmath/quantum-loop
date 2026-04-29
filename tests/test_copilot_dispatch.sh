@@ -55,10 +55,10 @@ elapsed=$((t1 - t0))
 
 assert "Test 1: copilot dispatch rc=0" "0" "$rc"
 TOTAL=$((TOTAL + 1))
-if (( elapsed <= 60 )); then
-  echo "  PASS: copilot dispatch completed in ${elapsed}s (<=60s ceiling)"; PASS=$((PASS + 1))
+if (( elapsed <= 150 )); then  # real-network LLM dispatch + Git Bash fork overhead; see references/test-wallclock-baselines.md
+  echo "  PASS: copilot dispatch completed in ${elapsed}s (<=150s ceiling — real-network + cold-start jitter tolerated)"; PASS=$((PASS + 1))
 else
-  echo "  FAIL: copilot dispatch took ${elapsed}s (>60s ceiling)"; FAIL=$((FAIL + 1))
+  echo "  FAIL: copilot dispatch took ${elapsed}s (>150s ceiling — investigate; refer to references/test-wallclock-baselines.md)"; FAIL=$((FAIL + 1))
 fi
 TOTAL=$((TOTAL + 1))
 if [[ -n "$out" ]]; then

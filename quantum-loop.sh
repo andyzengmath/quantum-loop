@@ -661,6 +661,18 @@ ql_wrap_subagent_dispatch() {
   wrap_orchestrator_dispatch "$@"
 }
 
+# v0.8.1 / US-001 (N39 dogfood) — surface that --coordinator does NOT yet
+# alter the dispatch path in the shell-driven runner loop. The coordinator
+# agent definition (agents/coordinator.md) and spawn helper
+# (lib/spawn.sh::spawn_coordinator) exist and pass presence-check tests, but
+# no caller wires them into the per-iteration dispatch below. v0.8.0 shipped
+# with this gap unsurfaced (presence-only ACs); v0.8.1 dogfood caught it.
+# Tracked as N42 in idea-stage/IDEA_REPORT_v23.md — production wiring is the
+# next minor-tier scope (v0.9.0+).
+if [[ "$COORDINATOR_MODE" == "true" ]]; then
+  printf "WARN: --coordinator flag set but per-wave dispatch is not yet wired into the shell-driven runner loop. spawn_coordinator() is defined but has no caller in quantum-loop.sh. Falling back to legacy single-spawn behavior. See N42 in idea-stage/IDEA_REPORT_v23.md.\n" >&2
+fi
+
 # Load runner manifest (validates tool name, binary existence, sets RUNNER_* vars)
 runner_load "$TOOL" || exit 1
 runner_ensure_instructions || true
@@ -1536,6 +1548,25 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
   # Parse runner output for signals (uses heuristics if enabled for non-Claude runners)
   runner_parse_output "$OUTPUT" "$RUNNER_EXIT"
 
+  # v0.8.1 / US-001 (N39 dogfood) — wire ql_wrap_subagent_dispatch into the
+  # production runner loop. The function was defined in v0.8.0 US-001 but
+  # had zero callers in quantum-loop.sh — exactly N33 root cause #1
+  # repeating. v0.8.1 / US-006 (post-PR-review fix): the original guard was
+  # `[[ -z "$SIGNAL_RESULT" ]]` which is always false because
+  # runner_parse_output ALWAYS sets SIGNAL_RESULT before returning (exact
+  # match, heuristic fallback, or "STORY_FAILED" no-signal default). The
+  # corrected guard fires on STORY_FAILED with non-exact confidence — the
+  # actual "drift suspect" condition: the runner failed but we used
+  # heuristics or fallback to classify it. Limitation: when QL_RESPAWN_CMD
+  # is set and the wrap respawns successfully, the respawn's output is NOT
+  # re-parsed (SIGNAL_RESULT stays at STORY_FAILED). This is a soft-fire
+  # diagnostic only. Operators wanting full re-entry should use the
+  # quantum-loop iteration loop's natural retry path. Tracked as N46 for
+  # v0.9.0+ along with N42 (real per-wave dispatch).
+  if [[ "${SIGNAL_RESULT:-}" == "STORY_FAILED" && "${SIGNAL_CONFIDENCE:-}" != "exact" ]]; then
+    ql_wrap_subagent_dispatch 5 1 "" >&2 || true
+  fi
+
   case "$SIGNAL_RESULT" in
     COMPLETE)
       final_verification_sweep
@@ -1564,10 +1595,17 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
       exit 1
       ;;
     *)
+      # v0.8.1 / US-006 (post-PR-review fix): increment retries.attempts and
+      # append to failureLog so a story that repeatedly hits the unknown-signal
+      # branch eventually exhausts retries and surfaces as BLOCKED. The prior
+      # implementation set status=failed without incrementing attempts,
+      # creating an effective infinite retry loop (story remains eligible
+      # because attempts < maxAttempts perpetually). Mirrors the STORY_FAILED
+      # branch's retry accounting.
       printf "WARNING: No recognized signal in output. Story may not have completed cleanly.\n"
       printf "Last 10 lines of output:\n"
       echo "$OUTPUT" | tail -10
-      json_atomic_update ".stories |= map(if .id == \"$STORY_ID\" then .startedAt = null | .status = \"failed\" else . end)"
+      json_atomic_update ".stories |= map(if .id == \"$STORY_ID\" then .startedAt = null | .status = \"failed\" | .retries.attempts += 1 | .retries.failureLog += [{\"phase\": \"no_signal\", \"timestamp\": (now | todate)}] else . end)"
       ;;
   esac
 
