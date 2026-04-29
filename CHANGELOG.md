@@ -7,6 +7,43 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.8.3] - 2026-04-29
+
+### Added — patch-tier (post-v0.8.2 review hotfix — close the WAVE_* anti-pattern across all sites)
+
+3 implementation stories closing the **fourth, fifth, and sixth layers** of the N33 root-cause #1 anti-pattern (presence-only AC at parallel signal-wire sites). v0.8.2 fixed ONE signal regex; multi-perspective post-v0.8.2 review (architect + code-reviewer agents) found 3 parallel sites that were missed, plus a PowerShell parity gap and 2 trivially-passing test assertions. v0.8.3 closes them all atomically. v0.8.3 self-validated: tier=LOW score=≤25 files=≤6 sensitive=0 → skip with `automated:true`. **19 consecutive LOW-tier self-validations** (v0.6.5..v0.8.3).
+
+- **US-001 — close 3 WAVE_* wire sites in bash code (HIGH + HIGH + MEDIUM)** — (1) `lib/signal-heuristics.sh:33` regex extended to 6 signals (mirrors `lib/runner.sh:283`); the heuristic-fallback path no longer drops wave signals on non-Claude runners. (2) `quantum-loop.sh:1570` `case "$SIGNAL_RESULT"` switch gains explicit `WAVE_PASSED)` and `WAVE_FAILED)` branches before the `*)` wildcard — story-progressing and retry semantics respectively (v0.9.0 N42 may refine wave-to-story mapping). (3) `quantum-loop.sh:687` source gate now also fires `lib/spawn.sh` and `lib/dag-query.sh` under `COORDINATOR_MODE=true` (parallel to `PARALLEL_MODE`); v0.9.0 N42's `spawn_coordinator()` will be defined at call time.
+- **US-002 — PowerShell parity (MEDIUM)** — `quantum-loop.ps1:364` regex extended to 6 signals; switch block gains `"WAVE_PASSED"` and `"WAVE_FAILED"` case arms before the `default` branch. PowerShell entry-point preserved in lockstep with bash.
+- **US-003 — tighten test_signal_parsing.sh negative assertions (LOW)** — Tests 9 and 10 each gain an explicit `SIGNAL_CONFIDENCE != "exact"` assertion. Guards against the trivial-pass regression where a wholly-broken regex would still make the negative tests pass via the no-signal default. Test count: 13 → 15.
+- **US-004 — retrospective + IDEA_REPORT_v25 + version bump 0.8.2 → 0.8.3** — this entry.
+
+### Test-suite delta
+
+**+2 new assertions** (test_signal_parsing.sh non-exact-confidence guards); 0 new test files.
+
+### Architectural observations
+
+**v0.8.3 closes the FOURTH and final layer of the N33 root-cause #1 anti-pattern.** The pattern saga across v0.8.x:
+
+| Layer | Cycle | Defect | Caught by |
+|---|---|---|---|
+| 1 (function) | v0.7.x | `wrap_orchestrator_dispatch` defined; zero callers | v0.8.0 5-agent research synthesis |
+| 2 (caller) | v0.8.0 | `ql_wrap_subagent_dispatch` defined; zero callers in dispatch loop | v0.8.1 dogfood (static grep) |
+| 3 (signal parser) | v0.8.0 | `runner_parse_output` regex missing `WAVE_*` | v0.8.2 architect review |
+| 4 (parallel consumer sites) | v0.8.2 | `signal-heuristics.sh` regex + case switch + source gate + PowerShell mirror all missing `WAVE_*` | v0.8.3 architect + code-reviewer review |
+
+p012 (anti-presence-only AC) reinforced again. The pattern is now mature: when introducing a recovery wrapper, opt-in flag, OR a signal that another component must recognize, search ALL parallel consumer sites before declaring closure — not just the primary one.
+
+### Honest scope drift
+
+- US-001 grew to 3 atomic fixes in 1 story (was originally proposed as ≥3 separate stories in the design). Bundling kept the diff coherent and reverted-as-a-unit.
+- The architect's commit-order recommendation (US-002 DAG → US-001 dispatch → US-003 signal switch) didn't apply to this v0.8.3 cycle since v0.8.3 doesn't ship the dispatch wire — that's still v0.9.0 N42.
+
+### Dogfood milestone (v0.8.3)
+
+**4/4 user-facing stories shipped first-attempt PASS** under manual takeover. 0 retries (16th consecutive cycle). **Multi-cycle CSV milestone**: 43 → 46 rows (3 advisory rows; design/prd/plan all 1 LOW). **G30 self-validation** (19th consecutive correct LOW): tier=LOW score=≤25 files=≤6 sensitive=0 → skip; recorded with `automated:true`. **N33 root-cause #1 fully closed** across 4 layers; v0.9.0 N42 prerequisites genuinely complete (no more parallel wire sites discovered). Full retrospective: `idea-stage/PIPELINE_REPORT_v25.md`. v0.9.0+ backlog: `idea-stage/IDEA_REPORT_v25.md`.
+
 ## [0.8.2] - 2026-04-29
 
 ### Added — patch-tier (post-v0.8.1 review fixes + v0.9.0 N42 prerequisites)
