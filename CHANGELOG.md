@@ -7,6 +7,45 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.9.1] - 2026-04-30
+
+### Added — patch-tier (N42-validate — first real-LLM dogfood through `--coordinator`)
+
+5-story validation patch confirming v0.9.0 N42 (per-wave coordinator dispatch under `--coordinator` opt-in) works end-to-end with a real LLM. v0.9.1 self-validated: tier=LOW (G30 captured in retrospective). **22 consecutive LOW-tier self-validations** (v0.6.5..v0.9.1).
+
+**Headline result: 18-cycle manual-takeover streak BROKEN.** First cycle in 19 (v0.6.7..v0.9.0 was the streak) where the autonomous loop drove a complete 2-story plan to `<quantum>COMPLETE</quantum>` exit 0 without manual takeover. See `idea-stage/dogfood-v0.9.1-findings.md` for full evidence.
+
+### ⚠️ Known issue (advisory)
+
+**Operators using `--coordinator` with real (non-synthetic) plans should be aware:** Implementer subagents may run destructive `git` operations (e.g., `git reset --hard`) in the shared coordinator worktree. The coordinator's self-healing observed in v0.9.1 dogfood was **emergent, not engineered** — there is no `HEAD_BEFORE`/`HEAD_AFTER` guard in the coordinator contract. The single dogfood incident (US-B implementer wiped US-A's commit; coordinator restored via fix commit) recovered cleanly only because the synthetic plan was trivially simple. Real-feature dispatch with multi-file diffs may not recover. Per-story isolated worktrees OR coordinator HEAD-snapshot guard is planned for **v0.9.2**.
+
+### Stories shipped
+
+- **US-001 — real-LLM dogfood** — synthetic 2-story bundle in `.ql-wt/dogfood-v091/` worktree on throwaway branch `dogfood-v091-runtime` (off master at v0.9.0 `d66aaf8`). Fired `bash quantum-loop.sh --coordinator --max-iterations 5`. Iteration 1 dispatched coordinator with both stories; coordinator emitted `WAVE_PASSED` (exact confidence); per-story aggregation marked both `passed`. Iteration 2 returned COMPLETE. End-to-end successful.
+- **US-002 — capture findings** — `idea-stage/dogfood-v0.9.1-findings.md` (6 sections, evidence-cited). Per-claim verdict: 4 minimum claims (next_wave invocation, spawn_coordinator output reachability, per-story aggregation routing, coordinator scope boundedness) all WORKED. One real defect surfaced (5a HIGH) + one cosmetic (5b LOW).
+- **US-003 — inline fix for finding 5b** — `quantum-loop.sh:1569-1577` legacy `Spawning %s for story %s...` printf gated under `[[ "$COORDINATOR_MODE" != "true" ]]`. Cosmetic only; coordinator-mode branch already prints accurate `Spawning coordinator for wave-N with K story/stories: ...`. 5a deferred to v0.9.2 with explicit rationale.
+- **US-004 — multi-perspective post-merge review** — 3 parallel reviewers (architect + code-reviewer + security). Code-reviewer: APPROVE with 1 MEDIUM latent (`STORY_PASSED`/`STORY_FAILED`/`BLOCKED` case branches still use scalar `$STORY_ID` under coordinator mode) → v0.9.2 candidate. Architect: streak-break HONEST; bumped 5a severity from MEDIUM-HIGH to HIGH; surfaced 3 new v0.9.2 risks (per-story worktree isolation conflicts with `--coordinator --parallel`; `filePaths` omission silent bypass; N46 deferred-debt). Security: 0 active findings.
+- **US-005 — retrospective + IDEA_REPORT_v28 + version bump 0.9.0 → 0.9.1 + worktree cleanup** — this entry.
+
+### Test-suite delta
+
+No new test files. All 6 v0.9.0 test suites green post-US-003: `test_next_wave.sh` 18/18, `test_coordinator_e2e.sh` 10/10, `test_signal_parsing.sh` 15/15, `test_orchestrator_liveness.sh` 34/34, `test_quantum_loop_recovery.sh` 5/5, `test_coordinator_dispatch.sh` 7/7 (89/89 total).
+
+### Architectural observations
+
+**v0.9.0 N42's wires worked on first real-LLM exercise.** This is the third architectural dogfood-pattern validation: v0.7.x (manual takeover required) → v0.8.x (4-layer N33 closure shipped wires structurally) → **v0.9.0/v0.9.1 (wires fired correctly under real LLM dispatch)**.
+
+**v0.9.2 candidate slate** (from US-004 review synthesis): primary item is finding 5a (HIGH) — coordinator HEAD-snapshot guard OR per-story worktree isolation. Secondary items: code-reviewer's MEDIUM (gate STORY_PASSED/FAILED/BLOCKED case branches under coordinator mode); architect's `filePaths` validation gap (silent conflict-filter bypass on empty arrays); architect's per-story worktree isolation conflict with `--coordinator --parallel` mutual exclusion; N46 (respawn output not re-parsed). See `idea-stage/IDEA_REPORT_v28.md`.
+
+### Honest scope drift
+
+- US-001 expanded from "small dogfood" to "small dogfood + emergent coordinator self-healing diagnostic" when the implementer subagent ran `git reset --hard`. Diagnostic-only ship per Option C semantics; fix deferred to v0.9.2.
+- US-005 includes worktree cleanup (operator-staged in quantum.json plan).
+
+### Dogfood milestone (v0.9.1)
+
+**5/5 user-facing stories shipped first-attempt PASS.** 0 retries on the bundle branch. **Multi-cycle CSV milestone**: 52 → 55 rows (3 advisory rows; design/prd/plan all 1 LOW). **G30 self-validation captured in retrospective.** **First cycle since v0.6.7 to break the manual-takeover streak.** Full retrospective: `idea-stage/PIPELINE_REPORT_v28.md`. v0.9.2 backlog: `idea-stage/IDEA_REPORT_v28.md`.
+
 ## [0.9.0] - 2026-04-29
 
 ### Added — minor-tier (N42 — real per-wave coordinator dispatch)
