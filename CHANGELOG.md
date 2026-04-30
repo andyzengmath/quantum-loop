@@ -7,6 +7,41 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.9.3] - 2026-04-30
+
+### Added — patch-tier (operational hardening — closes v0.9.2 iter-3 hang)
+
+4-story patch closing v0.9.2's documented operational gap (coordinator subagent stuck mid-`eval` for 3+ hours during dogfood iteration 3). v0.9.3 self-validated: tier=LOW (G30 in retrospective). **24 consecutive LOW-tier self-validations** (v0.6.5..v0.9.3).
+
+**Headline result: v0.9.2 iter-3 hang — CLOSED (engineered).** New parent-side wallclock timeout wraps `eval "$COORD_CMD"` with `timeout(1)` from coreutils. Default 30 min ceiling; configurable via `QL_COORDINATOR_TIMEOUT_S` env var. On `timeout`'s rc=124 (SIGTERM kill), parent forces `SIGNAL_RESULT=WAVE_FAILED` so per-story review-field aggregation runs.
+
+### Stories shipped
+
+- **US-001 + US-002 (atomic) — parent-side wallclock timeout + KEEP-OFF rationale documentation** — `quantum-loop.sh:~1592` wraps coord dispatch with `timeout --kill-after=10s ${QL_COORDINATOR_TIMEOUT_S:-1800}s bash -c "$COORD_CMD"`. After `runner_parse_output`: if `RUNNER_EXIT==124`, force `SIGNAL_RESULT=WAVE_FAILED` + ERROR (pattern: `Coordinator subagent exceeded.*timeout`). `ql_wrap_subagent_dispatch` gate stays OFF under coordinator mode (US-002 comment expansion documents rationale: STALE detection unsafe under coordinator mode + cross-ref to `QL_COORDINATOR_TIMEOUT_S`). New `tests/test_coordinator_e2e.sh` Test 6: stub `hung_coordinator` mode (sleep 30s) + `QL_COORDINATOR_TIMEOUT_S=5`; asserts ERROR + per-story aggregation marks both stories failed. 13/13 → 16/16 (+3).
+- **US-003 — multi-perspective post-merge review + 2 score-≥85 inline fixes** — 3 parallel reviewers (architect + code-reviewer + security). Verdicts: architect SHIP, code-reviewer REQUEST CHANGES, security SHIP. **2 inline fixes:** (1) HIGH score 90 — missing `timeout` availability guard per FR-1; added `command -v timeout` check matching `lib/dep-manifest.sh:255`; on missing, WARN + degrade to plain `bash -c` (v0.9.2 behavior). (2) MEDIUM score 88 — numeric validation on `QL_COORDINATOR_TIMEOUT_S`; non-numeric input → WARN + default 1800. New Test 7 validates the fixes. 16/16 → 18/18 (+2).
+- **US-004 — retrospective + IDEA_REPORT_v30 + version bump 0.9.2 → 0.9.3** — this entry.
+
+### Test-suite delta
+
+| Test file | v0.9.2 | v0.9.3 | delta |
+|---|---:|---:|---:|
+| `tests/test_coordinator_e2e.sh` (+Test 6 + Test 7) | 13 | 18 | +5 |
+| **Total v0.9.3 added:** | | | **+5** |
+
+### Architectural observations
+
+**v0.9.x track has reached operational + structural maturity.** v0.9.0 shipped per-wave coordinator dispatch wires. v0.9.1 validated empirically (streak BROKEN). v0.9.2 closed 5a HIGH (engineered guard). v0.9.3 closes operational iter-3 hang (engineered timeout). The next significant cycle would be **v0.10.0** (architect-recommended outer-loop replacement; deferred from v0.9.0).
+
+**v0.9.4 candidate slate** (in `idea-stage/IDEA_REPORT_v30.md`): cosmetic housekeeping + 1 optional real-feature dogfood. Mostly LOW severity. May skip and pivot to v0.10.0 design phase.
+
+### Honest scope drift
+
+- US-003 review surfaced 1 HIGH (FR-1 violation). Reviewer originally said REQUEST CHANGES; INLINE FIX brought it to SHIP. The HIGH was a real PRD AC violation (FR-1 said "fallback if `timeout` missing" but the v0.9.3 commit-1 implementation lacked the guard). Inline fix closed it cleanly.
+
+### Dogfood milestone (v0.9.3)
+
+**4/4 user-facing stories shipped first-attempt PASS.** **Multi-cycle CSV milestone**: 58 → 61 rows (3 advisory rows). **G30 self-validation captured.** **Manual-takeover streak BROKEN through v0.9.3** — cron-driven /loop pattern handled v0.9.3 end-to-end with no operator intervention. Full retrospective: `idea-stage/PIPELINE_REPORT_v30.md`. v0.9.4 backlog: `idea-stage/IDEA_REPORT_v30.md`.
+
 ## [0.9.2] - 2026-04-30
 
 ### Added — patch-tier (defensive hardening — closes v0.9.1 5a HIGH advisory + 2 reviewer MEDIUMs)

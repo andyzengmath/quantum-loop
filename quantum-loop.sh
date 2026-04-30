@@ -1589,7 +1589,25 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
       continue
     }
     printf "Spawning coordinator for %s with %d story/stories: %s\n" "$WAVE_ID" "$(echo "$WAVE_STORY_IDS_JSON" | jq 'length')" "$STORY_IDS_STR"
-    OUTPUT=$(eval "$COORD_CMD" 2>&1) || RUNNER_EXIT=$?
+    # v0.9.3 / US-001: wallclock timeout guard. Default 30 min ceiling
+    # (configurable via QL_COORDINATOR_TIMEOUT_S env). On rc=124 (SIGTERM
+    # kill from `timeout`), the override below sets SIGNAL_RESULT to
+    # WAVE_FAILED so per-story aggregation runs from review fields. Closes
+    # v0.9.2 dogfood iter-3 hang (coordinator subagent stuck > 3 hours).
+    # v0.9.3 / US-003 review fixes: validate numeric (default 1800 on bad
+    # input) + degrade gracefully if `timeout` is not on PATH (warn + run
+    # without wallclock guard).
+    QL_COORDINATOR_TIMEOUT_S="${QL_COORDINATOR_TIMEOUT_S:-1800}"
+    if ! [[ "$QL_COORDINATOR_TIMEOUT_S" =~ ^[0-9]+$ ]]; then
+      printf "WARN: QL_COORDINATOR_TIMEOUT_S must be a non-negative integer (got '%s'); using default 1800.\n" "$QL_COORDINATOR_TIMEOUT_S" >&2
+      QL_COORDINATOR_TIMEOUT_S=1800
+    fi
+    if command -v timeout >/dev/null 2>&1; then
+      OUTPUT=$(timeout --kill-after=10s "${QL_COORDINATOR_TIMEOUT_S}s" bash -c "$COORD_CMD" 2>&1) || RUNNER_EXIT=$?
+    else
+      printf "WARN: timeout(1) not on PATH; coordinator dispatch running without wallclock guard. v0.9.2 iter-3 hang scenario possible.\n" >&2
+      OUTPUT=$(bash -c "$COORD_CMD" 2>&1) || RUNNER_EXIT=$?
+    fi
   elif [[ "$RUNNER_NAME" == "claude" ]]; then
     # Claude Code: preserve original command structure — CLAUDE.md via -p, story instruction via --
     PROMPT_FILE="$SCRIPT_DIR/CLAUDE.md"
@@ -1633,6 +1651,16 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
   # Parse runner output for signals (uses heuristics if enabled for non-Claude runners)
   runner_parse_output "$OUTPUT" "$RUNNER_EXIT"
 
+  # v0.9.3 / US-001: timeout override. If `timeout` killed the coordinator
+  # subagent (rc=124), force SIGNAL_RESULT=WAVE_FAILED regardless of what
+  # runner_parse_output classified the (possibly empty/partial) output as.
+  # This ensures the WAVE_FAILED branch's per-story review-field aggregation
+  # runs uniformly. Closes v0.9.2 dogfood iter-3 hang.
+  if [[ "$COORDINATOR_MODE" == "true" && "${RUNNER_EXIT:-0}" == "124" ]]; then
+    printf "ERROR: Coordinator subagent exceeded %ss timeout; marking wave failed.\n" "$QL_COORDINATOR_TIMEOUT_S" >&2
+    SIGNAL_RESULT="WAVE_FAILED"
+  fi
+
   # v0.8.1 / US-001 (N39 dogfood) — wire ql_wrap_subagent_dispatch into the
   # production runner loop. The function was defined in v0.8.0 US-001 but
   # had zero callers in quantum-loop.sh — exactly N33 root cause #1
@@ -1654,6 +1682,14 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
   # designed for single-story respawn — re-running it under coordinator
   # mode would re-spawn the entire wave with stale story arguments.
   # N46 (respawn output re-parsing) is the proper v0.9.1+ fix.
+  # v0.9.3 / US-002 follow-up: re-evaluation kept gate OFF.
+  # Rationale: STALE detection unsafe under coordinator mode — the coordinator
+  # may legitimately spend minutes aggregating signals + writing review
+  # fields without producing new commits, which would false-positive STALE.
+  # The v0.9.3 US-001 wallclock timeout (QL_COORDINATOR_TIMEOUT_S, default
+  # 1800s) is the operational alternative: blanket wallclock kill rather
+  # than commit-progress poll. N46 (respawn output re-parsing) remains
+  # unresolved as of v0.9.3.
   if [[ "$COORDINATOR_MODE" != "true" \
         && "${SIGNAL_RESULT:-}" == "STORY_FAILED" \
         && "${SIGNAL_CONFIDENCE:-}" != "exact" ]]; then
