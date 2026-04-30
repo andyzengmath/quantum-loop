@@ -1594,8 +1594,20 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
     # kill from `timeout`), the override below sets SIGNAL_RESULT to
     # WAVE_FAILED so per-story aggregation runs from review fields. Closes
     # v0.9.2 dogfood iter-3 hang (coordinator subagent stuck > 3 hours).
+    # v0.9.3 / US-003 review fixes: validate numeric (default 1800 on bad
+    # input) + degrade gracefully if `timeout` is not on PATH (warn + run
+    # without wallclock guard).
     QL_COORDINATOR_TIMEOUT_S="${QL_COORDINATOR_TIMEOUT_S:-1800}"
-    OUTPUT=$(timeout --kill-after=10s "${QL_COORDINATOR_TIMEOUT_S}s" bash -c "$COORD_CMD" 2>&1) || RUNNER_EXIT=$?
+    if ! [[ "$QL_COORDINATOR_TIMEOUT_S" =~ ^[0-9]+$ ]]; then
+      printf "WARN: QL_COORDINATOR_TIMEOUT_S must be a non-negative integer (got '%s'); using default 1800.\n" "$QL_COORDINATOR_TIMEOUT_S" >&2
+      QL_COORDINATOR_TIMEOUT_S=1800
+    fi
+    if command -v timeout >/dev/null 2>&1; then
+      OUTPUT=$(timeout --kill-after=10s "${QL_COORDINATOR_TIMEOUT_S}s" bash -c "$COORD_CMD" 2>&1) || RUNNER_EXIT=$?
+    else
+      printf "WARN: timeout(1) not on PATH; coordinator dispatch running without wallclock guard. v0.9.2 iter-3 hang scenario possible.\n" >&2
+      OUTPUT=$(bash -c "$COORD_CMD" 2>&1) || RUNNER_EXIT=$?
+    fi
   elif [[ "$RUNNER_NAME" == "claude" ]]; then
     # Claude Code: preserve original command structure — CLAUDE.md via -p, story instruction via --
     PROMPT_FILE="$SCRIPT_DIR/CLAUDE.md"

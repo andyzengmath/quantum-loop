@@ -320,6 +320,26 @@ assert_eq "Test 6: US-B status=failed (no review fields after timeout)" "failed"
 
 rm -rf "$TEST_ROOT/work"
 
+# ─ Test 7: invalid QL_COORDINATOR_TIMEOUT_S triggers WARN + default ──────
+# v0.9.3 / US-003 review fix (code-reviewer MEDIUM score 88): validate
+# numeric. Set non-numeric env value; assert WARN printed + dispatch runs
+# successfully (using default 1800). Stub uses `passed` mode so the wave
+# completes normally (no actual timeout fires; just validates the WARN
+# path doesn't break dispatch).
+echo ""
+echo "Test 7: invalid QL_COORDINATOR_TIMEOUT_S -> WARN + default (US-003 review fix)"
+mkdir -p "$TEST_ROOT/work"
+write_2story_plan "$TEST_ROOT/work/quantum.json"
+printf 'passed' > "$TEST_ROOT/work/.test-coord-mode"
+
+OUT=$(cd "$TEST_ROOT/work" && QL_COORDINATOR_TIMEOUT_S=thirty PATH="$STUB_DIR:$PATH" bash "$QL_BIN" --coordinator --tool claude --max-iterations 1 --non-interactive 2>&1)
+
+assert_contains "Test 7: WARN about non-numeric" "QL_COORDINATOR_TIMEOUT_S must be a non-negative integer" "$OUT"
+US_A_STATUS=$(jq -r '.stories[] | select(.id == "US-A") | .status' "$TEST_ROOT/work/quantum.json")
+assert_eq "Test 7: dispatch still completed (US-A passed)" "passed" "$US_A_STATUS"
+
+rm -rf "$TEST_ROOT/work"
+
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 if (( FAIL > 0 )); then
