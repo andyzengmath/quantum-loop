@@ -1566,7 +1566,14 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
   # Spawn fresh AI instance
   # -------------------------------------------------------------------------
 
-  printf "Spawning %s for story %s...\n" "$RUNNER_NAME" "$STORY_ID"
+  # v0.9.1 / US-003 (post-v0.9.0 dogfood finding 5b): gate this legacy
+  # single-story print under non-coordinator mode. Under coordinator
+  # dispatch, the spawn block prints its own "Spawning coordinator for
+  # wave-N with K story/stories: ..." message, which is more accurate
+  # than this single-story framing.
+  if [[ "$COORDINATOR_MODE" != "true" ]]; then
+    printf "Spawning %s for story %s...\n" "$RUNNER_NAME" "$STORY_ID"
+  fi
 
   RUNNER_EXIT=0
   if [[ "$COORDINATOR_MODE" == "true" ]]; then
