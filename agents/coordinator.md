@@ -19,10 +19,10 @@ You handle EXACTLY ONE wave. Do NOT iterate the whole feature; the parent shell 
 
 For your wave:
 
-1. **Mark stories `in_progress`** in quantum.json.
+1. **Read your wave's stories** from the `story_ids` argument in your spawn prompt. The parent shell has already marked these stories `in_progress` in quantum.json before spawning you — you do NOT mark `stories[].status` (parent-owned per the field-ownership contract below).
 2. **Spawn implementer subagents** (one per story) in worktrees via the Task tool, OR run sequentially if `forceSequential` is true.
 3. **Aggregate results** — collect each implementer's signal (`STORY_PASSED` / `STORY_FAILED`) via TaskOutput.
-4. **Update quantum.json** — set each story's status to `passed` or `failed` based on signals.
+4. **Update each story's review fields based on signals** — set `stories[].review.specCompliance.status` and `stories[].review.codeQuality.status` to `"passed"` or `"failed"`. **Do NOT write `stories[].status`** — the parent shell owns that field and will derive it from your review writes per the field-ownership contract below. (v0.9.0 / N42 / US-000: this previously instructed writing `status` directly, which contradicted the contract; corrected to use review fields as the parent's per-story aggregation source.)
 5. **Run wave-end checks** — type audit (3C.0), constant scan (3C.NEG1), hyclone (3C.NEG0) when their lib modules are sourced. See `agents/orchestrator-modules/type-audit.md`, `constant-scan.md`, `hyclone.md`.
 6. **Cleanup worktrees** for completed stories.
 7. **Signal completion to parent.**

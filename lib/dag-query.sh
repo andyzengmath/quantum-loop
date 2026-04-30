@@ -172,3 +172,75 @@ filter_file_conflicts() {
     [.selected[].id]
   ' "$json_path"
 }
+
+# next_wave(quantum_json_path)
+# v0.9.0 / US-002 (N42 minor) — thin composer over get_executable_stories
+# + filter_file_conflicts. Returns the next wave of parallel-safe story IDs
+# for coordinator-driven dispatch.
+#
+# Architectural rationale: coordinators (agents/coordinator.md) consume a
+# WAVE of stories per invocation. v0.9.0 N42 wires the parent loop
+# (quantum-loop.sh) to call next_wave under COORDINATOR_MODE=true and pass
+# the wave's story_ids to spawn_coordinator. Per-iteration semantics: ONE
+# wave = ONE coordinator spawn = ONE parent iteration.
+#
+# Output: JSON array of story IDs on stdout (e.g., ["US-001","US-003"]).
+# Empty array is NEVER printed — the function returns a non-zero exit code
+# instead, allowing callers to use plain rc-based dispatch (no
+# string-sentinel parsing).
+#
+# Exit codes:
+#   0 — wave found; JSON array printed to stdout (≥1 story ID)
+#   1 — all stories passed (COMPLETE); nothing printed
+#   2 — no eligible stories remain but not all passed (BLOCKED); nothing printed
+#
+# Usage:
+#   wave=$(next_wave quantum.json)
+#   case $? in
+#     0) dispatch_wave "$wave" ;;
+#     1) printf "<quantum>COMPLETE</quantum>\n"; exit 0 ;;
+#     2) printf "<quantum>BLOCKED</quantum>\n"; exit 1 ;;
+#   esac
+next_wave() {
+  local json_path="${1:?next_wave requires a quantum.json path}"
+
+  if [[ ! -f "$json_path" ]]; then
+    printf "ERROR: next_wave: quantum.json not found at %s\n" "$json_path" >&2
+    return 2
+  fi
+
+  local raw
+  raw=$(get_executable_stories "$json_path")
+
+  # Map COMPLETE/BLOCKED string sentinels to exit codes (no stdout output).
+  case "$raw" in
+    COMPLETE) return 1 ;;
+    BLOCKED|"") return 2 ;;
+  esac
+
+  # Defensive: confirm $raw is a JSON array (guards against silent
+  # contract drift in get_executable_stories' output format).
+  local raw_type
+  raw_type=$(echo "$raw" | jq -r 'type' 2>/dev/null)
+  if [[ "$raw_type" != "array" ]]; then
+    printf "ERROR: next_wave: get_executable_stories returned unexpected type '%s' (expected array)\n" "$raw_type" >&2
+    return 2
+  fi
+
+  # Apply file-conflict filter (also excludes files claimed by in_progress
+  # stories from prior waves, per dag-query.sh:115-122).
+  local wave
+  wave=$(filter_file_conflicts "$json_path" "$raw")
+
+  # Empty filtered wave → BLOCKED (transient if in_progress stories release
+  # files; permanent if eligible set is empty for other reasons). v0.9.0
+  # treats both uniformly as rc=2; v0.9.1+ may distinguish if needed.
+  local wave_len
+  wave_len=$(echo "$wave" | jq 'length' 2>/dev/null)
+  if [[ -z "$wave_len" || "$wave_len" -eq 0 ]]; then
+    return 2
+  fi
+
+  printf '%s\n' "$wave"
+  return 0
+}

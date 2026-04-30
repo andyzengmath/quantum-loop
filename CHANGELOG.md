@@ -7,6 +7,47 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.9.0] - 2026-04-29
+
+### Added — minor-tier (N42 — real per-wave coordinator dispatch)
+
+7-story minor cycle replacing single-spawn dispatch with coordinator-driven per-wave dispatch when operators opt in via `--coordinator`. **First minor since v0.8.0** (which shipped N33 closure infrastructure). v0.8.x closed the N33 anti-pattern at 4 layers + verified all v0.9.0 prerequisites; v0.9.0 ships the actual cure. v0.9.0 self-validated: tier=LOW score=20 files=8 sensitive=0 → skip with `automated:true`. **21 consecutive LOW-tier self-validations** (v0.6.5..v0.9.0).
+
+**Architectural newness justifying minor-tier:** new CLI behavior path (`--coordinator` actually does something different from `--legacy-orchestrator` for the first time), new dispatch architecture in the sequential path, new function (`lib/dag-query.sh::next_wave`), and new field-ownership enforcement.
+
+- **US-000 — coordinator.md field-ownership amendment** — `agents/coordinator.md:25` previously instructed the coordinator to "set each story's status to passed or failed" while line 105 said "Parent loop owns `stories[].status`" (direct contradiction caught by architect 3). v0.9.0 amends step 4 to "Update each story's `review.specCompliance` and `review.codeQuality` fields based on signals. Do NOT write `stories[].status` — the parent shell owns that field." Step 1 also amended (parent now pre-marks `in_progress`).
+- **US-001 + US-003 + US-004 — per-wave coordinator dispatch wired** (atomic commit; all touch quantum-loop.sh):
+  - **US-001** — outer `COORDINATOR_MODE` branch in story selection: calls `next_wave` (rc=0 → wave; 1 → COMPLETE; 2 → BLOCKED); legacy path synthesizes 1-element `WAVE_STORY_IDS_JSON` for uniform downstream. Multi-story `in_progress` pre-mark. Spawn block: new outer if for coordinator mode → `spawn_coordinator` returns command STRING; `eval` synchronously. Legacy path verbatim. `ql_wrap_subagent_dispatch` soft-fire skipped under coordinator mode (coordinator handles internal retries; respawn would re-spawn whole wave with stale args; N46 deferred). `*)` unknown-signal branch now applies retry accounting to ALL `WAVE_STORY_IDS` (architect 1's HIGH risk: prior `$STORY_ID`-only logic would orphan other wave members `in_progress`).
+  - **US-003** — `WAVE_PASSED)` bulk-updates ALL wave stories to `status=passed` via single jq pass. `WAVE_FAILED)` per-story aggregation via Option A: derives outcome from coordinator-written `review.specCompliance` + `review.codeQuality` fields. Stories with both passed → status=passed; else status=failed + retries.attempts++ + failureLog append. No signal-protocol change.
+  - **US-004** — replaced v0.8.1 warn-only message at line 672 with hard exit when `--coordinator --parallel` both set. Documented as policy in `agents/coordinator.md` § "Interaction with --parallel" (added in v0.8.2 US-004).
+- **US-002 — `lib/dag-query.sh::next_wave` thin composer + 8-case tests** — composes existing `get_executable_stories` + `filter_file_conflicts` (no logic duplication). 3-way exit code (0=wave, 1=COMPLETE, 2=BLOCKED) gives callers a clean rc-based dispatch (no string-sentinel parsing). Defensive type-check on `get_executable_stories` output guards against silent contract drift. New `tests/test_next_wave.sh` (18 assertions) covers happy path, COMPLETE, BLOCKED (exhausted retries on dep gate), file conflict reduces wave to one, multi-dependency gate, in_progress exclusion, cross-wave file conflict, empty stories.
+- **US-005 — real-fire coordinator-dispatch integration tests** — new `tests/test_coordinator_e2e.sh` (10 assertions). Each test invokes the real `bash quantum-loop.sh --coordinator ...` binary against a 2-story stub plan and asserts on post-run quantum.json mutation + exit codes. **NOT presence-only** — the v0.8.x retrospective burned this lesson home four times. 4 cases: WAVE_PASSED happy path, WAVE_FAILED partial-pass (per-story aggregation from review fields), `--coordinator --parallel` rejection, COMPLETE path.
+- **US-006 — retrospective + IDEA_REPORT_v27 + version bump 0.8.4 → 0.9.0** — this entry.
+
+### Test-suite delta
+
+**+2 new test files**, **+28 new assertions**:
+
+- 1 new: `tests/test_next_wave.sh` (18 asserts) — DAG wave-eligibility composer
+- 1 new: `tests/test_coordinator_e2e.sh` (10 asserts) — real-fire coordinator dispatch end-to-end
+
+### Architectural observations
+
+**v0.9.0 ships the actual cure for N33's manual-takeover streak.** The 17-cycle streak (v0.6.7..v0.8.4) was driven by orchestrator drift in single-spawn dispatch. v0.9.0 replaces single-spawn with per-wave coordinator dispatch under `--coordinator` opt-in. Empirical proof requires real-LLM dogfood (deferred to v0.9.1 like v0.8.0→v0.8.1's pattern); v0.9.0 ships the wires + integration tests.
+
+**Three architect agents designed the sub-problems** independently before this cycle (inner-dispatch + next_wave + per-story aggregation). Their independent reviews caught the field-ownership contradiction (architect 3) and the coordinator-crash retry-accounting gap (architect 1's HIGH risk). Both became prerequisite stories (US-000, US-001 *) gating).
+
+### Honest scope drift
+
+- US-001 + US-003 + US-004 committed atomically (all touch quantum-loop.sh; logically separable but file-coupled).
+- US-006 retrospective lifted some boilerplate from v0.8.4 retrospective; the v0.8.x saga summary now lives in v0.8.x track memory not duplicated here.
+
+### Dogfood milestone (v0.9.0)
+
+**6/6 user-facing stories shipped first-attempt PASS** under manual takeover (18th consecutive cycle). 0 retries. **Multi-cycle CSV milestone**: 49 → 52 rows. **G30 self-validation** (21st consecutive correct LOW): tier=LOW score=20 files=8 sensitive=0 → skip; recorded with `automated:true`. **First minor-tier in 1 cycle** (immediately after v0.8.4 closed v0.8.x). Full retrospective: `idea-stage/PIPELINE_REPORT_v27.md`. v0.9.x backlog: `idea-stage/IDEA_REPORT_v27.md`.
+
+**v0.9.1 (next cycle)** is the empirical proof point: real-LLM dogfood through `--coordinator`. The infrastructure works in stub-driven integration tests; whether it breaks the manual-takeover streak in production is the v0.9.1 validation question.
+
 ## [0.8.4] - 2026-04-29
 
 ### Added — patch-tier (post-v0.8.3 review hotfix — final v0.8.x close)

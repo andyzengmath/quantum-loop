@@ -661,16 +661,17 @@ ql_wrap_subagent_dispatch() {
   wrap_orchestrator_dispatch "$@"
 }
 
-# v0.8.1 / US-001 (N39 dogfood) — surface that --coordinator does NOT yet
-# alter the dispatch path in the shell-driven runner loop. The coordinator
-# agent definition (agents/coordinator.md) and spawn helper
-# (lib/spawn.sh::spawn_coordinator) exist and pass presence-check tests, but
-# no caller wires them into the per-iteration dispatch below. v0.8.0 shipped
-# with this gap unsurfaced (presence-only ACs); v0.8.1 dogfood caught it.
-# Tracked as N42 in idea-stage/IDEA_REPORT_v23.md — production wiring is the
-# next minor-tier scope (v0.9.0+).
-if [[ "$COORDINATOR_MODE" == "true" ]]; then
-  printf "WARN: --coordinator flag set but per-wave dispatch is not yet wired into the shell-driven runner loop. spawn_coordinator() is defined but has no caller in quantum-loop.sh. Falling back to legacy single-spawn behavior. See N42 in idea-stage/IDEA_REPORT_v23.md.\n" >&2
+# v0.9.0 / US-004 (N42 minor) — enforce --coordinator and --parallel
+# mutual exclusion at parse time (replaces v0.8.1 US-001's warn-only
+# message that documented the gap). The combination would produce
+# nested parallelism (worktree-of-worktrees) that does not compose:
+# the parallel path already does worktree-driven wave dispatch, and
+# the coordinator agent spawns implementer subagents internally.
+# Documented as policy in agents/coordinator.md § "Interaction with
+# --parallel" (added in v0.8.2 US-004).
+if [[ "$COORDINATOR_MODE" == "true" && "$PARALLEL_MODE" == "true" ]]; then
+  printf "ERROR: --coordinator and --parallel are mutually exclusive (see agents/coordinator.md § \"Interaction with --parallel\")\n" >&2
+  exit 1
 fi
 
 # Load runner manifest (validates tool name, binary existence, sets RUNNER_* vars)
@@ -1450,48 +1451,94 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
   detect_stale_stories
 
   # -------------------------------------------------------------------------
-  # Select next executable story from the dependency DAG
+  # Select next executable story (legacy single-spawn) OR wave (coordinator)
   # -------------------------------------------------------------------------
+  #
+  # v0.9.0 / US-001 (N42 minor): branch on COORDINATOR_MODE.
+  #   - true  → call lib/dag-query.sh::next_wave for a wave of parallel-safe
+  #     story IDs; spawn coordinator (later in the loop) with the full set.
+  #   - false → existing single-story selection (verbatim).
+  # WAVE_STORY_IDS is the canonical wave-member array used by pre-mark,
+  # case branches, and *) fallback. Under legacy mode it has 1 element
+  # (the selected $STORY_ID) so multi-story logic still works correctly.
 
-  STORY_ID=$(jq -r '
-    .stories as $all |
-    [.stories[] |
-      select(
-        (.status == "pending" or (.status == "failed" and .retries.attempts < .retries.maxAttempts)) and
-        (if (.dependsOn | length) == 0 then true
-         else [.dependsOn[] | . as $dep | $all | map(select(.id == $dep)) | .[0].status] | all(. == "passed")
-         end)
-      )
-    ] |
-    sort_by(.priority) |
-    .[0].id // empty
-  ' quantum.json)
+  WAVE_STORY_IDS_JSON=""    # JSON array string; set under both modes
+  WAVE_ID=""                # Only set under coordinator mode
 
-  # Validate story ID format to prevent jq injection in downstream json_atomic_update calls
-  if [[ -n "$STORY_ID" && "$STORY_ID" != "null" && ! "$STORY_ID" =~ ^[A-Za-z0-9_-]+$ ]]; then
-    printf "ERROR: invalid story ID format: %s\n" "$STORY_ID" >&2
-    exit 1
-  fi
+  if [[ "$COORDINATOR_MODE" == "true" ]]; then
+    # next_wave returns rc=0 (wave) | 1 (COMPLETE) | 2 (BLOCKED).
+    # Output: JSON array of story IDs (only on rc=0).
+    WAVE_STORY_IDS_JSON=$(next_wave quantum.json) || NEXT_WAVE_RC=$?
+    NEXT_WAVE_RC="${NEXT_WAVE_RC:-0}"
+    case "$NEXT_WAVE_RC" in
+      0)
+        STORY_ID=$(echo "$WAVE_STORY_IDS_JSON" | jq -r '.[0]')
+        WAVE_ID="wave-${ITERATION}"
+        ;;
+      1)
+        final_verification_sweep
+        printf "\n===========================================\n"
+        printf "  <quantum>COMPLETE</quantum>\n"
+        printf "  All stories passed! Feature is done.\n"
+        printf "===========================================\n"
+        print_summary_table
+        exit 0
+        ;;
+      *)
+        printf "\n===========================================\n"
+        printf "  <quantum>BLOCKED</quantum>\n"
+        printf "  No executable stories remain (next_wave rc=%s).\n" "$NEXT_WAVE_RC"
+        printf "===========================================\n"
+        print_summary_table
+        exit 1
+        ;;
+    esac
+    unset NEXT_WAVE_RC
+  else
+    STORY_ID=$(jq -r '
+      .stories as $all |
+      [.stories[] |
+        select(
+          (.status == "pending" or (.status == "failed" and .retries.attempts < .retries.maxAttempts)) and
+          (if (.dependsOn | length) == 0 then true
+           else [.dependsOn[] | . as $dep | $all | map(select(.id == $dep)) | .[0].status] | all(. == "passed")
+           end)
+        )
+      ] |
+      sort_by(.priority) |
+      .[0].id // empty
+    ' quantum.json)
 
-  if [[ -z "$STORY_ID" || "$STORY_ID" == "null" ]]; then
-    # Check if all stories are passed
-    ALL_PASSED=$(jq '[.stories[].status] | all(. == "passed")' quantum.json)
-    if [[ "$ALL_PASSED" == "true" ]]; then
-      final_verification_sweep
-      printf "\n===========================================\n"
-      printf "  <quantum>COMPLETE</quantum>\n"
-      printf "  All stories passed! Feature is done.\n"
-      printf "===========================================\n"
-      print_summary_table
-      exit 0
-    else
-      printf "\n===========================================\n"
-      printf "  <quantum>BLOCKED</quantum>\n"
-      printf "  No executable stories remain.\n"
-      printf "===========================================\n"
-      print_summary_table
+    # Validate story ID format to prevent jq injection in downstream json_atomic_update calls
+    if [[ -n "$STORY_ID" && "$STORY_ID" != "null" && ! "$STORY_ID" =~ ^[A-Za-z0-9_-]+$ ]]; then
+      printf "ERROR: invalid story ID format: %s\n" "$STORY_ID" >&2
       exit 1
     fi
+
+    if [[ -z "$STORY_ID" || "$STORY_ID" == "null" ]]; then
+      # Check if all stories are passed
+      ALL_PASSED=$(jq '[.stories[].status] | all(. == "passed")' quantum.json)
+      if [[ "$ALL_PASSED" == "true" ]]; then
+        final_verification_sweep
+        printf "\n===========================================\n"
+        printf "  <quantum>COMPLETE</quantum>\n"
+        printf "  All stories passed! Feature is done.\n"
+        printf "===========================================\n"
+        print_summary_table
+        exit 0
+      else
+        printf "\n===========================================\n"
+        printf "  <quantum>BLOCKED</quantum>\n"
+        printf "  No executable stories remain.\n"
+        printf "===========================================\n"
+        print_summary_table
+        exit 1
+      fi
+    fi
+
+    # Legacy mode: synthesize a 1-element wave array from $STORY_ID so
+    # multi-story logic (pre-mark, case branches) works uniformly.
+    WAVE_STORY_IDS_JSON=$(jq -nc --arg sid "$STORY_ID" '[$sid]')
   fi
 
   STORY_TITLE=$(jq -r --arg id "$STORY_ID" '.stories[] | select(.id == $id) | .title' quantum.json)
@@ -1501,10 +1548,17 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
   printf "Attempt: %d\n" "$((STORY_ATTEMPT + 1))"
   printf "\n"
 
-  # Mark story as in_progress and set startedAt atomically
+  # Mark wave story/stories as in_progress (multi-story under coordinator
+  # mode; single-story under legacy). v0.9.0 / US-001 (N42 minor) — uses
+  # WAVE_STORY_IDS_JSON which is always a JSON array (1-element under
+  # legacy, N-element under coordinator).
   now=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-  jq --arg id "$STORY_ID" --arg now "$now" '
-    .stories |= map(if .id == $id then .status = "in_progress" | .startedAt = $now else . end) |
+  jq --argjson ids "$WAVE_STORY_IDS_JSON" --arg now "$now" '
+    .stories |= map(
+      if (.id as $sid | $ids | index($sid))
+      then .status = "in_progress" | .startedAt = $now
+      else . end
+    ) |
     .updatedAt = (now | todate)
   ' quantum.json > quantum.json.tmp && mv quantum.json.tmp quantum.json
 
@@ -1515,7 +1569,21 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
   printf "Spawning %s for story %s...\n" "$RUNNER_NAME" "$STORY_ID"
 
   RUNNER_EXIT=0
-  if [[ "$RUNNER_NAME" == "claude" ]]; then
+  if [[ "$COORDINATOR_MODE" == "true" ]]; then
+    # v0.9.0 / US-001 (N42 minor): per-wave coordinator dispatch.
+    # spawn_coordinator returns a command STRING (via runner_build_cmd or
+    # fallback printf) — not an execution. Caller evals it synchronously.
+    # The coordinator spawns implementer subagents internally per wave;
+    # parent loop blocks until coordinator emits WAVE_PASSED/WAVE_FAILED.
+    STORY_IDS_STR=$(echo "$WAVE_STORY_IDS_JSON" | jq -r 'join(" ")')
+    PRD_PATH=$(jq -r '.prdPath // "tasks/prd.md"' quantum.json)
+    COORD_CMD=$(spawn_coordinator "$WAVE_ID" "$STORY_IDS_STR" "$PRD_PATH" quantum.json) || {
+      printf "ERROR: spawn_coordinator failed for wave %s\n" "$WAVE_ID" >&2
+      continue
+    }
+    printf "Spawning coordinator for %s with %d story/stories: %s\n" "$WAVE_ID" "$(echo "$WAVE_STORY_IDS_JSON" | jq 'length')" "$STORY_IDS_STR"
+    OUTPUT=$(eval "$COORD_CMD" 2>&1) || RUNNER_EXIT=$?
+  elif [[ "$RUNNER_NAME" == "claude" ]]; then
     # Claude Code: preserve original command structure — CLAUDE.md via -p, story instruction via --
     PROMPT_FILE="$SCRIPT_DIR/CLAUDE.md"
     OUTPUT=$(claude --dangerously-skip-permissions --print \
@@ -1573,7 +1641,15 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
   # diagnostic only. Operators wanting full re-entry should use the
   # quantum-loop iteration loop's natural retry path. Tracked as N46 for
   # v0.9.0+ along with N42 (real per-wave dispatch).
-  if [[ "${SIGNAL_RESULT:-}" == "STORY_FAILED" && "${SIGNAL_CONFIDENCE:-}" != "exact" ]]; then
+  # v0.9.0 / US-001 (N42 minor): skip the soft-fire wrap under coordinator
+  # mode. The coordinator handles its own internal retries (per
+  # agents/coordinator.md), and the wrap's QL_RESPAWN_CMD path was
+  # designed for single-story respawn — re-running it under coordinator
+  # mode would re-spawn the entire wave with stale story arguments.
+  # N46 (respawn output re-parsing) is the proper v0.9.1+ fix.
+  if [[ "$COORDINATOR_MODE" != "true" \
+        && "${SIGNAL_RESULT:-}" == "STORY_FAILED" \
+        && "${SIGNAL_CONFIDENCE:-}" != "exact" ]]; then
     ql_wrap_subagent_dispatch 5 1 "" >&2 || true
   fi
 
@@ -1605,35 +1681,81 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
       exit 1
       ;;
     WAVE_PASSED)
-      # v0.8.3 / US-001 (4th-layer N33 closure): wave-level signal from
-      # agents/coordinator.md (WAVE_PASSED = all stories in wave passed).
-      # v0.8.3 wires the case branch so the parser-recognized signal doesn't
-      # fall into the *) wildcard. Story-status semantics here treat the
-      # wave as a single-story-progressing unit; v0.9.0 N42 will refine to
-      # multi-story update once spawn_coordinator is wired into the
-      # dispatch path.
-      printf "Wave (story %s) PASSED. Continuing to next iteration...\n" "$STORY_ID"
-      json_atomic_update ".stories |= map(if .id == \"$STORY_ID\" then .status = \"passed\" | .startedAt = null else . end)"
+      # v0.9.0 / US-003 (N42 minor): multi-story aggregation. Bulk-update
+      # ALL wave stories to status=passed via a single jq pass, indexed by
+      # WAVE_STORY_IDS_JSON (1-element under legacy mode, N-element under
+      # coordinator mode). Replaces v0.8.3's single-story-progressing
+      # placeholder.
+      WAVE_LEN=$(echo "$WAVE_STORY_IDS_JSON" | jq 'length')
+      printf "Wave (%s) PASSED — %d story/stories: %s\n" \
+        "${WAVE_ID:-iteration-$ITERATION}" "$WAVE_LEN" "$(echo "$WAVE_STORY_IDS_JSON" | jq -r 'join(", ")')"
+      now=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+      jq --argjson ids "$WAVE_STORY_IDS_JSON" --arg now "$now" '
+        .stories |= map(
+          if (.id as $sid | $ids | index($sid))
+          then .status = "passed" | .startedAt = null
+          else . end
+        ) |
+        .updatedAt = $now
+      ' quantum.json > quantum.json.tmp && mv quantum.json.tmp quantum.json
       ;;
     WAVE_FAILED)
       # v0.8.3 / US-001 (4th-layer N33 closure): wave-level failure signal.
-      # Mirrors STORY_FAILED retry accounting; v0.9.0 N42 may refine to
-      # per-wave-story failure attribution.
-      printf "Wave (story %s) FAILED (attempt %d). Will retry if attempts remain.\n" "$STORY_ID" "$((STORY_ATTEMPT + 1))"
-      json_atomic_update ".stories |= map(if .id == \"$STORY_ID\" then .status = \"failed\" | .startedAt = null | .retries.attempts += 1 | .retries.failureLog += [{\"phase\": \"wave_failed\", \"timestamp\": (now | todate)}] else . end)"
+      # v0.9.0 / US-003 (N42 minor) — per-story aggregation via Option A:
+      # the coordinator owns review.specCompliance + review.codeQuality
+      # writes (per agents/coordinator.md field-ownership contract). For
+      # each wave story, derive status from those review fields:
+      #   review.{spec,quality}.status == "passed" → status=passed
+      #   else → status=failed + retries.attempts++ + failureLog append
+      # Stories that the coordinator never reached (no review timestamp)
+      # are conservatively marked failed (parent cannot infer success
+      # from missing data).
+      WAVE_LEN=$(echo "$WAVE_STORY_IDS_JSON" | jq 'length')
+      printf "Wave (%s) FAILED — %d story/stories. Per-story outcome derived from review fields.\n" \
+        "${WAVE_ID:-iteration-$ITERATION}" "$WAVE_LEN"
+      now=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+      jq --argjson ids "$WAVE_STORY_IDS_JSON" --arg now "$now" '
+        .stories |= map(
+          if (.id as $sid | $ids | index($sid)) then
+            if (.review.specCompliance.status == "passed"
+                and .review.codeQuality.status == "passed") then
+              .status = "passed" | .startedAt = null
+            else
+              .status = "failed" | .startedAt = null
+              | .retries.attempts += 1
+              | .retries.failureLog += [{"phase": "wave_failed", "timestamp": $now}]
+            end
+          else . end
+        ) |
+        .updatedAt = $now
+      ' quantum.json > quantum.json.tmp && mv quantum.json.tmp quantum.json
       ;;
     *)
       # v0.8.1 / US-006 (post-PR-review fix): increment retries.attempts and
       # append to failureLog so a story that repeatedly hits the unknown-signal
-      # branch eventually exhausts retries and surfaces as BLOCKED. The prior
-      # implementation set status=failed without incrementing attempts,
-      # creating an effective infinite retry loop (story remains eligible
-      # because attempts < maxAttempts perpetually). Mirrors the STORY_FAILED
-      # branch's retry accounting.
-      printf "WARNING: No recognized signal in output. Story may not have completed cleanly.\n"
+      # branch eventually exhausts retries and surfaces as BLOCKED.
+      #
+      # v0.9.0 / US-001 (N42 minor): apply retry accounting to ALL wave
+      # stories (not just $STORY_ID) under coordinator mode. The original
+      # single-story logic referenced $STORY_ID which under coordinator
+      # mode is set to the wave's first story only — leaving other wave
+      # members orphaned in_progress (HIGH risk per architect 1's design
+      # review). The new jq uses WAVE_STORY_IDS_JSON which is 1-element
+      # under legacy mode (preserves existing semantics).
+      printf "WARNING: No recognized signal in output. Wave may not have completed cleanly.\n"
       printf "Last 10 lines of output:\n"
       echo "$OUTPUT" | tail -10
-      json_atomic_update ".stories |= map(if .id == \"$STORY_ID\" then .startedAt = null | .status = \"failed\" | .retries.attempts += 1 | .retries.failureLog += [{\"phase\": \"no_signal\", \"timestamp\": (now | todate)}] else . end)"
+      now=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+      jq --argjson ids "$WAVE_STORY_IDS_JSON" --arg now "$now" '
+        .stories |= map(
+          if (.id as $sid | $ids | index($sid))
+          then .status = "failed" | .startedAt = null
+               | .retries.attempts += 1
+               | .retries.failureLog += [{"phase": "no_signal", "timestamp": $now}]
+          else . end
+        ) |
+        .updatedAt = $now
+      ' quantum.json > quantum.json.tmp && mv quantum.json.tmp quantum.json
       ;;
   esac
 
