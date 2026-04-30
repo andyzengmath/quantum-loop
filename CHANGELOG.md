@@ -7,6 +7,46 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.9.2] - 2026-04-30
+
+### Added — patch-tier (defensive hardening — closes v0.9.1 5a HIGH advisory + 2 reviewer MEDIUMs)
+
+5-story patch closing v0.9.1's known-issue advisory and 2 reviewer MEDIUMs from v0.9.1 US-004 review trio. v0.9.2 self-validated: tier=LOW (G30 in retrospective). **23 consecutive LOW-tier self-validations** (v0.6.5..v0.9.2).
+
+**Headline result: v0.9.1 finding 5a HIGH — EMPIRICALLY CLOSED.** New `lib/coordinator-guard.sh::guard_head_advance` uses `git merge-base --is-ancestor` to detect destructive `git reset --hard` by implementer subagents. The v0.9.2 dogfood deliberately instructed an implementer to run a reset; across 2 iterations the guard fired correctly each time, marked the misbehaving story failed in review fields, and emitted `<quantum>WAVE_FAILED</quantum>`. See `idea-stage/dogfood-v0.9.2-findings.md` for full evidence.
+
+### Stories shipped
+
+- **US-001 — coordinator HEAD-snapshot guard** — `lib/coordinator-guard.sh` (NEW; ~50 LOC). `guard_head_advance HEAD_BEFORE [HEAD_AFTER]` returns 0 if HEAD_BEFORE is ancestor of HEAD_AFTER, else 1 with stderr "HEAD reset detected". Per v0.9.1 US-004 security review: ancestry check is mandatory (ordinal SHA comparison would falsely accept reset-and-recommit siblings). `agents/coordinator.md` step 2 amended: HEAD_BEFORE pre-dispatch capture + post-dispatch guard invocation; failure path = mark review fields failed + emit WAVE_FAILED. New `tests/test_coordinator_guard.sh` (4 cases / 8 asserts; all PASS).
+- **US-002 — gate legacy STORY_* case branches under coordinator mode** — Defense-in-depth: under `COORDINATOR_MODE=true`, if `SIGNAL_RESULT` matches `STORY_PASSED|STORY_FAILED|BLOCKED`, log WARNING (pattern "Unexpected STORY_.*coordinator mode") and redirect to `WAVE_FAILED` branch for per-story review-field aggregation. 9-line gate in `quantum-loop.sh` before `case "$SIGNAL_RESULT" in`. Legacy non-coord path byte-for-byte unchanged. New Test 5 in `tests/test_coordinator_e2e.sh` (3 asserts). Closes v0.9.1 code-reviewer MEDIUM.
+- **US-003 — filePaths validation gap** — `lib/quantum-validate.sh` (NEW; ~40 LOC). `validate_story_filepaths` advisory hook emits stderr WARNING for any eligible story (status pending|failed|in_progress) whose `tasks[].filePaths` is empty in aggregate. `lib/dag-query.sh::next_wave` invokes once per call as advisory preamble (warnings to stderr; never blocks). New `tests/test_quantum_validate.sh` (5 cases / 11 asserts). Closes v0.9.1 architect MEDIUM (`filter_file_conflicts` silent bypass).
+- **US-004 — real-LLM dogfood validates HEAD-snapshot guard** — Synthetic 2-story bundle in `.ql-wt/dogfood-v092/`. US-A normal flow; US-B task fixture explicitly instructs `git reset --hard HEAD~1` to test guard. Result: guard fired correctly across 2 iterations. Reflog confirms each iteration: implementer reset + commit (sibling, not descendant); coordinator detected; marked failed; emitted WAVE_FAILED; per-story aggregation routed correctly. Iteration 3 hung (operator killed); v0.9.3 candidate. Findings doc: `idea-stage/dogfood-v0.9.2-findings.md`.
+- **US-005 — retrospective + IDEA_REPORT_v29 + version bump 0.9.1 → 0.9.2 + worktree cleanup** — this entry.
+
+### Test-suite delta
+
+| Test file | v0.9.1 | v0.9.2 | delta |
+|---|---:|---:|---:|
+| `tests/test_coordinator_guard.sh` (NEW) | — | 8 | +8 |
+| `tests/test_quantum_validate.sh` (NEW) | — | 11 | +11 |
+| `tests/test_coordinator_e2e.sh` (+Test 5) | 10 | 13 | +3 |
+| **Total v0.9.2 added:** | | | **+22** |
+
+### Architectural observations
+
+**v0.9.1 finding 5a HIGH closed engineered (not just emergent).** v0.9.1's coordinator self-healed via emergent recovery; v0.9.2 ships an engineered safety net that detects destructive ops deterministically. The fix is small (~50 LOC in lib + 1 instruction amend) but the empirical validation across 2 dogfood iterations is the real proof.
+
+**v0.9.3 candidate slate** (in `idea-stage/IDEA_REPORT_v29.md`): primary item is iter-3 hang — coordinator subagent stuck mid-`eval` for 3+ hours during dogfood iteration 3. Operational, not architectural. v0.9.3 will add a parent-side wallclock timeout on `eval "$COORD_CMD"` and re-evaluate `ql_wrap_subagent_dispatch` STALE detection under coordinator mode.
+
+### Honest scope drift
+
+- US-004 dogfood iteration 3 hung > 3 hours; operator killed parent shell to capture findings. Iterations 1+2 are conclusive evidence of guard correctness; iter-3 hang documented as v0.9.3 candidate.
+- Multi-perspective review trio NOT run for v0.9.2 (US-004 was dogfood; review trio deferred to v0.9.3 US-004 per the v0.9.1 pattern).
+
+### Dogfood milestone (v0.9.2)
+
+**5/5 user-facing stories shipped first-attempt PASS.** **Multi-cycle CSV milestone**: 55 → 58 rows (3 advisory rows). **G30 self-validation captured.** **HEAD-snapshot guard validated empirically** — first cycle to ship engineered defense against implementer destructive ops. Full retrospective: `idea-stage/PIPELINE_REPORT_v29.md`. v0.9.3 backlog: `idea-stage/IDEA_REPORT_v29.md`.
+
 ## [0.9.1] - 2026-04-30
 
 ### Added — patch-tier (N42-validate — first real-LLM dogfood through `--coordinator`)

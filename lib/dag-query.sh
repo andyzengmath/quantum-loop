@@ -3,6 +3,16 @@
 # Source this file to use get_executable_stories() and detect_cycles()
 # Requires: jq
 
+# v0.9.2 / US-003: optional source of quantum-validate.sh for advisory hooks
+# in next_wave's preamble. If the file is missing (older checkout / partial
+# install), validate_story_filepaths is simply not defined and the call in
+# next_wave is gated behind a `type` check.
+_DAG_QUERY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
+if [[ -f "$_DAG_QUERY_DIR/quantum-validate.sh" ]]; then
+  # shellcheck source=lib/quantum-validate.sh
+  source "$_DAG_QUERY_DIR/quantum-validate.sh"
+fi
+
 # get_executable_stories(quantum_json_path)
 # Returns newline-separated list of executable story IDs, sorted by priority.
 # Returns "COMPLETE" if all stories are passed.
@@ -207,6 +217,14 @@ next_wave() {
   if [[ ! -f "$json_path" ]]; then
     printf "ERROR: next_wave: quantum.json not found at %s\n" "$json_path" >&2
     return 2
+  fi
+
+  # v0.9.2 / US-003: advisory preamble. Warn (stderr) on stories with empty
+  # filePaths in their tasks (would silently bypass filter_file_conflicts).
+  # Gated behind `type` check so this is a no-op if quantum-validate.sh is
+  # missing (older checkout). Never blocks — return code ignored.
+  if type validate_story_filepaths >/dev/null 2>&1; then
+    validate_story_filepaths "$json_path" || true
   fi
 
   local raw

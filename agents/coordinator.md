@@ -21,6 +21,11 @@ For your wave:
 
 1. **Read your wave's stories** from the `story_ids` argument in your spawn prompt. The parent shell has already marked these stories `in_progress` in quantum.json before spawning you — you do NOT mark `stories[].status` (parent-owned per the field-ownership contract below).
 2. **Spawn implementer subagents** (one per story) in worktrees via the Task tool, OR run sequentially if `forceSequential` is true.
+
+   **HEAD-snapshot guard (v0.9.2 / US-001 — closes v0.9.1 5a HIGH):**
+   - Before each implementer dispatch: capture `HEAD_BEFORE=$(git rev-parse HEAD)`.
+   - After each implementer's commit: invoke `bash lib/coordinator-guard.sh guard_head_advance "$HEAD_BEFORE"`.
+   - If `guard_head_advance` returns non-zero, the implementer ran a destructive git operation (e.g., `git reset --hard` to a prior commit). Mark `review.specCompliance.status` and `review.codeQuality.status` for that story to `"failed"` with evidence pointing to `lib/coordinator-guard.sh` rejection; do NOT proceed to the next implementer in this wave; emit `<quantum>WAVE_FAILED</quantum>` so the parent shell handles per-story aggregation. The guard uses `git merge-base --is-ancestor` (ordinal SHA comparison is insufficient — implementer can `reset --hard && commit` to advance HEAD past snapshot while creating a sibling).
 3. **Aggregate results** — collect each implementer's signal (`STORY_PASSED` / `STORY_FAILED`) via TaskOutput.
 4. **Update each story's review fields based on signals** — set `stories[].review.specCompliance.status` and `stories[].review.codeQuality.status` to `"passed"` or `"failed"`. **Do NOT write `stories[].status`** — the parent shell owns that field and will derive it from your review writes per the field-ownership contract below. (v0.9.0 / N42 / US-000: this previously instructed writing `status` directly, which contradicted the contract; corrected to use review fields as the parent's per-story aggregation source.)
 5. **Run wave-end checks** — type audit (3C.0), constant scan (3C.NEG1), hyclone (3C.NEG0) when their lib modules are sourced. See `agents/orchestrator-modules/type-audit.md`, `constant-scan.md`, `hyclone.md`.
