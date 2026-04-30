@@ -1660,6 +1660,19 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
     ql_wrap_subagent_dispatch 5 1 "" >&2 || true
   fi
 
+  # v0.9.2 / US-002 (defense-in-depth): STORY_* signals are unexpected under
+  # coordinator mode (the coordinator contract requires WAVE_* signals).
+  # If a STORY_* signal somehow surfaces (coordinator bug, prompt drift,
+  # parser misroute), the legacy single-story case branches use scalar
+  # $STORY_ID — under coordinator mode that's only the wave's first story,
+  # so the other wave members would be orphaned `in_progress`. Redirect
+  # to WAVE_FAILED branch so the per-story review-field aggregation runs
+  # uniformly across all wave members.
+  if [[ "$COORDINATOR_MODE" == "true" && "${SIGNAL_RESULT:-}" =~ ^(STORY_PASSED|STORY_FAILED|BLOCKED)$ ]]; then
+    printf "WARNING: Unexpected %s under coordinator mode (expected WAVE_*). Wave members may be orphaned. Treating as WAVE_FAILED for per-story aggregation.\n" "$SIGNAL_RESULT" >&2
+    SIGNAL_RESULT="WAVE_FAILED"
+  fi
+
   case "$SIGNAL_RESULT" in
     COMPLETE)
       final_verification_sweep

@@ -114,6 +114,17 @@ case "$MODE" in
     )' quantum.json > quantum.json.tmp && mv quantum.json.tmp quantum.json
     echo "<quantum>WAVE_FAILED</quantum>"
     ;;
+  story_signal)
+    # v0.9.2 / US-002 — coordinator emits STORY_PASSED instead of WAVE_*.
+    # Tests the defense-in-depth gate that redirects to WAVE_FAILED branch.
+    jq '.stories |= map(
+      if .id == "US-A" or .id == "US-B" then
+        .review.specCompliance = {"status": "passed"}
+        | .review.codeQuality = {"status": "passed"}
+      else . end
+    )' quantum.json > quantum.json.tmp && mv quantum.json.tmp quantum.json
+    echo "<quantum>STORY_PASSED</quantum>"
+    ;;
   *)
     echo "<quantum>WAVE_FAILED</quantum>"
     ;;
@@ -258,6 +269,25 @@ RC=$?
 
 assert_eq "Test 4: exit code 0" "0" "$RC"
 assert_contains "Test 4: COMPLETE signal in stdout" "<quantum>COMPLETE</quantum>" "$OUT"
+
+rm -rf "$TEST_ROOT/work"
+
+# ─ Test 5: STORY_PASSED under coord mode redirects to WAVE_FAILED ─────────
+# v0.9.2 / US-002 — defense-in-depth: STORY_* signals are unexpected under
+# coordinator mode (coordinator should emit WAVE_*). Parent should warn and
+# redirect to WAVE_FAILED branch for per-story aggregation.
+echo ""
+echo "Test 5: STORY_PASSED under coord mode -> WAVE_FAILED redirect (US-002)"
+mkdir -p "$TEST_ROOT/work"
+write_2story_plan "$TEST_ROOT/work/quantum.json"
+
+OUT=$(run_ql_coord story_signal)
+
+US_A_STATUS=$(jq -r '.stories[] | select(.id == "US-A") | .status' "$TEST_ROOT/work/quantum.json")
+US_B_STATUS=$(jq -r '.stories[] | select(.id == "US-B") | .status' "$TEST_ROOT/work/quantum.json")
+assert_contains "Test 5: WARNING about unexpected STORY_* signal" "Unexpected STORY_PASSED under coordinator mode" "$OUT"
+assert_eq "Test 5: US-A status=passed (review fields drove via WAVE_FAILED branch)" "passed" "$US_A_STATUS"
+assert_eq "Test 5: US-B status=passed (review fields drove via WAVE_FAILED branch)" "passed" "$US_B_STATUS"
 
 rm -rf "$TEST_ROOT/work"
 
