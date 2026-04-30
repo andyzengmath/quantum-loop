@@ -36,7 +36,7 @@ Caveats:
 |---|---|---|
 | **Code-reviewer** | APPROVE | 1 MEDIUM latent: `STORY_PASSED`/`STORY_FAILED`/`BLOCKED` case branches still use scalar `$STORY_ID` under coordinator mode. Not reachable today (coordinator emits `WAVE_*`), but defense-in-depth would gate them. v0.9.2 candidate. |
 | **Architect** | Streak-break HONEST | **Bumped 5a severity from MEDIUM-HIGH → HIGH.** Reasoning: (1) `git reset --hard` is unconditionally destructive — real data loss; (2) self-healing was emergent, not engineered; (3) only worked because synthetic plan was trivially simple. Surfaced 3 new v0.9.2 risks (worktree isolation conflicts with `--coordinator --parallel`; `filePaths` omission silent bypass; N46 deferred-debt). Recommended CHANGELOG known-issue advisory for v0.9.1. |
-| **Security** | 0 active findings | (Output incomplete; no findings emitted in transcript.) |
+| **Security** | SHIP; 1 HIGH (5a re-confirmed) | 5a worktree-scoped blast radius — HIGH not CRITICAL (never reaches remote; bounded to throwaway branch). 2 v0.9.2 design refinements: (a) HEAD-snapshot guard must use `git merge-base --is-ancestor` (ordinal `HEAD_AFTER < HEAD_BEFORE` is insufficient — implementer can `reset --hard && commit` to advance past snapshot); (b) `eval "$COORD_CMD"` at `quantum-loop.sh:1592` would benefit from defense-in-depth input validation on `wave_id`/`story_ids` (pre-existing pattern; `printf '%q'` escaping is the current defense). 0 new CRITICAL/HIGH from this cycle's diff. |
 
 ## v0.9.1 fixes shipped + deferrals
 

@@ -125,7 +125,7 @@ The bounded-context architecture (one wave = one coordinator spawn) worked as de
 | Finding | Severity | Disposition |
 |---|---|---|
 | 5a — implementer destructive git operation | HIGH (post-architect-review) | Add a v0.9.2 candidate slate item: coordinator HEAD-snapshot guard OR per-story worktree isolation. Do NOT scope-grow v0.9.1; ship the diagnostic + CHANGELOG known-issue advisory. |
-| 5b — cosmetic printf | LOW | Defer to v0.9.x housekeeping. Trivial edit; not blocking. |
+| 5b — cosmetic printf | LOW | **FIXED in US-003** (commit `90c23e4`). Legacy `Spawning %s for story %s...` gated under `[[ "$COORDINATOR_MODE" != "true" ]]` at `quantum-loop.sh:1569-1577`. |
 | Coordinator self-healing (`d86d21b`) | POSITIVE | This is good evidence that the coordinator CAN handle internal failures gracefully. Document the pattern in `agents/coordinator.md` recovery section. |
 | Streak break | MILESTONE | Capture in CHANGELOG + retrospective. |
 

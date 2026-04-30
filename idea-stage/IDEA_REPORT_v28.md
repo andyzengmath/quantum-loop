@@ -24,7 +24,7 @@ p001-p012 carried forward. p013 candidate ("pre-cycle 3-architect design + post-
 **Status:** new. Coordinator dispatched US-B implementer ran `git reset --hard d66aaf8` before its commit, wiping US-A's prior commit. Coordinator self-healed via emergent recovery (`fix: US-A recovery - restore marker after US-B implementer reset HEAD`). Self-healing only worked because the synthetic plan was trivially simple.
 **Severity:** HIGH (post-architect-review bump from MEDIUM-HIGH).
 **Path options for v0.9.2:**
-1. **Coordinator HEAD-snapshot guard** — coordinator captures `HEAD_BEFORE` before each implementer dispatch; refuses to advance if `HEAD_AFTER < HEAD_BEFORE` (i.e., commits were lost). Engineered safety net replaces emergent recovery.
+1. **Coordinator HEAD-snapshot guard** — coordinator captures `HEAD_BEFORE` before each implementer dispatch; refuses to advance unless `HEAD_BEFORE` is an ancestor of `HEAD_AFTER` (per `git merge-base --is-ancestor HEAD_BEFORE HEAD_AFTER`). Engineered safety net replaces emergent recovery. **Note:** ordinal comparison (`HEAD_AFTER < HEAD_BEFORE`) is insufficient — implementer can `reset --hard && commit` to advance HEAD past snapshot, defeating the guard. Ancestry check is mandatory (per v0.9.1 US-004 security review).
 2. **Per-story isolated worktrees** — each implementer in a wave gets its own `.ql-wt/<story>/` worktree (mirrors `--parallel` pattern). Eliminates shared-worktree drift class entirely.
 3. **Hybrid** — option 1 by default; option 2 opt-in via `--coordinator-isolated`.
 
