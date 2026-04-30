@@ -98,7 +98,7 @@ The bounded-context architecture (one wave = one coordinator spawn) worked as de
 
 **Final state:** both ACs satisfied. History non-linear but recoverable. No data loss.
 
-**Severity:** MEDIUM-HIGH for the v0.9.x roadmap. Per the coordinator's own learnings entry:
+**Severity:** **HIGH** (revised from MEDIUM-HIGH after US-004 architect review). Reasoning per architect: (1) `git reset --hard` is unconditionally destructive — real data loss, not a close call; (2) coordinator self-healing was emergent, not engineered (no `HEAD_BEFORE`/`HEAD_AFTER` guard in `agents/coordinator.md`); (3) self-healing only worked because the synthetic plan was trivially simple — real-feature dispatch with multi-file diffs would need to reconstruct complex state from memory, which is unreliable. Bounded to one wave per coordinator's one-spawn architecture; quantum.json state never corrupted (field-ownership held). Per the coordinator's own learnings entry:
 > v0.9.1 retro should consider: (1) per-story isolated worktrees (current --parallel pattern) instead of shared-worktree sequential dispatch, or (2) coordinator-side guard that snapshots HEAD before each implementer and refuses to advance if HEAD moved backward.
 
 ### 5b. Cosmetic printf gate (LOW)
@@ -124,7 +124,7 @@ The bounded-context architecture (one wave = one coordinator spawn) worked as de
 
 | Finding | Severity | Disposition |
 |---|---|---|
-| 5a — implementer destructive git operation | MEDIUM-HIGH | Add a v0.9.2 candidate slate item: coordinator HEAD-snapshot guard OR per-story worktree isolation. Do NOT scope-grow v0.9.1; ship the diagnostic. |
+| 5a — implementer destructive git operation | HIGH (post-architect-review) | Add a v0.9.2 candidate slate item: coordinator HEAD-snapshot guard OR per-story worktree isolation. Do NOT scope-grow v0.9.1; ship the diagnostic + CHANGELOG known-issue advisory. |
 | 5b — cosmetic printf | LOW | Defer to v0.9.x housekeeping. Trivial edit; not blocking. |
 | Coordinator self-healing (`d86d21b`) | POSITIVE | This is good evidence that the coordinator CAN handle internal failures gracefully. Document the pattern in `agents/coordinator.md` recovery section. |
 | Streak break | MILESTONE | Capture in CHANGELOG + retrospective. |
