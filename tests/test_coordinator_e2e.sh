@@ -125,6 +125,14 @@ case "$MODE" in
     )' quantum.json > quantum.json.tmp && mv quantum.json.tmp quantum.json
     echo "<quantum>STORY_PASSED</quantum>"
     ;;
+  hung_coordinator)
+    # v0.9.3 / US-001 — simulate a hung coordinator subagent. Sleep longer
+    # than QL_COORDINATOR_TIMEOUT_S so the parent's timeout wrap fires.
+    # The stub does NOT write review.* fields (parent's per-story
+    # aggregation defaults stories to failed under WAVE_FAILED branch).
+    sleep 30
+    echo "<quantum>WAVE_PASSED</quantum>"
+    ;;
   *)
     echo "<quantum>WAVE_FAILED</quantum>"
     ;;
@@ -288,6 +296,27 @@ US_B_STATUS=$(jq -r '.stories[] | select(.id == "US-B") | .status' "$TEST_ROOT/w
 assert_contains "Test 5: WARNING about unexpected STORY_* signal" "Unexpected STORY_PASSED under coordinator mode" "$OUT"
 assert_eq "Test 5: US-A status=passed (review fields drove via WAVE_FAILED branch)" "passed" "$US_A_STATUS"
 assert_eq "Test 5: US-B status=passed (review fields drove via WAVE_FAILED branch)" "passed" "$US_B_STATUS"
+
+rm -rf "$TEST_ROOT/work"
+
+# ─ Test 6: hung coordinator -> wallclock timeout fires (US-001) ───────────
+# v0.9.3 / US-001 — parent-side wallclock timeout on eval "$COORD_CMD".
+# Stub coordinator sleeps 30s; QL_COORDINATOR_TIMEOUT_S=5 fires the
+# timeout. Parent should print ERROR + redirect to WAVE_FAILED branch
+# (per-story aggregation: stories with no review fields -> failed).
+echo ""
+echo "Test 6: hung coordinator -> wallclock timeout fires (US-001)"
+mkdir -p "$TEST_ROOT/work"
+write_2story_plan "$TEST_ROOT/work/quantum.json"
+printf 'hung_coordinator' > "$TEST_ROOT/work/.test-coord-mode"
+
+OUT=$(cd "$TEST_ROOT/work" && QL_COORDINATOR_TIMEOUT_S=5 PATH="$STUB_DIR:$PATH" bash "$QL_BIN" --coordinator --tool claude --max-iterations 1 --non-interactive 2>&1)
+
+US_A_STATUS=$(jq -r '.stories[] | select(.id == "US-A") | .status' "$TEST_ROOT/work/quantum.json")
+US_B_STATUS=$(jq -r '.stories[] | select(.id == "US-B") | .status' "$TEST_ROOT/work/quantum.json")
+assert_contains "Test 6: ERROR about timeout exceeded" "Coordinator subagent exceeded" "$OUT"
+assert_eq "Test 6: US-A status=failed (no review fields after timeout)" "failed" "$US_A_STATUS"
+assert_eq "Test 6: US-B status=failed (no review fields after timeout)" "failed" "$US_B_STATUS"
 
 rm -rf "$TEST_ROOT/work"
 
