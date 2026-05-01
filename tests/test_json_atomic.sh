@@ -203,6 +203,50 @@ EXIT_CODE=$?
 assert_eq "args variant rejects missing json_path file" "1" "$EXIT_CODE"
 
 # =========================================================================
+# v0.10.0 / US-002: 2>/dev/null symmetric hardening tests.
+# When jq emits a parse error (e.g., --argjson with invalid JSON), the
+# captured stderr should appear in our error message instead of being
+# silently swallowed. Covers BOTH json_atomic_update and json_atomic_update_args.
+# =========================================================================
+echo "=== Test 13: json_atomic_update_args surfaces jq stderr on bad --argjson ==="
+QJSON="$TEST_TMPDIR/quantum13.json"
+cat > "$QJSON" << 'JSONEOF'
+{"stories":[{"id":"US-001"}]}
+JSONEOF
+ERR=$(json_atomic_update_args '.stories' "$QJSON" --argjson bad notjson 2>&1)
+EXIT_CODE=$?
+assert_eq "args variant exits 1 on bad --argjson" "1" "$EXIT_CODE"
+TOTAL=$((TOTAL + 1))
+if [[ "$ERR" == *"jq stderr:"* ]]; then
+  echo "  PASS: args variant error message includes 'jq stderr:'"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: args variant error message missing 'jq stderr:'"
+  echo "    actual: $ERR"
+  FAIL=$((FAIL + 1))
+fi
+
+# =========================================================================
+echo "=== Test 14: json_atomic_update surfaces jq stderr on filter syntax error ==="
+QJSON="$TEST_TMPDIR/quantum14.json"
+cat > "$QJSON" << 'JSONEOF'
+{"stories":[{"id":"US-001"}]}
+JSONEOF
+# Filter with deliberately invalid jq syntax to force a jq parse error
+ERR=$(json_atomic_update '.stories | map(' "$QJSON" 2>&1)
+EXIT_CODE=$?
+assert_eq "json_atomic_update exits 1 on bad filter" "1" "$EXIT_CODE"
+TOTAL=$((TOTAL + 1))
+if [[ "$ERR" == *"jq stderr:"* ]]; then
+  echo "  PASS: json_atomic_update error message includes 'jq stderr:'"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: json_atomic_update error message missing 'jq stderr:'"
+  echo "    actual: $ERR"
+  FAIL=$((FAIL + 1))
+fi
+
+# =========================================================================
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 if [[ $FAIL -eq 0 ]]; then
