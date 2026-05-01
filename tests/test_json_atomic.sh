@@ -191,13 +191,16 @@ EXIT_CODE=$?
 assert_eq "args variant rejects empty filter" "1" "$EXIT_CODE"
 
 # =========================================================================
-echo "=== Test 12: json_atomic_update_args rejects missing json_path ==="
+echo "=== Test 12a: json_atomic_update_args rejects empty json_path ==="
 json_atomic_update_args '.stories' "" 2>/dev/null
 EXIT_CODE=$?
 assert_eq "args variant rejects empty json_path" "1" "$EXIT_CODE"
+
+# =========================================================================
+echo "=== Test 12b: json_atomic_update_args rejects missing json_path file ==="
 json_atomic_update_args '.stories' "$TEST_TMPDIR/does-not-exist.json" 2>/dev/null
 EXIT_CODE=$?
-assert_eq "args variant rejects missing json_path" "1" "$EXIT_CODE"
+assert_eq "args variant rejects missing json_path file" "1" "$EXIT_CODE"
 
 # =========================================================================
 echo ""
