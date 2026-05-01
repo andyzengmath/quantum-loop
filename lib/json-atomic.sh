@@ -269,11 +269,22 @@ json_atomic_update_args() {
 
   shift 2
 
-  local updated
-  updated=$(jq "$@" "$filter" "$json_path" 2>/dev/null)
+  # v0.10.0 / US-002: capture jq stderr instead of swallowing via 2>/dev/null
+  # so empty-output failures include jq's diagnostic ("invalid JSON text
+  # passed to --argjson", filter syntax errors, etc) for caller debugging.
+  local stderr_tmp updated err
+  stderr_tmp=$(mktemp)
+  # shellcheck disable=SC2064
+  trap "rm -f '$stderr_tmp'" RETURN
+  updated=$(jq "$@" "$filter" "$json_path" 2>"$stderr_tmp")
 
   if [[ -z "$updated" ]]; then
-    printf "ERROR: json_atomic_update_args: jq filter produced empty output\n" >&2
+    err=$(<"$stderr_tmp")
+    if [[ -n "$err" ]]; then
+      printf "ERROR: json_atomic_update_args: jq filter produced empty output (jq stderr: %s)\n" "$err" >&2
+    else
+      printf "ERROR: json_atomic_update_args: jq filter produced empty output\n" >&2
+    fi
     return 1
   fi
 
@@ -298,11 +309,21 @@ json_atomic_update() {
     return 1
   fi
 
-  local updated
-  updated=$(jq "$filter" "$json_path" 2>/dev/null)
+  # v0.10.0 / US-002: capture jq stderr instead of swallowing via 2>/dev/null.
+  # Symmetric with json_atomic_update_args (deferred from v0.9.6 US-004 review).
+  local stderr_tmp updated err
+  stderr_tmp=$(mktemp)
+  # shellcheck disable=SC2064
+  trap "rm -f '$stderr_tmp'" RETURN
+  updated=$(jq "$filter" "$json_path" 2>"$stderr_tmp")
 
   if [[ -z "$updated" ]]; then
-    printf "ERROR: json_atomic_update: jq filter produced empty output\n" >&2
+    err=$(<"$stderr_tmp")
+    if [[ -n "$err" ]]; then
+      printf "ERROR: json_atomic_update: jq filter produced empty output (jq stderr: %s)\n" "$err" >&2
+    else
+      printf "ERROR: json_atomic_update: jq filter produced empty output\n" >&2
+    fi
     return 1
   fi
 
