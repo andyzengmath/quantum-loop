@@ -42,12 +42,20 @@ Operator workflow:
 
 ## Alternatives Considered
 
+Lettering matches `idea-stage/v0.10.0-design-spike-2026-05-01.md` § Spike 2:
+A/B/C/D. Spike-B (cron `/loop`) is the Decision above and is NOT repeated
+here. The remaining alternatives below skip letter B.
+
 ### A. Persistent daemon process (rejected)
 A long-running bash process (`while true` or `systemd` unit) replacing the `for` loop. Requires PID lockfile, SIGTERM/SIGINT/SIGHUP traps, mid-iteration kill safety, transactional `quantum.json` updates. Cross-platform fragile (MSYS signal delivery is a known pain point per `lib/reaper.sh:14-19`).
 
 **Rejection rationale:** ~3 stories of new code (PID management, signal handling, cross-platform regression tests) for zero demonstrated operational benefit over the cron pattern. Adds maintenance burden in a known-fragile area.
 
-### B. Inotify / filesystem watcher (rejected)
+### B. Cron-triggered `/loop` (CHOSEN — see Decision above)
+
+Not repeated as an alternative. See § Decision.
+
+### C. Inotify / filesystem watcher (rejected)
 Watch `quantum.json` for changes; trigger iteration on write.
 
 **Rejection rationale:** `inotifywait` is Linux-only; Windows has no bash equivalent. Self-triggering loop (the parent loop also writes `quantum.json`) requires debounce. Disqualified by cross-platform requirement.
@@ -55,7 +63,7 @@ Watch `quantum.json` for changes; trigger iteration on write.
 ### D. Hybrid (`while true` wrapper around bounded for-loop) (deferred)
 Internalize the cron pattern: thin outer `while true` calls the existing bounded loop, sleeps, re-enters. Eliminates scheduler dependency.
 
-**Deferral rationale:** Marginal value over Option B. Still needs PID lockfile for stop semantics. Reconsider only if cron pattern fails operationally.
+**Deferral rationale:** Marginal value over Option B (the Decision). Still needs PID lockfile for stop semantics. Reconsider only if cron pattern fails operationally.
 
 ## Triggers for Revisit
 

@@ -286,7 +286,12 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
   if [[ "$COORDINATOR_MODE" == "true" && -n "${HEAD_BEFORE_COORD:-}" ]]; then
     # shellcheck source=lib/coordinator-guard.sh
     source "$SCRIPT_DIR/lib/coordinator-guard.sh"
-    if ! guard_head_advance "$HEAD_BEFORE_COORD" 2>/dev/null; then
+    # v0.9.5 / US-004 review fix (security MEDIUM): do NOT redirect guard
+    # stderr to /dev/null — the guard's own diagnostic ("HEAD reset
+    # detected — <SHA1> not ancestor of <SHA2>") is operationally useful
+    # for distinguishing reset-detected vs git-not-on-PATH vs corrupt-repo.
+    # Parent's printf below adds the captured SHAs as additional context.
+    if ! guard_head_advance "$HEAD_BEFORE_COORD"; then
       _HEAD_AFTER_COORD=$(git rev-parse HEAD 2>/dev/null || echo "")
       printf "ERROR: Parent-side HEAD guard fired. HEAD_BEFORE=%s HEAD_AFTER=%s\n" \
         "$HEAD_BEFORE_COORD" "$_HEAD_AFTER_COORD" >&2
