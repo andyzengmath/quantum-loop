@@ -114,7 +114,7 @@ When the coordinator pattern is active, two writers update quantum.json: the coo
 
 **Coordinator must NOT write** the parent-owned fields above. **Parent must NOT write** `execution.completedWaves`. If a future feature needs cross-boundary writes, the contract should be re-negotiated with an explicit lock or a single-writer per field.
 
-This ownership boundary is informational for v0.8.2; v0.9.0 N42's per-wave dispatch implementation must respect it.
+This ownership boundary was introduced in v0.8.2; v0.9.0 N42's per-wave dispatch implementation respects it (validated empirically in v0.9.1 dogfood and reinforced by v0.9.2 US-001's HEAD-snapshot guard).
 
 ## Forward references
 

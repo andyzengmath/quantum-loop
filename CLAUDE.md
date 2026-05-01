@@ -242,7 +242,7 @@ set of numbered siblings.
 Operator-side workflow docs that the standard pipeline does not invoke
 automatically — consult them during retrospective writing or before
 designing the next cycle's slate. Sub-categorized into Orchestrator-related,
-Test-related, and Process-related.
+Coordinator-related, Test-related, and Process-related.
 
 ### Orchestrator-related
 
