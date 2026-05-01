@@ -174,6 +174,13 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     --max-retries)
+      # v0.10.3 / US-001: parity validation with --max-iterations (closes
+      # v0.10.2 US-005 deferred MEDIUM/LOW review finding). Same regex
+      # rationale: 0 retries is a legitimate sentinel ("disable retries").
+      if ! [[ "$2" =~ ^(0|[1-9][0-9]*)$ ]]; then
+        printf "ERROR: --max-retries requires a non-negative integer, got '%s'\n" "$2" >&2
+        exit 1
+      fi
       MAX_RETRIES="$2"
       shift 2
       ;;
