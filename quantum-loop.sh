@@ -162,10 +162,10 @@ while [[ $# -gt 0 ]]; do
   case $1 in
     --max-iterations)
       # v0.10.2 / US-001 T-001-5: integer-validate to close pre-existing security LOW.
-      # Accepts 0 (deliberate smoke-test sentinel used by tests/test_v081_wiring.sh:121
-      # and v0.10.0 PRD; produces empty `seq 1 0` and falls through to MAX_ITERATIONS
-      # terminal signal). Rejects negatives, decimals, leading-zero forms (e.g. 0042),
-      # and non-numeric input.
+      # Accepts 0 (deliberate smoke-test sentinel; produces empty `seq 1 0` and falls
+      # through to MAX_ITERATIONS terminal signal). Rejects negatives, decimals,
+      # leading-zero forms (e.g. 0042), and non-numeric input.
+      # v0.10.3 / US-001: stale-file ref removed (test_v081_wiring.sh deleted).
       if ! [[ "$2" =~ ^(0|[1-9][0-9]*)$ ]]; then
         printf "ERROR: --max-iterations requires a non-negative integer, got '%s'\n" "$2" >&2
         exit 1
