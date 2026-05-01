@@ -7,6 +7,44 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.10.1] - 2026-05-01
+
+### Added — patch-tier (audit-driven doc-cleanup + 1 code fix)
+
+3-story patch closing 6 actionable gaps from operator-initiated 3-agent (architect + document-specialist + critic) doc-vs-code audit post-v0.10.0 ship. v0.10.1 self-validated: tier=LOW. **29 consecutive LOW-tier self-validations** (v0.6.5..v0.10.1).
+
+**Headline:** v0.10.0 code state was correct; v0.10.1 closes documentation-accuracy gaps + 1 minor symmetry-loss in the iteration-loop side of MAX_ITERATIONS migration. v0.9.x architectural arc remains CLOSED — v0.10.1 simply tightens the documentation around it.
+
+### Stories shipped
+
+- **US-001 — Audit-driven fixes (1 code + 5 doc edits)** — T-001-1: `lib/iteration-loop.sh:455-458` raw `printf "<quantum>MAX_ITERATIONS</quantum>"` + 2 more printf lines migrated to `emit_terminal_signal "MAX_ITERATIONS" "$(printf '...' "$MAX_ITERATIONS")"`. Symmetric with `lib/parallel-mode.sh:423-424` (migrated in v0.10.0). Closes IDEA_REPORT_v34's over-broad "all migrated" claim. T-001-2: `references/adr-001-outer-loop-architecture.md:10,85` stale `quantum-loop.sh:~1447-1838` refs annotated with post-decomposition location `lib/iteration-loop.sh::run_iteration_loop()` + `lib/parallel-mode.sh::run_parallel_mode()`. Historical refs preserved as parenthetical context. T-001-3: `idea-stage/IDEA_REPORT_v30.md:52` daemon-style mention annotated with ADR-001 supersession blockquote (silent supersession in v31 made explicit). T-001-4: `idea-stage/IDEA_REPORT_v34.md` amendments — MAX_ITERATIONS claim row clarified; N38/N41/N44/N45/copilot-rate-limit re-added to "Still open" with rationale (silently dropped between v0.9.3 and v0.9.4 retros); STORY_ID format validation re-tracked as accepted-risk LOW; bundle-size framing clarified ("5 shipped + 1 deferred" vs prior "6 stories US-003 deferred but counted").
+- **US-002 — Multi-perspective post-merge review (10th application; ALL SHIP; no inline fixes)** — 3-reviewer trio (architect 93/100, code-reviewer 95/100, security 95/100). Code-reviewer found ZERO issues, praised the 3-line provenance comment at `lib/iteration-loop.sh:455-457` as "gold standard for audit-trail comments." Architect 1 LOW (PRD AC drafting imprecision; annotation approach is superior to replacement for ADR provenance). Security 1 LOW pre-existing (MAX_ITERATIONS lacks integer validation; not introduced or worsened by this patch). No score-≥85 inline-fix candidates.
+- **US-003 — Retrospective + IDEA_REPORT_v35 + version bump 0.10.0 → 0.10.1** — this entry.
+
+### Test-suite delta
+
+No delta. v0.10.1 is a refactor (behavior-preserving) + doc cleanup. Existing tests green: `test_signal_parsing.sh` 15/15, `test_coordinator_e2e.sh` 21/21.
+
+### Architectural observations
+
+**v0.9.x architectural arc remains CLOSED** (per v0.10.0 ship). v0.10.1 closes the documentation-accuracy gaps that the post-ship audit surfaced. v0.11.0+ pivots to feature work or v0.10.2 LOW-tier housekeeping per operator decision; no remaining architectural backlog (per `idea-stage/IDEA_REPORT_v35.md`).
+
+### False-positive audit findings (verified, NOT actionable)
+
+- Code-reviewer's `CLAUDE.md:263` claim that `lib/iteration-loop.sh:~212` should be `:230` was a conflation of `bash -c "$COORD_CMD"` (line 212, coord-mode dispatch — correct ref) with `eval "$RUNNER_CMD"` (line 230, non-claude runner path — different code path).
+- Pre-decomp line refs in v0.9.x design docs / PRDs are HISTORICAL — they correctly described contemporaneous state at time of writing.
+- Critic's redundant "v0.9.x FULLY CLOSED" framing across cycles is cosmetic (each closure correctly scoped: operationally / audit-list / architectural arc).
+- Critic's assertion-count baseline off-by-2 is test-harness counting methodology (deltas correct; absolute counts measure differently than raw `assert_` greps).
+
+### Honest scope drift
+
+- US-001 ACs included literal `! grep -q 'quantum-loop\.sh:~144'` for ADR-001 verification. Implementation chose annotation (preserve historical ref + add current location) over replacement. Annotation is SUPERIOR practice for ADR provenance per architect review. AC was draft-imprecise; substantive intent (reader can find current code location) fully satisfied.
+- v0.10.0 retrospective claimed "All migrated" for the MAX_ITERATIONS migration — over-broad. v0.10.1 closes the iteration-loop.sh side; v0.10.0 only covered parallel-mode.sh. Now consistent.
+
+### Dogfood milestone (v0.10.1)
+
+**3/3 stories first-attempt PASS.** **G30 self-validation captured** (29th consecutive LOW). **Manual-takeover streak: PARTIALLY BROKEN through v0.10.1** — same posture as v0.9.6 + v0.10.0 (audit/kickoff scope-ratification needed once; story execution autonomous via cron + agent dispatch). Full retrospective: `idea-stage/PIPELINE_REPORT_v35.md`. v0.11.0+ backlog: `idea-stage/IDEA_REPORT_v35.md`.
+
 ## [0.10.0] - 2026-05-01
 
 ### Added — minor-tier (PARALLEL_MODE extraction + housekeeping; v0.9.x architectural arc CLOSED)
