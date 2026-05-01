@@ -7,6 +7,42 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.9.4] - 2026-05-01
+
+### Added — patch-tier (housekeeping cycle from v0.9.x post-ship audit)
+
+6-story housekeeping patch closing all findings surfaced by the post-v0.9.3 3-agent audit (architect + doc-specialist + code-reviewer). 1 HIGH (multi-story log under coord mode) + 4 MEDIUM (doc gaps; test coverage; stale references) + 2 LOW (post-merge review inline fixes) closed. v0.9.4 self-validated: tier=LOW. **25 consecutive LOW-tier self-validations** (v0.6.5..v0.9.4).
+
+**Headline:** v0.9.x track operationally CLOSED. All audit-surfaced findings addressed. Remaining backlog is uniformly LOW or v0.10.0-scope. Next significant arc = v0.10.0 (architect-recommended outer-loop replacement; significant architectural work).
+
+### Stories shipped
+
+- **US-001 — agents/coordinator.md cleanup** — 5 in-place edits purging stale future-tense for shipped work (L73 v0.8.1 dogfood; L84/L93 v0.9.0 N42 enforcement; L121-122 IDEA_REPORT_v23 forward references). Liveness section rewritten to document that `ql_wrap_subagent_dispatch` STALE detection is gated OFF under `--coordinator` since v0.9.0; cross-references `QL_COORDINATOR_TIMEOUT_S` (v0.9.3) as operational alternative; legacy `--legacy-orchestrator` mode retains original semantics.
+- **US-002 — Gate misleading per-story log under coordinator mode (HIGH)** — `quantum-loop.sh:1547-1558` per-story `Story:` and `Attempt:` printf wrapped in `[[ "$COORDINATOR_MODE" != "true" ]]`. Under coord mode, `STORY_ID` is `wave[0]` only — printing per-story metadata for a multi-story wave was misleading (stories 2..N invisible). Coord-mode operators rely on the wave-summary line at quantum-loop.sh:~1591. Symmetric with v0.9.1 US-003's "Spawning %s for story %s" gate.
+- **US-003 — Document QL_COORDINATOR_TIMEOUT_S + helper libs in CLAUDE.md** — New "Coordinator-related" subsection under Process references documenting: `QL_COORDINATOR_TIMEOUT_S` env var (default 1800s; v0.9.3 wallclock ceiling); `lib/coordinator-guard.sh::guard_head_advance` (v0.9.2 HEAD-snapshot guard via `git merge-base --is-ancestor`); `lib/quantum-validate.sh::validate_story_filepaths` (v0.9.2 advisory hook); coordinator-specific test file pointers.
+- **US-004 — next_wave integration coverage** — `tests/test_dag_query.sh` adds Tests 17-20 (8 new asserts; integration coverage of `next_wave` through `dag-query.sh` source path with `get_executable_stories` + `filter_file_conflicts` + `validate_story_filepaths` preamble hook). Complements existing `tests/test_next_wave.sh` (18 unit cases). 36/36 → 44/44.
+- **US-005 — Multi-perspective post-merge review (6th application; 2 inline fixes)** — 3-reviewer trio (architect + code-reviewer; security skipped due to minimal v0.9.4 surface). Both architect + code-reviewer SHIP. **2 score-≥85 INLINE FIXes:** (1) MEDIUM agents/coordinator.md L117 future-tense "must respect" → past-tense "respects (validated empirically...)"; (2) LOW CLAUDE.md L244 enumeration of Process references subsections updated to include "Coordinator-related".
+- **US-006 — Retrospective + IDEA_REPORT_v31 + version bump 0.9.3 → 0.9.4** — this entry.
+
+### Test-suite delta
+
+| Test file | v0.9.3 | v0.9.4 | delta |
+|---|---:|---:|---:|
+| `tests/test_dag_query.sh` (+Tests 17-20) | 36 | 44 | +8 |
+| **Total v0.9.4 added:** | | | **+8** |
+
+### Architectural observations
+
+**v0.9.x track operationally CLOSED.** v0.9.0 shipped per-wave coordinator dispatch wires; v0.9.1 validated empirically (streak BROKEN); v0.9.2 closed 5a HIGH (engineered guard); v0.9.3 closed iter-3 hang (engineered timeout); **v0.9.4 closes housekeeping (audit-surfaced findings)**. Next significant cycle = v0.10.0 (architect-recommended outer-loop replacement; significant architectural work; design spike required first per `idea-stage/IDEA_REPORT_v31.md`).
+
+### Honest scope drift
+
+- US-005 dispatched 2 of 3 reviewers (security skipped due to minimal v0.9.4 security surface — docs + 1 log gate + tests). Pattern p014 preserved as 5 prior full-trio applications + 1 deliberate skip with rationale. Should not be treated as a precedent for skipping security review on substantive cycles.
+
+### Dogfood milestone (v0.9.4)
+
+**6/6 user-facing stories shipped first-attempt PASS.** **Multi-cycle CSV milestone**: 61 → 64 rows (3 advisory rows). **G30 self-validation captured.** **Manual-takeover streak BROKEN through v0.9.4** — cron-driven /loop pattern handled v0.9.4 end-to-end with no operator intervention beyond initial scope confirmation. Full retrospective: `idea-stage/PIPELINE_REPORT_v31.md`. v0.10.0 backlog: `idea-stage/IDEA_REPORT_v31.md`.
+
 ## [0.9.3] - 2026-04-30
 
 ### Added — patch-tier (operational hardening — closes v0.9.2 iter-3 hang)
