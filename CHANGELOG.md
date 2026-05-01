@@ -7,6 +7,37 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.10.2] - 2026-05-01
+
+### Added — patch-tier (2nd audit-cleanup + LOW absorbs + p015 canonization)
+
+4-story patch closing 2nd post-cycle 3-agent doc-vs-code audit findings (1 MEDIUM + 2 LOW + 1 already-acknowledged) + 2 LOW absorbs from carry-forward + p015 canonization. v0.10.2 self-validated: tier=LOW. **30 consecutive LOW-tier self-validations** (v0.6.5..v0.10.2).
+
+**Headline:** **p015 CANONIZED.** "Post-cycle 3-agent doc-vs-code audit" pattern promoted from candidate to canonical after 2 applications. Plus first-ever CRITICAL caught by p014 review trio (in 11 applications) — validates the review-gate's spec-compliance value over local-smoke-test-only verification.
+
+### Stories shipped
+
+- **US-001 — Audit fixes + LOW absorbs (5 sub-tasks)** — T-001-1: `CLAUDE.md:341,355` p013/p014 application counts updated 8→9 + 9→10 (post-v0.10.1 increments). T-001-2: `lib/loop-helpers.sh:338-340` `emit_terminal_signal` docstring no longer references stale `quantum-loop.sh:467+476` (extracted in v0.10.0); now references current call sites in `lib/iteration-loop.sh` + `lib/parallel-mode.sh`. T-001-3: `idea-stage/IDEA_REPORT_v34.md:76` STORY_ID line refs corrected from `363,367,370` to `360,364,367` (line 370 is `exit 1`, not a STORY_ID interpolation site). T-001-4: `lib/parallel-mode.sh:306` dead `--argjson wave "$WAVE"` removed (filter never referenced $wave; jq silently ignored; pre-existing from master). T-001-5: `quantum-loop.sh:163-172` `--max-iterations` integer validation added (regex `^(0|[1-9][0-9]*)$` accepts 0 + positive integers, rejects negatives/decimals/leading-zero/non-numeric); closes pre-existing security LOW from v0.10.1 review.
+- **US-002 — p015 canonization in CLAUDE.md** — Promoted "post-cycle 3-agent doc-vs-code audit (architect + document-specialist + critic)" from candidate to canonical pattern. 2 applications (post-v0.10.0 closed 6 gaps in v0.10.1; post-v0.10.1 closed 3 gaps in v0.10.2). False-positive filter is part of the pattern (each application also produces 3-4 false-positives that the synthesizing step verifies-against-code and explicitly filters with rationale).
+- **US-003 — Multi-perspective post-merge review (11th application; CRITICAL caught + inline-fixed)** — 3-reviewer trio. Architect SHIP (91/100). Code-reviewer **REQUEST CHANGES → SHIP after fix** (72/100 → 95/100). Security SHIP (95/100). **CRITICAL caught:** T-001-5 regex `^[1-9][0-9]*$` rejected `--max-iterations 0` which is a deliberate smoke-test sentinel used by `tests/test_v081_wiring.sh:121` + v0.10.0 PRD. Inline-fixed at `056e1da`: regex now `^(0|[1-9][0-9]*)$`. **First CRITICAL caught by p014** in the entire 11-application history — validates review-gate value beyond local smoke testing. MEDIUM/LOW deferrals: `--max-retries` parity validation (deferred to v0.10.3); jq's `--argjson` provides implicit downstream safety net.
+- **US-004 — Retrospective + IDEA_REPORT_v36 + version bump 0.10.1 → 0.10.2** — this entry.
+
+### Test-suite delta
+
+No new tests. Existing suites green: `test_signal_parsing` 15/15, `test_coordinator_e2e` 21/21, `test_dag_query` 44/44, `test_json_atomic` 32/32. `test_v081_wiring.sh` 1/5 (pre-existing stale; 4 failures check v0.8.1-era assertions that v0.9.0+ superseded; deferred to v0.10.3 for restore-or-delete decision).
+
+### Architectural observations
+
+**v0.9.x architectural arc remains CLOSED** + audit-cleanup arc now CLOSED through 2 applications. p015 canonization formalizes what was empirically discovered in v0.10.1+v0.10.2. v0.11.0+ pivots to feature work or v0.10.3 LOW housekeeping per operator decision; no forced architectural agenda.
+
+### Honest scope drift / CRITICAL inline-fix
+
+US-001 T-001-5 shipped a regex (`^[1-9][0-9]*$`) that the implementer's local smoke test verified for `notanumber` and `-5` rejection but didn't exercise `0` (a deliberate sentinel value documented in the v0.10.0 PRD). The US-003 code-reviewer caught this CRITICAL by searching for existing CLI invocations across the codebase and finding `tests/test_v081_wiring.sh:121` using `--max-iterations 0`. Inline-fixed at `056e1da`. This is the **1st CRITICAL caught by p014** in the entire 11-application history — every prior application returned ALL SHIP first-pass with at most score-≥85 LOW/MEDIUM inline fixes. Validates the review-gate's broader-codebase-search value.
+
+### Dogfood milestone (v0.10.2)
+
+**4/4 stories first-attempt PASS** (with 1 inline regression fix during US-003 review). **G30 self-validation captured** (30th consecutive LOW; round number). **Manual-takeover streak: PARTIALLY BROKEN through v0.10.2** — same posture as v0.9.6 + v0.10.0 + v0.10.1 (1 operator gate at audit/scope time; story execution autonomous via cron + agent dispatch; CRITICAL inline-fixed without operator intervention). Full retrospective: `idea-stage/PIPELINE_REPORT_v36.md`. v0.11.0+ backlog: `idea-stage/IDEA_REPORT_v36.md`.
+
 ## [0.10.1] - 2026-05-01
 
 ### Added — patch-tier (audit-driven doc-cleanup + 1 code fix)
