@@ -161,6 +161,11 @@ fi
 while [[ $# -gt 0 ]]; do
   case $1 in
     --max-iterations)
+      # v0.10.2 / US-001 T-001-5: integer-validate to close pre-existing security LOW.
+      if ! [[ "$2" =~ ^[1-9][0-9]*$ ]]; then
+        printf "ERROR: --max-iterations requires a positive integer, got '%s'\n" "$2" >&2
+        exit 1
+      fi
       MAX_ITERATIONS="$2"
       shift 2
       ;;

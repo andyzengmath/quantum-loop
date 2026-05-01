@@ -303,7 +303,7 @@ run_parallel_mode() {
                 printf "[PASSED] %s\n" "$SID"
                 json_atomic_update_args '
                   .stories |= map(if .id == $id then .status = "passed" | .startedAt = null else . end)
-                ' "$REPO_ROOT/quantum.json" --arg id "$SID" --argjson wave "$WAVE"
+                ' "$REPO_ROOT/quantum.json" --arg id "$SID"
               fi
             else
               CONFLICT_FILES="${MERGE_OUTPUT:-unknown}"
