@@ -7,7 +7,7 @@
 
 ## Context
 
-The quantum-loop project has shipped 4 patch/minor releases (v0.9.0 through v0.9.4) closing per-wave coordinator dispatch + validation + hardening + housekeeping. The "outer iteration loop" — `for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do ... done` at `quantum-loop.sh:~1447` — runs N waves per invocation, bounded by `--max-iterations` (default 50).
+The quantum-loop project has shipped 4 patch/minor releases (v0.9.0 through v0.9.4) closing per-wave coordinator dispatch + validation + hardening + housekeeping. The "outer iteration loop" — `for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do ... done` originally at `quantum-loop.sh:~1447` (pre-decomposition; now in `lib/iteration-loop.sh::run_iteration_loop()` post-v0.9.5) — runs N waves per invocation, bounded by `--max-iterations` (default 50).
 
 `idea-stage/IDEA_REPORT_v30.md` (post-v0.9.0 retrospective) recommended a "daemon-style runner" replacement of the for-loop iteration mechanism for v0.10.0. The architect's post-v0.9.3 audit (`idea-stage/v0.9.x-arc-audit-2026-04-30.md`) flagged the term as unscoped and inflicted a design spike (`idea-stage/v0.10.0-design-spike-2026-05-01.md` § Spike 2) to clarify what "daemon-style" should mean concretely.
 
@@ -82,5 +82,6 @@ Until any of these triggers fire, the cron pattern is canonical.
 - `idea-stage/IDEA_REPORT_v30.md:52` — origin of "daemon-style runner" term.
 - `idea-stage/PIPELINE_REPORT_v30.md` § "Manual-takeover streak" — empirical proof cron pattern works (v0.9.3).
 - `idea-stage/PIPELINE_REPORT_v31.md` § "Manual-takeover streak" — empirical proof cron pattern works (v0.9.4).
-- `quantum-loop.sh:~1447-1838` — the bounded for-loop that stays.
+- `lib/iteration-loop.sh::run_iteration_loop()` — the bounded for-loop that stays (was at `quantum-loop.sh:~1447-1838` pre-v0.9.5 decomposition; v0.10.1 line-ref refresh).
+- `lib/parallel-mode.sh::run_parallel_mode()` — the parallel-mode equivalent (extracted in v0.10.0).
 - `lib/reaper.sh:14-19` — MSYS dual-PID complexity that a persistent daemon would have to solve.

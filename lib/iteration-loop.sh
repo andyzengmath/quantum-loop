@@ -452,10 +452,11 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
   sleep 2
 done
 
-printf "\n===========================================\n"
-printf "  <quantum>MAX_ITERATIONS</quantum>\n"
-printf "  Reached maximum of %d iterations.\n" "$MAX_ITERATIONS"
-printf "===========================================\n"
+# v0.10.1 / US-001 T-001-1: closes IDEA_REPORT_v34 'all migrated' claim
+# gap (parallel-mode.sh was migrated in v0.10.0, iteration-loop.sh side
+# missed). Symmetric with parallel-mode.sh:423-424.
+emit_terminal_signal "MAX_ITERATIONS" \
+  "$(printf 'Reached maximum of %d iterations.' "$MAX_ITERATIONS")"
 print_summary_table
 generate_observations
 exit 2

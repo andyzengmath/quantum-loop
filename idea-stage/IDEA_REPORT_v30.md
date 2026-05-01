@@ -51,6 +51,8 @@ All unchanged. LOW priority.
 
 Architect-recommended in v0.9.0 retrospective: **outer-loop replacement**. Replace `quantum-loop.sh`'s for-loop iteration mechanism with a daemon-style runner. Out of scope for v0.9.x. Significant architectural work.
 
+> **[Superseded by ADR-001 (2026-05-01) — see `references/adr-001-outer-loop-architecture.md` and `idea-stage/IDEA_REPORT_v31.md`.]** v0.10.0 design spike found "daemon-style runner" was over-engineering; the cron `/loop` pattern empirically solves the original problem. Daemon implementation REJECTED. Annotation added in v0.10.1 doc-cleanup cycle (was silent supersession in v31).
+
 **Why deferred:** v0.9.x focused on per-wave coordinator dispatch + closing operational gaps. v0.10.0 would tackle the outer iteration loop itself.
 
 ## Recurring observations
