@@ -79,14 +79,14 @@ detect_stale_stories() {
   while IFS= read -r sid; do
     [[ -z "$sid" ]] && continue
     printf "[STALE] %s - resetting to failed (exceeded %d minute threshold)\n" "$sid" "$threshold"
-    jq --arg id "$sid" --argjson threshold "$threshold" '
+    json_atomic_update_args '
       .stories |= map(if .id == $id then
         .status = (if .retries.attempts + 1 >= .retries.maxAttempts then "blocked" else "failed" end) |
         .startedAt = null |
         .retries.attempts += 1 |
         .retries.failureLog += [{"phase": "stale_detection", "timestamp": (now | todate), "error": ("Story exceeded " + ($threshold | tostring) + " minute stale threshold")}]
       else . end)
-    ' quantum.json > quantum.json.tmp && mv quantum.json.tmp quantum.json
+    ' quantum.json --arg id "$sid" --argjson threshold "$threshold"
   done <<< "$stale_ids"
 }
 

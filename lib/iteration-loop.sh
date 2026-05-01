@@ -158,14 +158,14 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
   # WAVE_STORY_IDS_JSON which is always a JSON array (1-element under
   # legacy, N-element under coordinator).
   now=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-  jq --argjson ids "$WAVE_STORY_IDS_JSON" --arg now "$now" '
+  json_atomic_update_args '
     .stories |= map(
       if (.id as $sid | $ids | index($sid))
       then .status = "in_progress" | .startedAt = $now
       else . end
     ) |
     .updatedAt = (now | todate)
-  ' quantum.json > quantum.json.tmp && mv quantum.json.tmp quantum.json
+  ' quantum.json --argjson ids "$WAVE_STORY_IDS_JSON" --arg now "$now"
 
   # -------------------------------------------------------------------------
   # Spawn fresh AI instance
@@ -385,14 +385,14 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
       printf "Wave (%s) PASSED — %d story/stories: %s\n" \
         "${WAVE_ID:-iteration-$ITERATION}" "$WAVE_LEN" "$(echo "$WAVE_STORY_IDS_JSON" | jq -r 'join(", ")')"
       now=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-      jq --argjson ids "$WAVE_STORY_IDS_JSON" --arg now "$now" '
+      json_atomic_update_args '
         .stories |= map(
           if (.id as $sid | $ids | index($sid))
           then .status = "passed" | .startedAt = null
           else . end
         ) |
         .updatedAt = $now
-      ' quantum.json > quantum.json.tmp && mv quantum.json.tmp quantum.json
+      ' quantum.json --argjson ids "$WAVE_STORY_IDS_JSON" --arg now "$now"
       ;;
     WAVE_FAILED)
       # v0.8.3 / US-001 (4th-layer N33 closure): wave-level failure signal.
@@ -409,7 +409,7 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
       printf "Wave (%s) FAILED — %d story/stories. Per-story outcome derived from review fields.\n" \
         "${WAVE_ID:-iteration-$ITERATION}" "$WAVE_LEN"
       now=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-      jq --argjson ids "$WAVE_STORY_IDS_JSON" --arg now "$now" '
+      json_atomic_update_args '
         .stories |= map(
           if (.id as $sid | $ids | index($sid)) then
             if (.review.specCompliance.status == "passed"
@@ -423,7 +423,7 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
           else . end
         ) |
         .updatedAt = $now
-      ' quantum.json > quantum.json.tmp && mv quantum.json.tmp quantum.json
+      ' quantum.json --argjson ids "$WAVE_STORY_IDS_JSON" --arg now "$now"
       ;;
     *)
       # v0.8.1 / US-006 (post-PR-review fix): increment retries.attempts and
@@ -441,7 +441,7 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
       printf "Last 10 lines of output:\n"
       echo "$OUTPUT" | tail -10
       now=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-      jq --argjson ids "$WAVE_STORY_IDS_JSON" --arg now "$now" '
+      json_atomic_update_args '
         .stories |= map(
           if (.id as $sid | $ids | index($sid))
           then .status = "failed" | .startedAt = null
@@ -450,7 +450,7 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
           else . end
         ) |
         .updatedAt = $now
-      ' quantum.json > quantum.json.tmp && mv quantum.json.tmp quantum.json
+      ' quantum.json --argjson ids "$WAVE_STORY_IDS_JSON" --arg now "$now"
       ;;
   esac
 
