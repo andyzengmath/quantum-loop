@@ -73,18 +73,13 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
         ;;
       1)
         final_verification_sweep
-        printf "\n===========================================\n"
-        printf "  <quantum>COMPLETE</quantum>\n"
-        printf "  All stories passed! Feature is done.\n"
-        printf "===========================================\n"
+        emit_terminal_signal "COMPLETE" "All stories passed! Feature is done."
         print_summary_table
         exit 0
         ;;
       *)
-        printf "\n===========================================\n"
-        printf "  <quantum>BLOCKED</quantum>\n"
-        printf "  No executable stories remain (next_wave rc=%s).\n" "$NEXT_WAVE_RC"
-        printf "===========================================\n"
+        emit_terminal_signal "BLOCKED" \
+          "$(printf 'No executable stories remain (next_wave rc=%s).' "$NEXT_WAVE_RC")"
         print_summary_table
         exit 1
         ;;
@@ -116,17 +111,11 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
       ALL_PASSED=$(jq '[.stories[].status] | all(. == "passed")' quantum.json)
       if [[ "$ALL_PASSED" == "true" ]]; then
         final_verification_sweep
-        printf "\n===========================================\n"
-        printf "  <quantum>COMPLETE</quantum>\n"
-        printf "  All stories passed! Feature is done.\n"
-        printf "===========================================\n"
+        emit_terminal_signal "COMPLETE" "All stories passed! Feature is done."
         print_summary_table
         exit 0
       else
-        printf "\n===========================================\n"
-        printf "  <quantum>BLOCKED</quantum>\n"
-        printf "  No executable stories remain.\n"
-        printf "===========================================\n"
+        emit_terminal_signal "BLOCKED" "No executable stories remain."
         print_summary_table
         exit 1
       fi
@@ -351,10 +340,7 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
   case "$SIGNAL_RESULT" in
     COMPLETE)
       final_verification_sweep
-      printf "\n===========================================\n"
-      printf "  <quantum>COMPLETE</quantum>\n"
-      printf "  All stories passed! Feature is done.\n"
-      printf "===========================================\n"
+      emit_terminal_signal "COMPLETE" "All stories passed! Feature is done."
       print_summary_table
       exit 0
       ;;
@@ -368,10 +354,7 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
       ;;
     BLOCKED)
       json_atomic_update ".stories |= map(if .id == \"$STORY_ID\" then .startedAt = null else . end)"
-      printf "\n===========================================\n"
-      printf "  <quantum>BLOCKED</quantum>\n"
-      printf "  Agent reports no executable stories.\n"
-      printf "===========================================\n"
+      emit_terminal_signal "BLOCKED" "Agent reports no executable stories."
       print_summary_table
       exit 1
       ;;

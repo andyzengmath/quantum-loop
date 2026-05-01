@@ -12,6 +12,8 @@
 #   validate_and_run_test_cmd   -- validates test cmd from stories[].test_cmd + runs
 #   final_verification_sweep    -- post-COMPLETE sweep over all stories' test cmds
 #   generate_observations       -- emits docs/post-mortems/<date>-<branch>-observations.md
+#   emit_terminal_signal        -- v0.9.6 / US-002: prints separator-wrapped <quantum>SIGNAL</quantum>
+#                                  with optional human message (COMPLETE / BLOCKED dedup helper)
 #
 # Required globals (set in quantum-loop.sh before sourcing):
 #   - $BRANCH (string; current branch name)
@@ -323,4 +325,24 @@ generate_observations() {
       fi
     fi
   fi
+}
+
+# =============================================================================
+# Terminal signal emission helper (v0.9.6 / US-002 dedup)
+# =============================================================================
+
+# emit_terminal_signal(signal_name, [human_message])
+# Pure formatter: prints separator + '<quantum>$signal</quantum>' + optional
+# message + separator. No exit; no control-flow side effects. Caller decides
+# exit code. Replaces 3 production-path COMPLETE/BLOCKED print pairs in
+# lib/iteration-loop.sh (sequential mode, coordinator mode, end-of-iteration
+# sweep). PARALLEL_MODE pair in quantum-loop.sh:467+476 stays inline pending
+# v0.10.0+ block extraction.
+emit_terminal_signal() {
+  local signal="${1:?emit_terminal_signal: signal name required}"
+  local message="${2:-}"
+  printf "\n===========================================\n"
+  printf "  <quantum>%s</quantum>\n" "$signal"
+  [[ -n "$message" ]] && printf "  %s\n" "$message"
+  printf "===========================================\n"
 }
