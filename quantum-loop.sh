@@ -1544,9 +1544,18 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
   STORY_TITLE=$(jq -r --arg id "$STORY_ID" '.stories[] | select(.id == $id) | .title' quantum.json)
   STORY_ATTEMPT=$(jq -r --arg id "$STORY_ID" '.stories[] | select(.id == $id) | .retries.attempts' quantum.json)
 
-  printf "Story:   %s - %s\n" "$STORY_ID" "$STORY_TITLE"
-  printf "Attempt: %d\n" "$((STORY_ATTEMPT + 1))"
-  printf "\n"
+  # v0.9.4 / US-002 (post-v0.9.x audit code-reviewer HIGH): under coordinator
+  # mode, STORY_ID is `.[0]` of the wave only — printing per-story metadata
+  # here would mislead the operator about the wave (stories 2..N invisible).
+  # The wave-level summary at the spawn block (~line 1591) prints the full
+  # wave under coordinator mode. Gate the legacy single-story metadata
+  # print behind non-coord mode. Symmetric with v0.9.1 US-003's "Spawning"
+  # printf gate.
+  if [[ "$COORDINATOR_MODE" != "true" ]]; then
+    printf "Story:   %s - %s\n" "$STORY_ID" "$STORY_TITLE"
+    printf "Attempt: %d\n" "$((STORY_ATTEMPT + 1))"
+    printf "\n"
+  fi
 
   # Mark wave story/stories as in_progress (multi-story under coordinator
   # mode; single-story under legacy). v0.9.0 / US-001 (N42 minor) — uses

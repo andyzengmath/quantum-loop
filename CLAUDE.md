@@ -242,7 +242,7 @@ set of numbered siblings.
 Operator-side workflow docs that the standard pipeline does not invoke
 automatically — consult them during retrospective writing or before
 designing the next cycle's slate. Sub-categorized into Orchestrator-related,
-Test-related, and Process-related.
+Coordinator-related, Test-related, and Process-related.
 
 ### Orchestrator-related
 
@@ -252,6 +252,38 @@ Test-related, and Process-related.
   (the runtime stale-detection helper) and v0.7.0 N14's `/ql-execute`
   SKILL-level wrapping. Worked example: v0.6.7 Pattern C → Pattern A
   verification-failure-driven amendment.
+
+### Coordinator-related
+
+Operator-facing surface for the v0.9.x per-wave coordinator dispatch
+(`quantum-loop.sh --coordinator`):
+
+- **`QL_COORDINATOR_TIMEOUT_S`** (env var; default `1800` seconds = 30 min;
+  v0.9.3 / US-001). Wallclock ceiling on the coordinator subagent's
+  `eval "$COORD_CMD"` invocation in `quantum-loop.sh:~1592`. On `timeout`
+  rc=124 (SIGTERM kill from `timeout(1)` + 10s `--kill-after` grace), the
+  parent prints `ERROR: Coordinator subagent exceeded ${N}s timeout` and
+  forces `<quantum>WAVE_FAILED</quantum>` so per-story review-field
+  aggregation runs. Override for long real-feature dispatches:
+  `QL_COORDINATOR_TIMEOUT_S=3600 bash quantum-loop.sh --coordinator`.
+  Closes v0.9.2 dogfood iter-3 hang.
+- [`lib/coordinator-guard.sh`](lib/coordinator-guard.sh) (v0.9.2 / US-001).
+  HEAD-snapshot guard: `guard_head_advance HEAD_BEFORE [HEAD_AFTER=HEAD]`
+  uses `git merge-base --is-ancestor` to detect destructive `git reset
+  --hard` by implementer subagents. Returns 1 with stderr `HEAD reset
+  detected` on failure. The coordinator (per `agents/coordinator.md`
+  step 2) MUST capture `HEAD_BEFORE=$(git rev-parse HEAD)` pre-dispatch
+  and invoke `bash lib/coordinator-guard.sh guard_head_advance "$HEAD_BEFORE"`
+  post-dispatch. Closes v0.9.1 finding 5a HIGH.
+- [`lib/quantum-validate.sh`](lib/quantum-validate.sh) (v0.9.2 / US-003).
+  Advisory hook: `validate_story_filepaths QUANTUM_JSON_PATH` warns to
+  stderr for any eligible story (status pending|failed|in_progress)
+  whose `tasks[].filePaths` is empty in aggregate. Wired into
+  `lib/dag-query.sh::next_wave` preamble. Never blocks. Closes v0.9.1
+  architect MEDIUM (silent `filter_file_conflicts` bypass).
+- Coordinator-specific tests: `tests/test_coordinator_guard.sh`,
+  `tests/test_quantum_validate.sh`, `tests/test_coordinator_e2e.sh`,
+  `tests/test_coordinator_dispatch.sh`, `tests/test_next_wave.sh`.
 
 ### Test-related
 

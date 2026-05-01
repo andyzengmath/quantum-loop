@@ -70,7 +70,7 @@ jq --arg wave "$WAVE_ID" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
 
 The legacy `agents/orchestrator.md` is preserved unchanged. Operators using `quantum-loop.sh --legacy-orchestrator` (the v0.8.0 default) continue to use the long-running orchestrator. Operators using `quantum-loop.sh --coordinator` get the new per-wave pattern.
 
-The coordinator is the addition; nothing is removed in v0.8.0. v0.8.1 will dogfood the coordinator pattern via a real release cycle. If validated, future versions may flip the default.
+The coordinator is the addition; nothing is removed in v0.8.0. v0.9.0 shipped the per-wave dispatch wires under `--coordinator`; v0.9.1 validated end-to-end with real LLM dispatch (the 18-cycle manual-takeover streak v0.6.7..v0.9.0 was BROKEN at v0.9.1). v0.9.2 added the HEAD-snapshot guard; v0.9.3 added the parent-side wallclock timeout. Future versions may flip the default.
 
 ## What you DON'T do
 
@@ -82,11 +82,11 @@ The coordinator is the addition; nothing is removed in v0.8.0. v0.8.1 will dogfo
 
 ## Liveness
 
-Your spawn is wrapped by `quantum-loop.sh::ql_wrap_subagent_dispatch` (v0.8.0 N33 / US-001). If you don't commit within `QL_LIVENESS_ENABLE`'s timeout, the parent receives a STALE signal and either falls back to manual takeover (per `references/orchestrator-takeover.md`) or auto-respawns via `QL_RESPAWN_CMD` (v0.7.2 N24).
+Under `--coordinator` mode (v0.9.0+), the legacy `quantum-loop.sh::ql_wrap_subagent_dispatch` STALE-detection wrap is **gated OFF** (rationale documented at `quantum-loop.sh:~1670`: STALE detection is unsafe under coordinator mode because you may legitimately spend minutes aggregating signals + writing review fields without producing new commits, which would false-positive). The operational alternative is the v0.9.3 wallclock timeout `QL_COORDINATOR_TIMEOUT_S` (default 1800s; configurable env var). On timeout, the parent emits an ERROR and forces `<quantum>WAVE_FAILED</quantum>` so per-story review-field aggregation runs. The legacy `--legacy-orchestrator` mode retains the original `ql_wrap_subagent_dispatch` STALE detection (v0.8.0 N33 / US-001) with `QL_LIVENESS_ENABLE` timeout, falling back to manual takeover (`references/orchestrator-takeover.md`) or auto-respawn via `QL_RESPAWN_CMD` (v0.7.2 N24).
 
 ## Interaction with `--parallel` (v0.8.2 / US-004)
 
-**`--coordinator` and `--parallel` are mutually exclusive.** v0.9.0 N42 will enforce this at CLI parse time; v0.8.2 documents the policy.
+**`--coordinator` and `--parallel` are mutually exclusive.** v0.9.0 N42 (US-004) enforces this at CLI parse time with a hard exit (replaced v0.8.1's warn-only); v0.8.2 documented the policy.
 
 **Why:** the parallel path (`quantum-loop.sh` lines ~1101-1430) already implements wave-based dispatch with worktrees, agent monitoring, merge-back, and regression testing. The coordinator pattern (this agent) spawns implementer subagents internally per wave. Combining them would produce nested parallelism (worktree-of-worktrees) that doesn't compose on Git.
 
@@ -95,7 +95,7 @@ Your spawn is wrapped by `quantum-loop.sh::ql_wrap_subagent_dispatch` (v0.8.0 N3
 - Use `--coordinator` (v0.9.0+) for the per-wave subagent dispatch with bounded context.
 - Do not combine.
 
-If both flags are supplied, v0.9.0 will exit with an error: `--coordinator and --parallel are mutually exclusive (see agents/coordinator.md § "Interaction with --parallel")`.
+If both flags are supplied, the parent exits with: `ERROR: --coordinator and --parallel are mutually exclusive (see agents/coordinator.md § "Interaction with --parallel")`.
 
 ## quantum.json field ownership (v0.8.2 / US-004)
 
@@ -114,10 +114,13 @@ When the coordinator pattern is active, two writers update quantum.json: the coo
 
 **Coordinator must NOT write** the parent-owned fields above. **Parent must NOT write** `execution.completedWaves`. If a future feature needs cross-boundary writes, the contract should be re-negotiated with an explicit lock or a single-writer per field.
 
-This ownership boundary is informational for v0.8.2; v0.9.0 N42's per-wave dispatch implementation must respect it.
+This ownership boundary was introduced in v0.8.2; v0.9.0 N42's per-wave dispatch implementation respects it (validated empirically in v0.9.1 dogfood and reinforced by v0.9.2 US-001's HEAD-snapshot guard).
 
 ## Forward references
 
-- v0.9.0 N42: real per-wave dispatch (replace single-spawn loop in `quantum-loop.sh` with wave-driven loop). See `idea-stage/IDEA_REPORT_v23.md` § "N42".
-- v0.9.0 N43: parallel-with-dispatch wrap pattern (deferred). See `idea-stage/IDEA_REPORT_v23.md` § "N43".
-- v0.8.2 / US-002: `runner_parse_output` extended to recognize `WAVE_PASSED`/`WAVE_FAILED` (this agent's signals). See `lib/runner.sh:283`.
+- **v0.9.0 N42** — real per-wave dispatch SHIPPED. Replaces single-spawn loop in `quantum-loop.sh` with wave-driven loop (`next_wave` → `spawn_coordinator` → `eval`). See `idea-stage/PIPELINE_REPORT_v27.md`.
+- **v0.9.1** — empirical validation; 18-cycle manual-takeover streak BROKEN. See `idea-stage/dogfood-v0.9.1-findings.md`.
+- **v0.9.2 / US-001** — HEAD-snapshot guard `lib/coordinator-guard.sh::guard_head_advance` (closes 5a HIGH). See step 2 above.
+- **v0.9.3 / US-001** — parent-side wallclock timeout `QL_COORDINATOR_TIMEOUT_S` (closes iter-3 hang). See Liveness section above.
+- **N43** — parallel-with-dispatch wrap pattern. Deferred. See `idea-stage/IDEA_REPORT_v30.md`.
+- **v0.8.2 / US-002** — `runner_parse_output` extended to recognize `WAVE_PASSED`/`WAVE_FAILED` (this agent's signals). See `lib/runner.sh:283`.

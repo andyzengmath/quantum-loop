@@ -343,6 +343,81 @@ assert_contains "US-002 included (a.tsx != a.ts, exact match)" "US-002" "$RESULT
 rm -f "$TMPJSON"
 
 # =========================================================================
+# v0.9.4 / US-004 — next_wave integration coverage in this test file.
+# (Dedicated unit tests for next_wave live at tests/test_next_wave.sh
+# with 18 cases; these 4 cases verify wrapper integration through the
+# dag-query.sh source path with get_executable_stories + filter_file_conflicts
+# composition + the v0.9.2 validate_story_filepaths preamble hook.)
+
+echo "=== Test 17: next_wave happy path returns rc=0 with JSON array ==="
+TMPJSON=$(mktemp)
+cat > "$TMPJSON" << 'EOF'
+{
+  "stories": [
+    {"id": "US-001", "priority": 1, "status": "pending", "dependsOn": [], "tasks": [{"filePaths": ["a.ts"]}], "retries": {"attempts": 0, "maxAttempts": 3}},
+    {"id": "US-002", "priority": 2, "status": "pending", "dependsOn": [], "tasks": [{"filePaths": ["b.ts"]}], "retries": {"attempts": 0, "maxAttempts": 3}}
+  ]
+}
+EOF
+RESULT=$(next_wave "$TMPJSON" 2>/dev/null)
+RC=$?
+assert_eq "Test 17: rc=0 (wave found)" "0" "$RC"
+assert_contains "Test 17: stdout contains US-001" "US-001" "$RESULT"
+assert_contains "Test 17: stdout contains US-002" "US-002" "$RESULT"
+rm -f "$TMPJSON"
+
+# =========================================================================
+echo "=== Test 18: next_wave returns rc=1 on COMPLETE ==="
+TMPJSON=$(mktemp)
+cat > "$TMPJSON" << 'EOF'
+{
+  "stories": [
+    {"id": "US-001", "priority": 1, "status": "passed", "dependsOn": [], "tasks": [{"filePaths": ["a.ts"]}], "retries": {"attempts": 0, "maxAttempts": 3}}
+  ]
+}
+EOF
+RESULT=$(next_wave "$TMPJSON" 2>/dev/null)
+RC=$?
+assert_eq "Test 18: rc=1 (COMPLETE; all passed)" "1" "$RC"
+assert_eq "Test 18: no stdout output on COMPLETE" "" "$RESULT"
+rm -f "$TMPJSON"
+
+# =========================================================================
+echo "=== Test 19: next_wave returns rc=2 on BLOCKED ==="
+TMPJSON=$(mktemp)
+cat > "$TMPJSON" << 'EOF'
+{
+  "stories": [
+    {"id": "US-001", "priority": 1, "status": "passed", "dependsOn": [], "tasks": [{"filePaths": ["a.ts"]}], "retries": {"attempts": 0, "maxAttempts": 3}},
+    {"id": "US-002", "priority": 2, "status": "failed", "dependsOn": [], "tasks": [{"filePaths": ["b.ts"]}], "retries": {"attempts": 3, "maxAttempts": 3}}
+  ]
+}
+EOF
+RESULT=$(next_wave "$TMPJSON" 2>/dev/null)
+RC=$?
+assert_eq "Test 19: rc=2 (BLOCKED; no eligible)" "2" "$RC"
+assert_eq "Test 19: no stdout output on BLOCKED" "" "$RESULT"
+rm -f "$TMPJSON"
+
+# =========================================================================
+echo "=== Test 20: next_wave preamble emits validate_story_filepaths warning ==="
+TMPJSON=$(mktemp)
+cat > "$TMPJSON" << 'EOF'
+{
+  "stories": [
+    {"id": "US-EMPTY", "priority": 1, "status": "pending", "dependsOn": [], "tasks": [{"filePaths": []}], "retries": {"attempts": 0, "maxAttempts": 3}}
+  ]
+}
+EOF
+# Combined stdout+stderr capture; warning goes to stderr per
+# lib/quantum-validate.sh contract; JSON array goes to stdout.
+COMBINED=$(next_wave "$TMPJSON" 2>&1)
+RC=$?
+assert_contains "Test 20: preamble warning about US-EMPTY" "WARNING: Story US-EMPTY has no filePaths" "$COMBINED"
+assert_eq "Test 20: rc=0 (next_wave still completes despite warning)" "0" "$RC"
+rm -f "$TMPJSON"
+
+# =========================================================================
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 if [[ $FAIL -eq 0 ]]; then
