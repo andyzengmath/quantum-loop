@@ -355,9 +355,9 @@ fi
 printf "%s" "$BRANCH" > "$LAST_BRANCH_FILE"
 
 # Update maxAttempts in quantum.json if different from default
-jq --argjson max "$MAX_RETRIES" '
+json_atomic_update_args '
   .stories |= map(.retries.maxAttempts = $max)
-' quantum.json > quantum.json.tmp && mv quantum.json.tmp quantum.json
+' quantum.json --argjson max "$MAX_RETRIES"
 
 # =============================================================================
 # Iteration helpers (v0.9.5 / US-001 decomposition refactor: extracted to

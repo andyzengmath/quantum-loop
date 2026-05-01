@@ -73,18 +73,13 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
         ;;
       1)
         final_verification_sweep
-        printf "\n===========================================\n"
-        printf "  <quantum>COMPLETE</quantum>\n"
-        printf "  All stories passed! Feature is done.\n"
-        printf "===========================================\n"
+        emit_terminal_signal "COMPLETE" "All stories passed! Feature is done."
         print_summary_table
         exit 0
         ;;
       *)
-        printf "\n===========================================\n"
-        printf "  <quantum>BLOCKED</quantum>\n"
-        printf "  No executable stories remain (next_wave rc=%s).\n" "$NEXT_WAVE_RC"
-        printf "===========================================\n"
+        emit_terminal_signal "BLOCKED" \
+          "$(printf 'No executable stories remain (next_wave rc=%s).' "$NEXT_WAVE_RC")"
         print_summary_table
         exit 1
         ;;
@@ -116,17 +111,11 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
       ALL_PASSED=$(jq '[.stories[].status] | all(. == "passed")' quantum.json)
       if [[ "$ALL_PASSED" == "true" ]]; then
         final_verification_sweep
-        printf "\n===========================================\n"
-        printf "  <quantum>COMPLETE</quantum>\n"
-        printf "  All stories passed! Feature is done.\n"
-        printf "===========================================\n"
+        emit_terminal_signal "COMPLETE" "All stories passed! Feature is done."
         print_summary_table
         exit 0
       else
-        printf "\n===========================================\n"
-        printf "  <quantum>BLOCKED</quantum>\n"
-        printf "  No executable stories remain.\n"
-        printf "===========================================\n"
+        emit_terminal_signal "BLOCKED" "No executable stories remain."
         print_summary_table
         exit 1
       fi
@@ -158,14 +147,14 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
   # WAVE_STORY_IDS_JSON which is always a JSON array (1-element under
   # legacy, N-element under coordinator).
   now=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-  jq --argjson ids "$WAVE_STORY_IDS_JSON" --arg now "$now" '
+  json_atomic_update_args '
     .stories |= map(
       if (.id as $sid | $ids | index($sid))
       then .status = "in_progress" | .startedAt = $now
       else . end
     ) |
     .updatedAt = (now | todate)
-  ' quantum.json > quantum.json.tmp && mv quantum.json.tmp quantum.json
+  ' quantum.json --argjson ids "$WAVE_STORY_IDS_JSON" --arg now "$now"
 
   # -------------------------------------------------------------------------
   # Spawn fresh AI instance
@@ -215,6 +204,10 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
       printf "WARN: QL_COORDINATOR_TIMEOUT_S must be a non-negative integer (got '%s'); using default 1800.\n" "$QL_COORDINATOR_TIMEOUT_S" >&2
       QL_COORDINATOR_TIMEOUT_S=1800
     fi
+    # v0.9.6 / US-003 LOW absorb: bash -c spawns a subshell — locals from
+    # this function (run_iteration_loop) are NOT inherited; rely on env
+    # vars and positional args inside $COORD_CMD (which spawn_coordinator
+    # constructs accordingly).
     if command -v timeout >/dev/null 2>&1; then
       OUTPUT=$(timeout --kill-after=10s "${QL_COORDINATOR_TIMEOUT_S}s" bash -c "$COORD_CMD" 2>&1) || RUNNER_EXIT=$?
     else
@@ -269,7 +262,10 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
   # runner_parse_output classified the (possibly empty/partial) output as.
   # This ensures the WAVE_FAILED branch's per-story review-field aggregation
   # runs uniformly. Closes v0.9.2 dogfood iter-3 hang.
-  if [[ "$COORDINATOR_MODE" == "true" && "${RUNNER_EXIT:-0}" == "124" ]]; then
+  # v0.9.6 / US-003 LOW absorb: $RUNNER_EXIT is unconditionally initialized
+  # to 0 at line 172 before all dispatch sites (208/211/218/226), so the
+  # `${VAR:-0}` default is redundant. Simplified to direct expansion.
+  if [[ "$COORDINATOR_MODE" == "true" && "$RUNNER_EXIT" == "124" ]]; then
     printf "ERROR: Coordinator subagent exceeded %ss timeout; marking wave failed.\n" "$QL_COORDINATOR_TIMEOUT_S" >&2
     SIGNAL_RESULT="WAVE_FAILED"
   fi
@@ -300,35 +296,39 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
     fi
   fi
 
-  # v0.8.1 / US-001 (N39 dogfood) — wire ql_wrap_subagent_dispatch into the
+  # ql_wrap_subagent_dispatch soft-fire — v0.8.1 wire + v0.9.0/v0.9.3 gating.
+  # ---------------------------------------------------------------------------
+  # v0.8.1 / US-001 (N39 dogfood): wire `ql_wrap_subagent_dispatch` into the
   # production runner loop. The function was defined in v0.8.0 US-001 but
   # had zero callers in quantum-loop.sh — exactly N33 root cause #1
-  # repeating. v0.8.1 / US-006 (post-PR-review fix): the original guard was
-  # `[[ -z "$SIGNAL_RESULT" ]]` which is always false because
-  # runner_parse_output ALWAYS sets SIGNAL_RESULT before returning (exact
-  # match, heuristic fallback, or "STORY_FAILED" no-signal default). The
-  # corrected guard fires on STORY_FAILED with non-exact confidence — the
-  # actual "drift suspect" condition: the runner failed but we used
+  # repeating.
+  #
+  # v0.8.1 / US-006 (post-PR-review guard fix):
+  # The original guard was `[[ -z "$SIGNAL_RESULT" ]]` which is always false
+  # because runner_parse_output ALWAYS sets SIGNAL_RESULT before returning
+  # (exact match, heuristic fallback, or "STORY_FAILED" no-signal default).
+  # The corrected guard fires on STORY_FAILED with non-exact confidence —
+  # the actual "drift suspect" condition: the runner failed but we used
   # heuristics or fallback to classify it. Limitation: when QL_RESPAWN_CMD
   # is set and the wrap respawns successfully, the respawn's output is NOT
-  # re-parsed (SIGNAL_RESULT stays at STORY_FAILED). This is a soft-fire
-  # diagnostic only. Operators wanting full re-entry should use the
-  # quantum-loop iteration loop's natural retry path. Tracked as N46 for
-  # v0.9.0+ along with N42 (real per-wave dispatch).
-  # v0.9.0 / US-001 (N42 minor): skip the soft-fire wrap under coordinator
-  # mode. The coordinator handles its own internal retries (per
+  # re-parsed (SIGNAL_RESULT stays at STORY_FAILED). Soft-fire diagnostic
+  # only. Operators wanting full re-entry should use the iteration loop's
+  # natural retry path. Tracked as N46 for v0.9.0+ alongside N42.
+  #
+  # v0.9.0 / US-001 (N42 minor) — skip wrap under coordinator mode:
+  # The coordinator handles its own internal retries (per
   # agents/coordinator.md), and the wrap's QL_RESPAWN_CMD path was
   # designed for single-story respawn — re-running it under coordinator
   # mode would re-spawn the entire wave with stale story arguments.
   # N46 (respawn output re-parsing) is the proper v0.9.1+ fix.
-  # v0.9.3 / US-002 follow-up: re-evaluation kept gate OFF.
-  # Rationale: STALE detection unsafe under coordinator mode — the coordinator
+  #
+  # v0.9.3 / US-002 follow-up — gate kept OFF, rationale documented:
+  # STALE detection is unsafe under coordinator mode — the coordinator
   # may legitimately spend minutes aggregating signals + writing review
   # fields without producing new commits, which would false-positive STALE.
   # The v0.9.3 US-001 wallclock timeout (QL_COORDINATOR_TIMEOUT_S, default
   # 1800s) is the operational alternative: blanket wallclock kill rather
-  # than commit-progress poll. N46 (respawn output re-parsing) remains
-  # unresolved as of v0.9.3.
+  # than commit-progress poll. N46 remains unresolved as of v0.9.3.
   if [[ "$COORDINATOR_MODE" != "true" \
         && "${SIGNAL_RESULT:-}" == "STORY_FAILED" \
         && "${SIGNAL_CONFIDENCE:-}" != "exact" ]]; then
@@ -351,10 +351,7 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
   case "$SIGNAL_RESULT" in
     COMPLETE)
       final_verification_sweep
-      printf "\n===========================================\n"
-      printf "  <quantum>COMPLETE</quantum>\n"
-      printf "  All stories passed! Feature is done.\n"
-      printf "===========================================\n"
+      emit_terminal_signal "COMPLETE" "All stories passed! Feature is done."
       print_summary_table
       exit 0
       ;;
@@ -368,10 +365,7 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
       ;;
     BLOCKED)
       json_atomic_update ".stories |= map(if .id == \"$STORY_ID\" then .startedAt = null else . end)"
-      printf "\n===========================================\n"
-      printf "  <quantum>BLOCKED</quantum>\n"
-      printf "  Agent reports no executable stories.\n"
-      printf "===========================================\n"
+      emit_terminal_signal "BLOCKED" "Agent reports no executable stories."
       print_summary_table
       exit 1
       ;;
@@ -385,14 +379,14 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
       printf "Wave (%s) PASSED — %d story/stories: %s\n" \
         "${WAVE_ID:-iteration-$ITERATION}" "$WAVE_LEN" "$(echo "$WAVE_STORY_IDS_JSON" | jq -r 'join(", ")')"
       now=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-      jq --argjson ids "$WAVE_STORY_IDS_JSON" --arg now "$now" '
+      json_atomic_update_args '
         .stories |= map(
           if (.id as $sid | $ids | index($sid))
           then .status = "passed" | .startedAt = null
           else . end
         ) |
         .updatedAt = $now
-      ' quantum.json > quantum.json.tmp && mv quantum.json.tmp quantum.json
+      ' quantum.json --argjson ids "$WAVE_STORY_IDS_JSON" --arg now "$now"
       ;;
     WAVE_FAILED)
       # v0.8.3 / US-001 (4th-layer N33 closure): wave-level failure signal.
@@ -409,7 +403,7 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
       printf "Wave (%s) FAILED — %d story/stories. Per-story outcome derived from review fields.\n" \
         "${WAVE_ID:-iteration-$ITERATION}" "$WAVE_LEN"
       now=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-      jq --argjson ids "$WAVE_STORY_IDS_JSON" --arg now "$now" '
+      json_atomic_update_args '
         .stories |= map(
           if (.id as $sid | $ids | index($sid)) then
             if (.review.specCompliance.status == "passed"
@@ -423,7 +417,7 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
           else . end
         ) |
         .updatedAt = $now
-      ' quantum.json > quantum.json.tmp && mv quantum.json.tmp quantum.json
+      ' quantum.json --argjson ids "$WAVE_STORY_IDS_JSON" --arg now "$now"
       ;;
     *)
       # v0.8.1 / US-006 (post-PR-review fix): increment retries.attempts and
@@ -441,7 +435,7 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
       printf "Last 10 lines of output:\n"
       echo "$OUTPUT" | tail -10
       now=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-      jq --argjson ids "$WAVE_STORY_IDS_JSON" --arg now "$now" '
+      json_atomic_update_args '
         .stories |= map(
           if (.id as $sid | $ids | index($sid))
           then .status = "failed" | .startedAt = null
@@ -450,7 +444,7 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
           else . end
         ) |
         .updatedAt = $now
-      ' quantum.json > quantum.json.tmp && mv quantum.json.tmp quantum.json
+      ' quantum.json --argjson ids "$WAVE_STORY_IDS_JSON" --arg now "$now"
       ;;
   esac
 

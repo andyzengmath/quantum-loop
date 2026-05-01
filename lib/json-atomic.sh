@@ -227,6 +227,59 @@ clear_story_worktree() {
   write_quantum_json "$json_path" "$updated"
 }
 
+# json_atomic_update_args(jq_filter, json_path, [jq_arg ...])
+# v0.9.6 / US-001 T-001-1.
+# Like json_atomic_update but forwards extra args to jq verbatim, so callers
+# can use --arg / --argjson to inject values safely instead of inlining them
+# into the filter string. Required: filter, json_path. Optional: zero-or-more
+# jq arg pairs. Uses write_quantum_json for atomic tmp+mv semantics.
+# Returns 0 on success, 1 on failure.
+#
+# Example:
+#   json_atomic_update_args \
+#     '.stories |= map(if .id == $sid then .status = "passed" else . end)' \
+#     quantum.json \
+#     --arg sid "US-001"
+#
+# Why not extend json_atomic_update? Existing callers pass json_path as the
+# OPTIONAL second positional arg with default "quantum.json". A variadic args
+# tail collides with that default unambiguously only if the path is required.
+# The variant takes the path as REQUIRED arg #2; callers that need
+# --arg/--argjson use this; callers with pre-validated inline values (e.g.
+# the existing STORY_ID callers in lib/iteration-loop.sh) stay on the simpler
+# json_atomic_update.
+json_atomic_update_args() {
+  local filter="$1"
+  local json_path="$2"
+
+  if [[ -z "$filter" ]]; then
+    printf "ERROR: json_atomic_update_args requires a jq filter\n" >&2
+    return 1
+  fi
+
+  if [[ -z "$json_path" ]]; then
+    printf "ERROR: json_atomic_update_args requires a json_path\n" >&2
+    return 1
+  fi
+
+  if [[ ! -f "$json_path" ]]; then
+    printf "ERROR: json_atomic_update_args: file not found: %s\n" "$json_path" >&2
+    return 1
+  fi
+
+  shift 2
+
+  local updated
+  updated=$(jq "$@" "$filter" "$json_path" 2>/dev/null)
+
+  if [[ -z "$updated" ]]; then
+    printf "ERROR: json_atomic_update_args: jq filter produced empty output\n" >&2
+    return 1
+  fi
+
+  write_quantum_json "$json_path" "$updated"
+}
+
 # json_atomic_update(jq_filter [json_path])
 # Applies a jq filter to quantum.json (or specified path) atomically.
 # Uses write_quantum_json for safe tmp+mv semantics.
