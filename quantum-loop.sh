@@ -1598,6 +1598,14 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
       continue
     }
     printf "Spawning coordinator for %s with %d story/stories: %s\n" "$WAVE_ID" "$(echo "$WAVE_STORY_IDS_JSON" | jq 'length')" "$STORY_IDS_STR"
+    # v0.9.5 / US-002: parent-side defense-in-depth for HEAD-snapshot guard.
+    # Capture HEAD BEFORE coordinator dispatch. Even if the coordinator skips
+    # the LLM-side guard_head_advance instruction (per agents/coordinator.md
+    # step 2) — e.g., model drift, escaped worktree, or rogue implementer —
+    # the parent will detect a destructive `git reset --hard` post-eval (see
+    # the post-runner_parse_output gate ~line 1675). Captures empty when the
+    # CWD is not a git repo (test fixtures); guard skips on empty.
+    HEAD_BEFORE_COORD=$(git rev-parse HEAD 2>/dev/null || echo "")
     # v0.9.3 / US-001: wallclock timeout guard. Default 30 min ceiling
     # (configurable via QL_COORDINATOR_TIMEOUT_S env). On rc=124 (SIGTERM
     # kill from `timeout`), the override below sets SIGNAL_RESULT to
@@ -1668,6 +1676,27 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
   if [[ "$COORDINATOR_MODE" == "true" && "${RUNNER_EXIT:-0}" == "124" ]]; then
     printf "ERROR: Coordinator subagent exceeded %ss timeout; marking wave failed.\n" "$QL_COORDINATOR_TIMEOUT_S" >&2
     SIGNAL_RESULT="WAVE_FAILED"
+  fi
+
+  # v0.9.5 / US-002: parent-side HEAD-snapshot guard (defense-in-depth).
+  # Removes the LLM-instruction-following dependency for the safety-critical
+  # check that v0.9.2 introduced via agents/coordinator.md step 2. Compares
+  # captured HEAD_BEFORE_COORD (from before eval) against current HEAD via
+  # `git merge-base --is-ancestor` (see lib/coordinator-guard.sh). On
+  # non-ancestor (i.e., destructive reset by coordinator or escaped
+  # implementer): print ERROR, force WAVE_FAILED so per-story aggregation
+  # runs from review.* fields. Empty HEAD_BEFORE_COORD (non-git context) =>
+  # skip; the LLM-side guard remains active for that path.
+  if [[ "$COORDINATOR_MODE" == "true" && -n "${HEAD_BEFORE_COORD:-}" ]]; then
+    # shellcheck source=lib/coordinator-guard.sh
+    source "$SCRIPT_DIR/lib/coordinator-guard.sh"
+    if ! guard_head_advance "$HEAD_BEFORE_COORD" 2>/dev/null; then
+      _HEAD_AFTER_COORD=$(git rev-parse HEAD 2>/dev/null || echo "")
+      printf "ERROR: Parent-side HEAD guard fired. HEAD_BEFORE=%s HEAD_AFTER=%s\n" \
+        "$HEAD_BEFORE_COORD" "$_HEAD_AFTER_COORD" >&2
+      SIGNAL_RESULT="WAVE_FAILED"
+      unset _HEAD_AFTER_COORD
+    fi
   fi
 
   # v0.8.1 / US-001 (N39 dogfood) — wire ql_wrap_subagent_dispatch into the
