@@ -7,6 +7,42 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.9.5] - 2026-05-01
+
+### Added — patch-tier (post-spike: decomposition + parent-side guard + ADR-001)
+
+5-story post-spike patch ratifying the 3-architect pre-cycle design spike (`idea-stage/v0.10.0-design-spike-2026-05-01.md`). The spike found that the originally-framed v0.10.0 "daemon-style runner" replacement was over-engineering — the cron `/loop` pattern already solves the motivating problem. v0.9.5 ships the spike-derived patch-tier work instead. v0.9.5 self-validated: tier=LOW. **26 consecutive LOW-tier self-validations** (v0.6.5..v0.9.5).
+
+**Headline:** v0.9.x track FULLY CLOSED. `quantum-loop.sh` 1837 → 793 LOC (-57%; behavior-preserving 3-extraction). Parent-side `guard_head_advance` defense-in-depth shipped. ADR-001 ACCEPTED — cron `/loop` is canonical outer-loop architecture; no daemon implementation will be built.
+
+### Stories shipped
+
+- **US-001 — Decompose quantum-loop.sh (3 sub-tasks)** — Behavior-preserving extraction across 3 commits: T-001-1 → `lib/audit.sh` (408 LOC; 13 `_audit_*` fns + `do_audit`); T-001-2 → `lib/loop-helpers.sh` (326 LOC; 5 helpers); T-001-3 → `lib/iteration-loop.sh` (468 LOC; iteration body wrapped in `run_iteration_loop()`). Each sub-task verified with all 7 test suites green before commit. `quantum-loop.sh` reduced from 1837 LOC monolith to 793 LOC entry-point. Test-mode source guards (p009) applied to all 3 new libs. PARALLEL_MODE block (~390 LOC) deferred to v0.10.0+ due to worktree-state plumbing complexity.
+- **US-002 — Parent-side `guard_head_advance` defense-in-depth** — Coordinator-mode dispatch in `lib/iteration-loop.sh` now performs HEAD-snapshot ancestry verification *in the parent* immediately post-`eval`, regardless of whether the coordinator subagent invoked the guard itself. Failure path: parent prints `ERROR: Parent-side HEAD guard fired. HEAD_BEFORE=… HEAD_AFTER=…` and forces `SIGNAL_RESULT=WAVE_FAILED`. Removes LLM-instruction-following dependency for safety-critical guard. New `tests/test_coordinator_e2e.sh` Test 8: `head_reset` stub mode initializes /tmp git repo with 2 commits + does `git reset --hard HEAD~1` then echoes WAVE_PASSED; asserts ERROR pattern + per-story aggregation. 20/20 → 21/21.
+- **US-003 — ADR-001 outer-loop architecture** — `references/adr-001-outer-loop-architecture.md` ACCEPTED. The "daemon-style runner" framing from `idea-stage/IDEA_REPORT_v30.md` was a stale aspiration that outlived its motivating problem. Cron `/loop` pattern (which drove v0.9.3 + v0.9.4 end-to-end with zero manual takeover) is the canonical outer-loop architecture. Documented alternatives: A (persistent daemon — rejected), B (cron `/loop` — chosen), C (inotify — rejected), D (hybrid `while true` — deferred). Triggers for revisit explicit (deprecation of `/loop`, demonstrated cron failure, live-introspection requirement, multi-machine dispatch). `idea-stage/IDEA_REPORT_v31.md` updated to strikethrough Spike 2 + US-002 references.
+- **US-004 — Multi-perspective post-merge review (7th application; 2 inline fixes)** — 3-reviewer trio (architect + code-reviewer + security). All ALL SHIP. **2 score-≥85 INLINE FIXes:** (1) MEDIUM ADR-001 § Alternatives lettered A/B/D, skipping C without explanation — added cross-ref note pointing at design-spike A/B/C/D + restored letter C for Inotify. (2) Security MEDIUM `lib/iteration-loop.sh` redirected `guard_head_advance ... 2>/dev/null`, suppressing operationally-useful diagnostic stderr (distinguishes reset-detected vs git-not-on-PATH vs corrupt-repo) — removed redirect; documented rationale inline.
+- **US-005 — Retrospective + IDEA_REPORT_v32 + version bump 0.9.4 → 0.9.5** — this entry.
+
+### Test-suite delta
+
+| Test file | v0.9.4 | v0.9.5 | delta |
+|---|---:|---:|---:|
+| `tests/test_coordinator_e2e.sh` (+Test 8 `head_reset`) | 20 | 21 | +1 |
+| **Total v0.9.5 added:** | | | **+1** |
+
+### Architectural observations
+
+**v0.9.x track FULLY CLOSED.** v0.9.0 shipped per-wave coordinator dispatch wires; v0.9.1 validated empirically (streak BROKEN); v0.9.2 closed 5a HIGH (engineered guard); v0.9.3 closed iter-3 hang (engineered timeout); v0.9.4 closed audit-housekeeping; **v0.9.5 closes spike-derived patch-tier work (decomposition + parent-side guard + ADR-001)**. v0.10.0 scope materially smaller than originally projected — daemon-style runner explicitly rejected via ADR-001. Strong recommendation per `idea-stage/IDEA_REPORT_v32.md`: scope v0.10.0 around remaining structural cleanup (json_atomic_update migration, COMPLETE/BLOCKED dedup, PARALLEL_MODE extraction) + first real-feature dogfood, NOT a daemon implementation.
+
+### Honest scope drift
+
+- US-001 deferred PARALLEL_MODE block (~390 LOC) extraction. Spike's ~330 LOC final-state estimate for `quantum-loop.sh` was lower than realized 793 LOC because of this deferral. Documented + tracked for v0.10.0+.
+- v0.9.5 is the largest LOC delta in the v0.9.x track (1044 LOC moved across 3 sub-task commits) — but every line was a *move*, not new behavior. Could read "minor" by line count; operator framing call: PATCH because no architectural surface change. Risk surface is the parent-guard hookpoint (~10 lines) and the function-wrapping of the iteration body. Both regression-tested.
+
+### Dogfood milestone (v0.9.5)
+
+**5/5 user-facing stories shipped first-attempt PASS.** **G30 self-validation captured.** **Manual-takeover streak BROKEN through v0.9.5** (3rd consecutive cycle: v0.9.3, v0.9.4, v0.9.5) — cron-driven /loop pattern handled v0.9.5 end-to-end. Full retrospective: `idea-stage/PIPELINE_REPORT_v32.md`. v0.10.0 backlog: `idea-stage/IDEA_REPORT_v32.md`.
+
 ## [0.9.4] - 2026-05-01
 
 ### Added — patch-tier (housekeeping cycle from v0.9.x post-ship audit)
