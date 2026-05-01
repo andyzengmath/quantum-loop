@@ -7,6 +7,44 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.10.3] - 2026-05-01
+
+### Added — patch-tier (--max-retries parity + test_v081_wiring delete + 4th dogfood deferral)
+
+5-story patch closing 2 v0.10.2 deferred items + 1 explicit-defer + standard cycle ceremony. v0.10.3 self-validated: tier=LOW. **31 consecutive LOW-tier self-validations** (v0.6.5..v0.10.3).
+
+**Headline:** v0.10.2 deferral list FULLY CLOSED. Real-feature dogfood entering its 4th cycle of deferral with new framing as "blocked-on-operator-feature-queue" (standing backlog item, not per-cycle story per architect recommendation).
+
+### Stories shipped
+
+- **US-001 — `--max-retries` parity validation** — `quantum-loop.sh:176-186` `--max-retries` argparse adds same `^(0|[1-9][0-9]*)$` regex as `--max-iterations` (per v0.10.2 US-001 T-001-5 pattern). Closes v0.10.2 US-005 deferred MEDIUM/LOW finding (security + code-reviewer flagged parity gap; jq's `--argjson` provided implicit downstream safety net but operator-facing error message would have been confusing).
+- **US-002 — DELETE `tests/test_v081_wiring.sh`** — File last touched in v0.8.1 (b1ac946); 9 cycles stale. 4/5 assertions checked v0.8.1-era placeholder behaviors that v0.9.0 replaced (e.g., `WARN coordinator not wired` placeholder, `ql_wrap_subagent_dispatch zero callers`, dead `-z SIGNAL_RESULT` guard form). 138 LOC removed. Deletion is defensible — v0.8.1 placeholders v0.9.0 superseded — though "subsumed by current coverage" (the design doc claim) was technically overstated per architect review (the wiring-reachability assertions have no direct equivalent in current suites; `test_coordinator_e2e` exercises the wires functionally but doesn't symbol-grep them). Honest framing: **obsoleted-by-v0.9.0-rewrite; residual wiring-reachability gap accepted as low-risk.**
+- **US-003 — Real-feature dogfood STILL DEFERRED (4th cycle)** — No code change. Cumulative: v0.10.0 → v0.10.1 → v0.10.2 → v0.10.3 all deferred. New framing: "blocked-on-operator-feature-queue". Synthesizing a fake feature would be ceremony without value (housekeeping work is direct-commit-friendly by design). Per architect recommendation, US-003 converts to standing backlog item from v0.10.4+ onward.
+- **US-004 — Multi-perspective post-merge review (12th application; 1 inline fix)** — 3-reviewer trio. Architect SHIP 78/100 (1 MEDIUM overstated subsumption claim; 1 LOW --max-parallel/--stale-timeout parity gap; recommends US-003 reclassification). Code-reviewer SHIP 92/100 (1 MEDIUM stale comment at `quantum-loop.sh:165` referencing just-deleted file; **inline-fixed at `ed7533c`**). Security SHIP 95/100 (zero actionable findings). **Architect 78/100 is the lowest score in p014's 12-cycle history** — the MEDIUM was a real doc-honesty gap (the design doc claimed "subsumed by 5 test suites" but `ql_wrap_subagent_dispatch` + `COORDINATOR_MODE` symbol-greps return ZERO hits in those 5 suites). **2nd p014 catch in 12 applications** — validates the review-gate's spec-compliance value beyond local implementer verification.
+- **US-005 — Retrospective + IDEA_REPORT_v37 + version bump 0.10.2 → 0.10.3** — this entry.
+
+### Test-suite delta
+
+| Test file | v0.10.2 | v0.10.3 | delta |
+|---|---:|---:|---:|
+| `tests/test_v081_wiring.sh` | 5 (1 passing) | DELETED | -5 (file removed) |
+
+Remaining suites green: `test_signal_parsing` 15/15, `test_coordinator_e2e` 21/21, `test_dag_query` 44/44, `test_json_atomic` 32/32, `test_next_wave` 18/18.
+
+### Architectural observations
+
+**v0.10.x audit-cleanup arc** (v0.10.1 → v0.10.3) has reached LOW-tier-only territory. Future v0.10.x cycles would be pure housekeeping; v0.11.0 is the natural next significant release once feature work is queued.
+
+### Honest scope drift
+
+- "Subsumed by current coverage" claim for test_v081_wiring deletion was overstated. Honest framing per architect: "obsoleted-by-v0.9.0-rewrite; residual wiring-reachability gap accepted as low-risk." Functional coverage via `test_coordinator_e2e` is real; symbol-grep coverage for `ql_wrap_subagent_dispatch` + `COORDINATOR_MODE` is gone post-deletion.
+- US-003 4th-cycle deferral converts to standing-backlog item per architect recommendation. Not blocking; framework adjustment.
+- `--max-parallel` + `--stale-timeout` integer validation parity (architect + security agreed: LOW; operator-only attack surface; bash integer compares fail safely). Deferred to v0.10.4+.
+
+### Dogfood milestone (v0.10.3)
+
+**5/5 stories first-attempt PASS** (with 1 inline fix during US-004 review). **G30 self-validation captured** (31st consecutive LOW). **Manual-takeover streak: PARTIALLY BROKEN through v0.10.3** — 5 consecutive cycles with 1 operator gate at scope-ratification time. Full retrospective: `idea-stage/PIPELINE_REPORT_v37.md`. v0.10.4+ backlog: `idea-stage/IDEA_REPORT_v37.md`.
+
 ## [0.10.2] - 2026-05-01
 
 ### Added — patch-tier (2nd audit-cleanup + LOW absorbs + p015 canonization)

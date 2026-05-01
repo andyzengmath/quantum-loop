@@ -162,10 +162,10 @@ while [[ $# -gt 0 ]]; do
   case $1 in
     --max-iterations)
       # v0.10.2 / US-001 T-001-5: integer-validate to close pre-existing security LOW.
-      # Accepts 0 (deliberate smoke-test sentinel used by tests/test_v081_wiring.sh:121
-      # and v0.10.0 PRD; produces empty `seq 1 0` and falls through to MAX_ITERATIONS
-      # terminal signal). Rejects negatives, decimals, leading-zero forms (e.g. 0042),
-      # and non-numeric input.
+      # Accepts 0 (deliberate smoke-test sentinel; produces empty `seq 1 0` and falls
+      # through to MAX_ITERATIONS terminal signal). Rejects negatives, decimals,
+      # leading-zero forms (e.g. 0042), and non-numeric input.
+      # v0.10.3 / US-001: stale-file ref removed (test_v081_wiring.sh deleted).
       if ! [[ "$2" =~ ^(0|[1-9][0-9]*)$ ]]; then
         printf "ERROR: --max-iterations requires a non-negative integer, got '%s'\n" "$2" >&2
         exit 1
@@ -174,6 +174,13 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     --max-retries)
+      # v0.10.3 / US-001: parity validation with --max-iterations (closes
+      # v0.10.2 US-005 deferred MEDIUM/LOW review finding). Same regex
+      # rationale: 0 retries is a legitimate sentinel ("disable retries").
+      if ! [[ "$2" =~ ^(0|[1-9][0-9]*)$ ]]; then
+        printf "ERROR: --max-retries requires a non-negative integer, got '%s'\n" "$2" >&2
+        exit 1
+      fi
       MAX_RETRIES="$2"
       shift 2
       ;;
