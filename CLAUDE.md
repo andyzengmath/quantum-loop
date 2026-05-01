@@ -260,7 +260,8 @@ Operator-facing surface for the v0.9.x per-wave coordinator dispatch
 
 - **`QL_COORDINATOR_TIMEOUT_S`** (env var; default `1800` seconds = 30 min;
   v0.9.3 / US-001). Wallclock ceiling on the coordinator subagent's
-  `eval "$COORD_CMD"` invocation in `quantum-loop.sh:~1592`. On `timeout`
+  `bash -c "$COORD_CMD"` invocation in `lib/iteration-loop.sh:~208`
+  (post-v0.9.5 decomposition). On `timeout`
   rc=124 (SIGTERM kill from `timeout(1)` + 10s `--kill-after` grace), the
   parent prints `ERROR: Coordinator subagent exceeded ${N}s timeout` and
   forces `<quantum>WAVE_FAILED</quantum>` so per-story review-field
