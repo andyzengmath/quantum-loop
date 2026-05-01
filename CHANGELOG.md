@@ -7,6 +7,41 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.9.6] - 2026-05-01
+
+### Added — patch-tier (post-decomposition cleanup; v0.9.x audit MEDIUMs CLOSED)
+
+5-story patch closing 4 mechanical-cleanup items the v0.9.x audit had explicitly flagged but that were deferred during v0.9.5 (the decomposition cycle). v0.9.6 self-validated: tier=LOW. **27 consecutive LOW-tier self-validations** (v0.6.5..v0.9.6).
+
+**Headline:** v0.9.x audit MEDIUM list is now EMPTY. New `json_atomic_update_args` variant (audit prerequisite at `idea-stage/v0.9.x-arc-audit-2026-04-30.md:70`) plus 6-site migration; `emit_terminal_signal` helper deduplicates 3 production-path COMPLETE/BLOCKED print pairs; CLAUDE.md tilde line-number drift fixed; 3 LOW absorbs landed.
+
+### Stories shipped
+
+- **US-001 — Add `json_atomic_update_args` variant + migrate 6 production-path sites** — T-001-1 added `json_atomic_update_args(filter, json_path, [jq_arg ...])` to `lib/json-atomic.sh`. Forwards extra args to `jq` verbatim via `"$@"` after `shift 2`; `write_quantum_json` atomic semantics; empty-output guard parity with `json_atomic_update`. Why a variant rather than extending the existing helper: optional `json_path` default in `json_atomic_update` collides with variadic tail; the variant takes path as REQUIRED. `tests/test_json_atomic.sh` extended with Tests 9, 10, 11, 12a, 12b (+7 asserts; 21/21 → 28/28). T-001-2 migrated 6 production-path call-sites: `lib/iteration-loop.sh:147,382,402,434`; `lib/loop-helpers.sh:84`; `quantum-loop.sh:357`. PARALLEL_MODE 8 sites at `quantum-loop.sh:524-756` UNCHANGED per v0.9.5 design (extract when block extracts in v0.10.0+).
+- **US-002 — Extract `emit_terminal_signal` helper; dedup 3 production-path COMPLETE/BLOCKED pairs** — Pure formatter `emit_terminal_signal(signal, [message])` in `lib/loop-helpers.sh`. Refactored 3 production-path call-site pairs in `lib/iteration-loop.sh` (sequential, coordinator, end-of-iteration sweep). PARALLEL_MODE pair at `quantum-loop.sh:467+476` UNCHANGED. The BLOCKED-with-format-string call site uses `$(printf '...' "$NEXT_WAVE_RC")` to pre-format vs adding a third arg to the helper.
+- **US-003 — CLAUDE.md tilde line-number sync + 3 LOW absorbs** — `CLAUDE.md:263` ref `quantum-loop.sh:~1592` (which moved during v0.9.5 decomposition) updated to `lib/iteration-loop.sh:~212` (the timeout-guarded `bash -c "$COORD_CMD"` dispatch site; per US-004 inline fix the line was sharpened from 208 → 212 with disambiguation note). LOWs: `${RUNNER_EXIT:-0}` simplified to `$RUNNER_EXIT` (init at line 172 verified); `bash -c` subshell scoping clarifier added near coord dispatch; 29-line dense comment block at `lib/iteration-loop.sh:292-320` split into 4 logical subsections via version-keyed subheaders.
+- **US-004 — Multi-perspective post-merge review (8th application; 2 inline fixes)** — 3-reviewer trio (architect + code-reviewer + security). All ALL SHIP (architect 93/100; code-reviewer 93/100; security 95/100). 2 score-≥85 INLINE FIXes: (1) Code-reviewer LOW (88) `CLAUDE.md` ref `~208` → `~212` (line 208 is comment, 212 is dispatch); (2) Architect F2 (90) `tests/test_json_atomic.sh` Test 12 split into 12a/12b for unambiguous label triage. Deferred (parity-with-existing): `2>/dev/null` swallows jq diagnostic in BOTH `json_atomic_update` and `json_atomic_update_args` — symmetric hardening in v0.10.0+.
+- **US-005 — Retrospective + IDEA_REPORT_v33 + version bump 0.9.5 → 0.9.6** — this entry.
+
+### Test-suite delta
+
+| Test file | v0.9.5 | v0.9.6 | delta |
+|---|---:|---:|---:|
+| `tests/test_json_atomic.sh` (+Tests 9, 10, 11, 12a, 12b) | 21 | 28 | +7 |
+| **Total v0.9.6 added:** | | | **+7** |
+
+### Architectural observations
+
+**v0.9.x audit MEDIUM list now EMPTY.** v0.9.0 shipped per-wave coordinator dispatch wires; v0.9.1 validated empirically; v0.9.2 closed 5a HIGH; v0.9.3 closed iter-3 hang; v0.9.4 closed audit-housekeeping; v0.9.5 closed spike-derived patch-tier work (decomposition + parent-side guard + ADR-001); **v0.9.6 closes the remaining audit MEDIUMs (jq migration + signal-helper extraction + CLAUDE.md drift + 3 LOWs)**. Next significant cycle = v0.10.0 — only remaining minor-tier candidate is PARALLEL_MODE block extraction (~390 LOC + 8 jq sites + 1 COMPLETE/BLOCKED pair migrate together).
+
+### Honest scope drift / autonomous-kickoff rollback footnote
+
+A first-attempt autonomous v0.9.6 kickoff (`5de3bbc`) was rolled back within the same /loop tick. Reading `lib/json-atomic.sh` source revealed: (1) the original PRD missed the audit's explicit "needs json_atomic_update_args variant" requirement at `idea-stage/v0.9.x-arc-audit-2026-04-30.md:70`; (2) the site count was inflated to 10 (real production-path count is 6 per the audit). Rollback was clean (`git reset --hard origin/master`; master unchanged). Corrected scope was written into `.handoffs/HANDOFF-2026-05-01-post-v0.9.5.md` § CORRECTIONS, ratified by the operator, then re-staged at commit `884f10a`. Lesson: `feedback_autonomous_kickoff_caution.md` (don't autonomously kick off cycles without thorough audit-doc reading first; story execution remains autonomous).
+
+### Dogfood milestone (v0.9.6)
+
+**5/5 user-facing stories shipped first-attempt PASS.** **G30 self-validation captured** (27th consecutive LOW). **Manual-takeover streak: PARTIALLY BROKEN through v0.9.6** — kickoff scope-ratification needed once (post-rollback); story execution otherwise autonomous via cron. Cumulatively v0.9.3 + v0.9.4 + v0.9.5 fully autonomous; v0.9.6 needed 1 operator gate. Full retrospective: `idea-stage/PIPELINE_REPORT_v33.md`. v0.10.0 backlog: `idea-stage/IDEA_REPORT_v33.md`.
+
 ## [0.9.5] - 2026-05-01
 
 ### Added — patch-tier (post-spike: decomposition + parent-side guard + ADR-001)
