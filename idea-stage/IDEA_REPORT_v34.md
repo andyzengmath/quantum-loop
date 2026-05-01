@@ -73,7 +73,7 @@ Last carried-forward in `IDEA_REPORT_v30.md:46`; absent from v31-v34 without exp
 
 ### STORY_ID format validation under coordinator mode
 
-Original audit deferral at `idea-stage/v0.9.x-arc-audit-2026-04-30.md:73`. The audit itself downgraded risk: *"data is jq-injection-safe"* — STORY_ID flows through `--arg` safe-binding in all current call sites. Re-tracked here in v0.10.1 doc-cleanup as accepted-risk LOW; would warrant action only if STORY_ID ever flows into a filter-string interpolation site (none currently exist; existing inline-validated callers in `lib/iteration-loop.sh:363,367,370` are the safety floor).
+Original audit deferral at `idea-stage/v0.9.x-arc-audit-2026-04-30.md:73`. The audit itself downgraded risk: *"data is jq-injection-safe"* — STORY_ID flows through `--arg` safe-binding in all current call sites. Re-tracked here in v0.10.1 doc-cleanup as accepted-risk LOW; would warrant action only if STORY_ID ever flows into a filter-string interpolation site (none currently exist; existing inline-validated callers in `lib/iteration-loop.sh:360,364,367` are the safety floor (v0.10.2 line-ref correction)).
 
 ### Trap RETURN re-entry (theoretical, security LOW)
 

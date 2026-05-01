@@ -334,10 +334,11 @@ generate_observations() {
 # emit_terminal_signal(signal_name, [human_message])
 # Pure formatter: prints separator + '<quantum>$signal</quantum>' + optional
 # message + separator. No exit; no control-flow side effects. Caller decides
-# exit code. Replaces 3 production-path COMPLETE/BLOCKED print pairs in
-# lib/iteration-loop.sh (sequential mode, coordinator mode, end-of-iteration
-# sweep). PARALLEL_MODE pair in quantum-loop.sh:467+476 stays inline pending
-# v0.10.0+ block extraction.
+# exit code. Used at all production-path terminal-signal call sites:
+#   - lib/iteration-loop.sh — sequential/coordinator COMPLETE/BLOCKED + MAX_ITERATIONS
+#   - lib/parallel-mode.sh  — parallel-mode COMPLETE/BLOCKED + MAX_ITERATIONS
+# (PARALLEL_MODE was extracted from quantum-loop.sh in v0.10.0; iteration-loop
+# MAX_ITERATIONS migrated in v0.10.1; comment refreshed in v0.10.2.)
 emit_terminal_signal() {
   local signal="${1:?emit_terminal_signal: signal name required}"
   local message="${2:-}"

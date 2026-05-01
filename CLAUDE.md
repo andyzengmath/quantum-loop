@@ -338,7 +338,8 @@ without depending on quantum.json carryover.
   doc + PRD + advisory hooks (pre-impl review CSV) on the cycle branch
   BEFORE the autonomous /loop fires. The autonomous loop then drives
   US-001 through US-N to first-attempt PASS. Empirical track record:
-  **8 applications** (v0.9.0 → v0.9.6, plus v0.10.0). The 1 deviation
+  **9 applications** (v0.9.0 → v0.9.6, v0.10.0, v0.10.1; updated v0.10.2).
+  The 1 deviation
   (v0.9.6 first-attempt autonomous-kickoff at `5de3bbc`) was rolled
   back the same /loop tick once source-doc reading revealed scope
   errors — see `feedback_autonomous_kickoff_caution.md`. Pattern
@@ -352,15 +353,31 @@ without depending on quantum.json carryover.
   architects scoping decomposition vs daemon-style vs parent-side
   guard). Post-cycle: 3 parallel reviewers (architect + code-reviewer +
   security) on the cycle diff with score-≥85 inline-fix gate.
-  Empirical track record: **9 review applications** (post-v0.8.x:
+  Empirical track record: **10 review applications** (post-v0.8.x:
   v0.8.1, v0.8.2, v0.8.3, v0.8.4, v0.9.1, v0.9.3, v0.9.4, v0.9.5,
-  v0.9.6; v0.9.2 SKIPPED with rationale because US-004 was the
-  dogfood). Pre-cycle architect-design count: 5 applications
+  v0.9.6, v0.10.1; v0.9.2 SKIPPED with rationale because US-004 was
+  the dogfood; updated v0.10.2). Pre-cycle architect-design count: 5 applications
   (v0.9.0 minor, v0.10.0 design spike, plus 3 mid-arc applications).
   Canonical retrospectives:
   `idea-stage/PIPELINE_REPORT_v28.md` (first formal application),
   `idea-stage/PIPELINE_REPORT_v33.md` (8th application + score-≥85
   inline-fix gate explicit).
+
+- **p015 — Post-cycle 3-agent doc-vs-code audit.** Operator-initiated
+  3-agent audit (architect + document-specialist + critic) of planning
+  docs vs current code state, run after a cycle ships. Each agent has
+  a focused scope (rolling-forward backlog claims; design/PRD line
+  refs; PIPELINE_REPORT chain consistency). Findings synthesized into
+  a doc-cleanup patch cycle. Empirical track record: **2 applications**
+  (post-v0.10.0 closed 6 gaps in v0.10.1; post-v0.10.1 closed 3 gaps
+  + p015 canonization in v0.10.2). Canonized v0.10.2 / US-002 after
+  meeting the "applied a 2nd time" trigger condition flagged at
+  `idea-stage/IDEA_REPORT_v35.md:78`. Canonical retrospectives:
+  `idea-stage/PIPELINE_REPORT_v35.md` (1st application; 6 gaps),
+  `idea-stage/PIPELINE_REPORT_v36.md` (2nd application; 3 gaps).
+  False-positive filter is part of the pattern: each application has
+  also produced 3-4 false-positive findings that the synthesizing
+  step verifies-against-code and explicitly filters with rationale.
 
 ## Signal Reference
 
