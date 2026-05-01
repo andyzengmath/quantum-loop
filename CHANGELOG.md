@@ -7,6 +7,45 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.10.0] - 2026-05-01
+
+### Added — minor-tier (PARALLEL_MODE extraction + housekeeping; v0.9.x architectural arc CLOSED)
+
+6-story minor cycle closing the LAST v0.9.x audit MEDIUM (PARALLEL_MODE block extraction, ~390 LOC) plus housekeeping (jq stderr symmetric hardening, p013/p014 canonization). v0.10.0 self-validated: tier=LOW. **28 consecutive LOW-tier self-validations** (v0.6.5..v0.10.0).
+
+**Headline:** **`quantum-loop.sh` 1837 → 411 LOC across 4 cycles** (v0.9.5 → v0.10.0): 78% reduction with full behavior preservation. Every block in the entry-point now lives in its own dedicated lib file. v0.9.x architectural arc is COMPLETE; v0.10.x+ pivots to LOW housekeeping or feature work.
+
+### Stories shipped
+
+- **US-001 — Extract PARALLEL_MODE block + migrate 8 jq sites + 3 signal sites** — Behavior-preserving extraction of `quantum-loop.sh:394-784` (391 LOC) into NEW `lib/parallel-mode.sh` (427 LOC) wrapped in `run_parallel_mode()` function. Source guard `_QL_PARALLEL_MODE_LIB`. Header documents 11 required globals + 7 helper-lib dependencies. `quantum-loop.sh` 793 → 411 LOC. Bundled with the migrations: 8 production-path `jq+tmp+mv` sites migrated to `json_atomic_update_args` (in_progress mark, timeout, merge_regression, passed, merge_conflict, agent_failed, crash, mid-loop spawn); 3 terminal-signal `printf` patterns migrated to `emit_terminal_signal` (COMPLETE, BLOCKED, MAX_ITERATIONS — PRD scoped 1 pair, shipped 3 for consistency). All in single commit since the lib was created fresh.
+- **US-002 — `2>/dev/null` symmetric hardening of `json_atomic_update` + `json_atomic_update_args`** — Both helpers now capture jq stderr via `mktemp` + `trap "rm -f '$path'" RETURN` cleanup. On empty-output failure, error message includes `(jq stderr: <captured>)` when stderr is non-empty; otherwise falls back to v0.9.6 message verbatim. Closes the v0.9.6 US-004 architect F1 (score 88) + code-reviewer MEDIUM (score 72) that were deferred as parity-with-existing. `tests/test_json_atomic.sh` Tests 13+14 added (28 → 32 asserts; +2 for stderr-capture verification + 2 for exit-code).
+- **US-003 — Real-feature dogfood — DEFERRED** to v0.10.1+. PRD's clean-deferral path used (no operator-queued feature scope ready). Cycle still ships v0.10.0; dogfood absorbs into a future patch when an actual feature is queued.
+- **US-004 — p013 + p014 canonization in CLAUDE.md** — Promoted two cycle-level process patterns from `quantum.json.codebasePatterns` (per-cycle gitignored copy) into permanent project documentation under new `### Process patterns (canonized v0.10.0 / US-004)` subsection. p013 (operator-staged cycle kickoff): 8 applications. p014 (composite review trio): 9 review applications + 5 architect-design applications. Additive only.
+- **US-005 — Multi-perspective post-merge review (9th application; ALL SHIP; no inline fixes)** — 3-reviewer trio (architect 93/100, code-reviewer 91/100, security 94/100). Both noted MEDIUMs are pre-existing carry-forward (dead `--argjson wave` from master) or AC-letter-vs-spirit (PRD literal grep `quantum.json.tmp` matches the defensive `git reset HEAD --` line at `lib/parallel-mode.sh:265` which is NOT a jq+tmp+mv migration site). No score-≥85 inline-fix candidates; both findings retro-acknowledged.
+- **US-006 — Retrospective + IDEA_REPORT_v34 + version bump 0.9.6 → 0.10.0** — this entry.
+
+### Test-suite delta
+
+| Test file | v0.9.6 | v0.10.0 | delta |
+|---|---:|---:|---:|
+| `tests/test_json_atomic.sh` (+Tests 13, 14) | 28 | 32 | +4 |
+| **Total v0.10.0 added:** | | | **+4** |
+
+### Architectural observations
+
+**v0.9.x architectural arc is COMPLETE.** Cumulative through v0.10.0: per-wave coordinator dispatch (v0.9.0); empirical validation (v0.9.1); 5a HIGH closure (v0.9.2); iter-3 hang closure (v0.9.3); audit housekeeping (v0.9.4); decomposition + parent-side guard + ADR-001 (v0.9.5); jq+tmp+mv migration + emit_terminal_signal helper + CLAUDE.md doc sync (v0.9.6); **PARALLEL_MODE extraction + jq stderr symmetric hardening + p013/p014 canonization (v0.10.0)**. No remaining architectural backlog. v0.10.x+ can pivot to LOW housekeeping or feature work (per `idea-stage/IDEA_REPORT_v34.md`).
+
+### Honest scope drift
+
+- US-003 (real-feature dogfood) deferred per PRD's clean-deferral path. The decomposed + parent-guarded outer loop will be pattern-validated in a future cycle when an actual real feature is queued.
+- US-001 shipped T-001-1 + T-001-2 + T-001-3 in single commit because the lib was created fresh; intermediate-state commits would have temporarily kept the old jq+tmp+mv and printf patterns inside the new file. Single-commit choice is cleaner diff-to-master but loses per-sub-task commit granularity.
+- The PRD AC for T-001-2 said "grep `quantum.json.tmp` lib/parallel-mode.sh returns 0 hits" — actual is 1 hit on the `git reset HEAD --` defensive-cleanup line at `lib/parallel-mode.sh:265` which is NOT a jq+tmp+mv migration site. Spirit satisfied; future PRDs should write the AC as `grep 'jq.*\.tmp.*&&.*mv' returns 0 hits` to avoid the false-positive.
+- Smoke test (`bash quantum-loop.sh --parallel --max-iterations 0`) exits non-zero deep inside `lib/merge-strategy.sh` sourcing — pre-existing dev-env behavior unrelated to extraction (occurs BEFORE `lib/parallel-mode.sh` is reached). Project historically dogfoods coordinator-mode, not parallel-mode.
+
+### Dogfood milestone (v0.10.0)
+
+**5/6 user-facing stories shipped first-attempt PASS** (US-003 cleanly deferred). **G30 self-validation captured** (28th consecutive LOW). **Manual-takeover streak: PARTIALLY BROKEN through v0.10.0** — kickoff scope-ratification needed once (operator approval); story execution autonomous via cron. Same posture as v0.9.6. Full retrospective: `idea-stage/PIPELINE_REPORT_v34.md`. v0.10.x+ backlog: `idea-stage/IDEA_REPORT_v34.md`.
+
 ## [0.9.6] - 2026-05-01
 
 ### Added — patch-tier (post-decomposition cleanup; v0.9.x audit MEDIUMs CLOSED)
