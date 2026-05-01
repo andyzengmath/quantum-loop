@@ -133,6 +133,15 @@ case "$MODE" in
     sleep 30
     echo "<quantum>WAVE_PASSED</quantum>"
     ;;
+  head_reset)
+    # v0.9.5 / US-002 — simulate implementer escaping worktree and
+    # resetting main repo HEAD. Tests parent-side guard_head_advance
+    # defense-in-depth. The stub claims WAVE_PASSED but the parent's
+    # post-eval guard detects HEAD_BEFORE is no longer ancestor of
+    # HEAD_AFTER and forces WAVE_FAILED.
+    git reset --hard HEAD~1 2>/dev/null || true
+    echo "<quantum>WAVE_PASSED</quantum>"
+    ;;
   *)
     echo "<quantum>WAVE_FAILED</quantum>"
     ;;
@@ -337,6 +346,36 @@ OUT=$(cd "$TEST_ROOT/work" && QL_COORDINATOR_TIMEOUT_S=thirty PATH="$STUB_DIR:$P
 assert_contains "Test 7: WARN about non-numeric" "QL_COORDINATOR_TIMEOUT_S must be a non-negative integer" "$OUT"
 US_A_STATUS=$(jq -r '.stories[] | select(.id == "US-A") | .status' "$TEST_ROOT/work/quantum.json")
 assert_eq "Test 7: dispatch still completed (US-A passed)" "passed" "$US_A_STATUS"
+
+rm -rf "$TEST_ROOT/work"
+
+# ─ Test 8: parent-side HEAD guard catches reset (US-002) ─────────────────
+# v0.9.5 / US-002 — defense-in-depth: even if coordinator skips the
+# LLM-side guard_head_advance instruction (or escapes worktree), parent
+# captures HEAD_BEFORE pre-dispatch and verifies post-eval that HEAD
+# advanced via ancestry. Stub does `git reset --hard HEAD~1` then echoes
+# WAVE_PASSED; parent should detect + force WAVE_FAILED.
+echo ""
+echo "Test 8: parent-side HEAD guard catches reset (US-002)"
+mkdir -p "$TEST_ROOT/work"
+write_2story_plan "$TEST_ROOT/work/quantum.json"
+printf 'head_reset' > "$TEST_ROOT/work/.test-coord-mode"
+# Initialize git repo with 2 commits so reset --hard HEAD~1 has a target
+( cd "$TEST_ROOT/work" && \
+  git init -q && \
+  git config user.email t@t.test && git config user.name testuser && \
+  git add quantum.json .test-coord-mode 2>/dev/null && \
+  git commit -q -m "init" && \
+  echo "second" > marker.txt && git add marker.txt && \
+  git commit -q -m "second" )
+
+OUT=$(cd "$TEST_ROOT/work" && PATH="$STUB_DIR:$PATH" bash "$QL_BIN" --coordinator --tool claude --max-iterations 1 --non-interactive 2>&1)
+
+US_A_STATUS=$(jq -r '.stories[] | select(.id == "US-A") | .status' "$TEST_ROOT/work/quantum.json")
+US_B_STATUS=$(jq -r '.stories[] | select(.id == "US-B") | .status' "$TEST_ROOT/work/quantum.json")
+assert_contains "Test 8: ERROR about parent-side HEAD guard" "Parent-side HEAD guard fired" "$OUT"
+assert_eq "Test 8: US-A status=failed (no review fields after guard)" "failed" "$US_A_STATUS"
+assert_eq "Test 8: US-B status=failed (no review fields after guard)" "failed" "$US_B_STATUS"
 
 rm -rf "$TEST_ROOT/work"
 

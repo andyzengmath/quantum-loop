@@ -22,14 +22,14 @@ p001-p012 carried forward. **p013 + p014 ready for canonization** in a future cy
 
 ## v0.10.0 candidate slate (PRIMARY follow-up — architect-recommended)
 
-The v0.9.x track is closed. v0.10.0 is the next significant arc — architect-recommended outer-loop replacement. **Significant architectural work**; needs design spike before PRD authoring.
+The v0.9.x track is closed. v0.10.0 was originally framed as architect-recommended outer-loop replacement ("significant architectural work"), but the post-v0.9.4 design spike (`idea-stage/v0.10.0-design-spike-2026-05-01.md`) found the actual work is patch-tier in nature. **The "daemon-style runner" replacement was rejected via ADR-001** (`references/adr-001-outer-loop-architecture.md`): the existing Claude Code `/loop` cron pattern is the canonical outer-loop architecture; no persistent-daemon implementation will be built. v0.9.5 ships the spike-derived patch-tier work (decomposition + parent-side guard + this ADR).
 
 ### Pre-cycle design spike (3 architects)
 
 | Spike | Question | Output |
 |-------|----------|--------|
 | 1 | Decompose `quantum-loop.sh` (1828 LOC) — extract iteration loop into `lib/iteration-loop.sh`. What's the right abstraction boundary? | Concrete decomposition plan + LOC budget. |
-| 2 | Define "daemon-style runner" concretely. Persistent process? Cron? inotify-based? Each implies different infrastructure. | Architecture choice + signal-handling/PID-tracking requirements. |
+| 2 | ~~Define "daemon-style runner" concretely~~ — **RESOLVED via ADR-001 (2026-05-01).** Cron `/loop` pattern is canonical; no daemon implementation. | `references/adr-001-outer-loop-architecture.md` |
 | 3 | Move `guard_head_advance` from coordinator-instruction-only to parent-side post-eval check. Defense-in-depth: if coordinator skips guard, parent catches it. Removes LLM-instruction-following dependency for safety-critical check. | Implementation sketch + impact on tests. |
 
 ### v0.10.0 candidate user stories (after design spike)
@@ -37,7 +37,7 @@ The v0.9.x track is closed. v0.10.0 is the next significant arc — architect-re
 | Story | Content | Tier |
 |-------|---------|------|
 | US-001 | Decompose `quantum-loop.sh` per spike-1 output. Extract iteration loop into `lib/iteration-loop.sh`. CLI parsing + sourcing + entry-point dispatch stays in main file. | minor |
-| US-002 | Implement chosen daemon-style architecture per spike-2 output. | minor-major |
+| US-002 | ~~Implement chosen daemon-style architecture~~ — **RESOLVED via ADR-001**; v0.9.5 US-003 ships the ADR; no daemon implementation. | (none) |
 | US-003 | Parent-side `guard_head_advance` check per spike-3 output. | minor |
 | US-004 | Pre-cycle multi-perspective review + post-cycle multi-perspective review. | LOW (process) |
 | US-005 | Real-feature dogfood (first non-synthetic dispatch through new outer loop). | MEDIUM |
@@ -77,6 +77,6 @@ All absorb naturally into v0.10.0 alongside structural refactors.
 
 ## v0.9.x → v0.10.0 transition
 
-v0.9.0 (architectural minor — wires) → v0.9.1 (validation patch — streak BROKEN) → v0.9.2 (defensive hardening — 5a CLOSED engineered) → v0.9.3 (operational hardening — iter-3 hang CLOSED) → **v0.9.4 (housekeeping — audit findings CLOSED)** → **v0.10.0 (outer-loop replacement; architect-recommended; significant architectural work; design spike required first)**.
+v0.9.0 (architectural minor — wires) → v0.9.1 (validation patch — streak BROKEN) → v0.9.2 (defensive hardening — 5a CLOSED engineered) → v0.9.3 (operational hardening — iter-3 hang CLOSED) → v0.9.4 (housekeeping — audit findings CLOSED) → **v0.9.5 (post-spike patch — decomposition refactor + parent-side guard + ADR-001)** → v0.10.0+ (feature work or v0.9.6 housekeeping based on emerging needs; outer-loop replacement was rejected via ADR-001).
 
 The v0.9.x arc is operationally closed. Next significant arc = v0.10.0. v0.9.5 patch-tier housekeeping NOT recommended (no remaining audit findings warrant it; deferred LOWs absorb into v0.10.0).
