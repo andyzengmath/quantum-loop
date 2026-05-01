@@ -148,6 +148,58 @@ EXIT_CODE=$?
 assert_eq "cleanup_stale_tmp rejects empty path" "1" "$EXIT_CODE"
 
 # =========================================================================
+# v0.9.6 / US-001 T-001-1: json_atomic_update_args variant tests.
+# The variant forwards extra args to jq verbatim so callers can use --arg /
+# --argjson safely instead of inlining values into the filter string.
+# =========================================================================
+echo "=== Test 9: json_atomic_update_args --arg string passthrough ==="
+QJSON="$TEST_TMPDIR/quantum9.json"
+cat > "$QJSON" << 'JSONEOF'
+{"stories":[{"id":"US-001","status":"pending"},{"id":"US-002","status":"pending"}]}
+JSONEOF
+json_atomic_update_args \
+  '.stories |= map(if .id == $sid then .status = "passed" else . end)' \
+  "$QJSON" \
+  --arg sid "US-002"
+EXIT_CODE=$?
+assert_eq "args variant exits 0 on --arg" "0" "$EXIT_CODE"
+ACTUAL=$(jq -r '.stories[] | select(.id=="US-002") | .status' "$QJSON")
+assert_eq "args variant applied --arg substitution" "passed" "$ACTUAL"
+ACTUAL_OTHER=$(jq -r '.stories[] | select(.id=="US-001") | .status' "$QJSON")
+assert_eq "args variant only updated targeted story" "pending" "$ACTUAL_OTHER"
+assert_file_not_exists "args variant cleaned up tmp file" "${QJSON}.tmp"
+
+# =========================================================================
+echo "=== Test 10: json_atomic_update_args --argjson JSON passthrough ==="
+QJSON="$TEST_TMPDIR/quantum10.json"
+cat > "$QJSON" << 'JSONEOF'
+{"stories":[{"id":"US-001","retries":{"attempts":0,"maxAttempts":1}},{"id":"US-002","retries":{"attempts":0,"maxAttempts":1}}]}
+JSONEOF
+json_atomic_update_args \
+  '.stories |= map(.retries.maxAttempts = $max)' \
+  "$QJSON" \
+  --argjson max 5
+EXIT_CODE=$?
+assert_eq "args variant exits 0 on --argjson" "0" "$EXIT_CODE"
+ACTUAL=$(jq -r '.stories[0].retries.maxAttempts' "$QJSON")
+assert_eq "args variant applied --argjson number" "5" "$ACTUAL"
+
+# =========================================================================
+echo "=== Test 11: json_atomic_update_args rejects missing filter ==="
+json_atomic_update_args "" "$TEST_TMPDIR/quantum10.json" 2>/dev/null
+EXIT_CODE=$?
+assert_eq "args variant rejects empty filter" "1" "$EXIT_CODE"
+
+# =========================================================================
+echo "=== Test 12: json_atomic_update_args rejects missing json_path ==="
+json_atomic_update_args '.stories' "" 2>/dev/null
+EXIT_CODE=$?
+assert_eq "args variant rejects empty json_path" "1" "$EXIT_CODE"
+json_atomic_update_args '.stories' "$TEST_TMPDIR/does-not-exist.json" 2>/dev/null
+EXIT_CODE=$?
+assert_eq "args variant rejects missing json_path" "1" "$EXIT_CODE"
+
+# =========================================================================
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 if [[ $FAIL -eq 0 ]]; then
