@@ -284,6 +284,49 @@ else
 fi
 
 # =========================================================================
+# v0.10.13 / US-001: OSC body strip extension to ANSI sanitization.
+# Verifies the sanitization pipeline used by json_atomic_update_args /
+# json_atomic_update at lines 301/348 strips:
+#   - CSI sequences (\x1b[...m) — already covered v0.10.8
+#   - OSC-BEL sequences (\x1b]...\x07) — added v0.10.13
+#   - residual ESC bytes (any unmatched escape framing) — added v0.10.13
+# =========================================================================
+echo "=== Test 16: ANSI sanitization strips CSI + OSC-BEL + neutralizes ESC bytes ==="
+SANITIZED=$(printf 'csi: \x1b[31mred\x1b[0m\nosc-bel: \x1b]2;title\x07ok\nosc-st: \x1b]3;hover\x1b\\back\nplain' \
+  | sed -e 's/\x1b\[[0-9;]*[a-zA-Z]//g' -e 's/\x1b\][^\x07]*\x07//g' \
+  | tr -d '\001-\010\013-\037\177\033')
+
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$SANITIZED" | grep -q $'\x1b'; then
+  echo "  FAIL: ESC bytes still present after sanitization"
+  echo "    output: $SANITIZED"
+  FAIL=$((FAIL + 1))
+else
+  echo "  PASS: no ESC bytes remain in sanitized output"
+  PASS=$((PASS + 1))
+fi
+
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$SANITIZED" | grep -q "csi: red"; then
+  echo "  PASS: CSI strip preserves text content (red)"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: CSI strip mangled text content"
+  echo "    output: $SANITIZED"
+  FAIL=$((FAIL + 1))
+fi
+
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$SANITIZED" | grep -q "osc-bel: ok"; then
+  echo "  PASS: OSC-BEL stripped including title body"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: OSC-BEL not fully stripped"
+  echo "    output: $SANITIZED"
+  FAIL=$((FAIL + 1))
+fi
+
+# =========================================================================
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 if [[ $FAIL -eq 0 ]]; then

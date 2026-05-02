@@ -298,7 +298,7 @@ json_atomic_update_args() {
       # v0.10.0 ANSI passthrough security LOW (re-flagged in v0.10.7
       # review). Preserves \n, \t, printable ASCII; strips ESC bracket
       # sequences (\x1b[...) + non-printable control chars.
-      err=$(printf '%s' "$err" | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' | tr -d '\001-\010\013-\037\177')
+      err=$(printf '%s' "$err" | sed -e 's/\x1b\[[0-9;]*[a-zA-Z]//g' -e 's/\x1b\][^\x07]*\x07//g' | tr -d '\001-\010\013-\037\177\033')
       printf "ERROR: json_atomic_update_args: jq filter produced empty output (jq stderr: %s)\n" "$err" >&2
     else
       printf "ERROR: json_atomic_update_args: jq filter produced empty output\n" >&2
@@ -345,7 +345,7 @@ json_atomic_update() {
     err=$(<"$stderr_tmp")
     if [[ -n "$err" ]]; then
       # v0.10.8 / US-002: ANSI sanitization (parity with json_atomic_update_args).
-      err=$(printf '%s' "$err" | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' | tr -d '\001-\010\013-\037\177')
+      err=$(printf '%s' "$err" | sed -e 's/\x1b\[[0-9;]*[a-zA-Z]//g' -e 's/\x1b\][^\x07]*\x07//g' | tr -d '\001-\010\013-\037\177\033')
       printf "ERROR: json_atomic_update: jq filter produced empty output (jq stderr: %s)\n" "$err" >&2
     else
       printf "ERROR: json_atomic_update: jq filter produced empty output\n" >&2

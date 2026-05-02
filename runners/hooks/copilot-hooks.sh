@@ -36,6 +36,17 @@ post_output() {
     retry_after=$(printf '%s\n' "$output" \
       | sed -n 's/.*[Rr]etry-[Aa]fter[: ]\{1,\}\([0-9][0-9]*\).*/\1/p' \
       | head -1)
+    # v0.10.13 / US-002: fallback for RFC 7230-deprecated folded-header
+    # form. Some legacy proxies / older copilot CLI versions emit:
+    #   Retry-After:
+    #       30
+    # When single-line extraction returns empty, look for `Retry-After:`
+    # alone on a line followed by a numeric value on the next non-empty
+    # line. awk handles the line-context state.
+    if [[ -z "$retry_after" ]]; then
+      retry_after=$(printf '%s\n' "$output" \
+        | awk '/[Rr]etry-[Aa]fter[: ]*$/ {found=1; next} found && /^[ \t]*[0-9]+/ {gsub(/[^0-9]/, ""); print; exit}')
+    fi
     if [[ -n "$retry_after" ]]; then
       printf "[RATE-LIMIT] copilot suggests Retry-After: %ss\n" "$retry_after" >&2
     fi
