@@ -7,6 +7,36 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.10.7] - 2026-05-02
+
+### Added — patch-tier (wave-cycle-2: copilot-rate-limit + N49 closure verification)
+
+4-story patch shipping wave-plan cycle-2. **35 consecutive LOW G30 self-validations** (v0.6.5..v0.10.7).
+
+### Stories shipped
+
+- **US-001 — copilot-rate-limit observability** — `runners/hooks/copilot-hooks.sh` adds `post_output()` that pattern-matches rate-limit signals (case-insensitive: `rate.?limit`, `\b429\b`, `retry-after`, `quota.?exceeded`, `too.many.requests`) in copilot CLI output and emits `[RATE-LIMIT]` log lines to stderr. Optional Retry-After numeric extraction. Pure observability (no signal classification or retry-logic change).
+- **US-002 — N49 closure verification** — Audit confirmed all 4 WAVE-branch `json_atomic_update_args` sites at `lib/iteration-loop.sh:150,382,406,438` already use single-jq `.stories |= map(...)` bulk-update pattern. N49 was IMPLICITLY CLOSED by v0.9.0 N42 wires; carrying it forward through 6 cycles was a tracking lapse. No code change; documentation closure only.
+- **US-003 — Multi-perspective post-merge review (16th application; 1 MEDIUM inline-fixed)** — Architect SHIP 88, Code-reviewer SHIP 88, Security SHIP 95. Code-reviewer + architect both flagged Retry-After extraction edge case (could capture wrong number from `HTTP/1.1 429 Retry-After: 30` — would return 1 from HTTP/1.1, not 30). **Inline-fixed at `9e84856`**: replaced multi-stage grep with `sed -n 's/.*[Rr]etry-[Aa]fter[: ]\{1,\}\([0-9][0-9]*\).*/\1/p'`. Verified on 3 edge cases (30/60/90). 5th review-gate catch in 16 applications (~31% hit-rate).
+- **US-004 — Retrospective + IDEA_REPORT_v41 + version bump 0.10.6 → 0.10.7** — this entry.
+
+### Test-suite delta
+
+No delta. 5 suites green: 15+21+44+35+18 = 133.
+
+### Architectural observations
+
+**Wave plan cycle-2 of 4 closed.** Next: v0.10.8 (N48 + ANSI passthrough), v0.10.9 (N44 + N40-47 investigation), v0.11.0 (OPERATOR-GATED first `--coordinator` dispatch).
+
+### Honest scope drift
+
+- N49 closure was DOCUMENTATION-only (v0.9.0 already shipped the fix); 6-cycle carry was tracking lapse. Honest acknowledgment in retro.
+- Retry-After multi-line edge cases (value spans lines) deferred — current extraction handles common single-line forms.
+
+### Dogfood milestone (v0.10.7)
+
+**4/4 stories first-attempt PASS** + 1 inline MEDIUM fix during US-003 review. **G30:** 35th consecutive LOW. **Manual-takeover streak: PARTIALLY BROKEN through v0.10.7** — fully autonomous on cron; 1 operator gate from v0.10.6 wave plan approval covers this cycle.
+
 ## [0.10.6] - 2026-05-02
 
 ### Added — patch-tier (wave-cycle-1 housekeeping; --coordinator dispatch deferred)
