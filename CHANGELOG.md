@@ -7,6 +7,27 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.10.9] - 2026-05-02
+
+### Added — patch-tier (wave-cycle-4 FINAL: N44 audit + N40-47 closeout investigation; WAVE PLAN COMPLETE)
+
+4-story patch shipping wave-plan cycle-4 (FINAL). **37 consecutive LOW G30 self-validations** (v0.6.5..v0.10.9). **Marks the dogfood-driven LOW-sweep wave plan COMPLETE (4 of 4 cycles shipped).**
+
+### Stories shipped
+
+- **US-001 — N44 CSV/PIPELINE_REPORT count reconciliation (CLOSED-implicit)** — Audit confirmed v0.8.0's PIPELINE_REPORT_v22 over-count claim (6 findings) vs CSV (3 LOW findings: 1 design + 1 prd + 1 plan). One-shot v22 reporting prose bug; v23+ reports correctly reflect CSV. Data layer (`lib/finding-persist.sh`) is authoritative; no code fix needed.
+- **US-002 — N40/N41/N38/N45/N43/N46/N47 closeout investigation** — Per-finding categorization: **5 CLOSED** (N44 implicit, N40 obsolete [no context-window pressure in 30+ cycles], N41 implicit [v0.9.x coordinator primary path documented in CLAUDE.md], N38 implicit [via v0.7.10 N35 dispatch test layer], N45 obsolete [no recurrence in 9+ cycles]); **2 DEFERRED-future MEDIUM** (N43 parallel-with-dispatch wrap, N46 respawn re-parse); **1 DEFERRED-operator** (N47 branch-cleanup standing chore). Verdicts in `idea-stage/IDEA_REPORT_v43.md`.
+- **US-003 — Multi-perspective post-merge review (18th application; 3 MEDIUM + 2 LOW inline-fixed)** — Architect SHIP 88, Code-reviewer SHIP 88, Security SHIP 95. 3 MEDIUM: N44 audit evidence (architect; CSV row 34 IS the v0.8.0 plan row, matches by timestamp not source-path string; closure verdict unchanged but evidence corrected to cite 3 rows = 3 LOW); reviewer count `16 → 12` (code-reviewer); inline-fix count `1 → 2` across the wave (code-reviewer). All inline-fixed.
+- **US-004 — Wave-plan retrospective + IDEA_REPORT_v43 + version bump 0.10.8 → 0.10.9** — this entry. **p016 canonized at v0.10.9** (dogfood-driven LOW-sweep wave; 4 cycles, 16 stories, all first-attempt PASS).
+
+### Test-suite delta
+
+No delta. 5 suites green: 15+21+44+35+18 = 133.
+
+### Architectural observations
+
+**WAVE PLAN COMPLETE.** Next: v0.11.0 (OPERATOR-GATED first `--coordinator` dispatch). Autonomous path: continue v0.10.10+ patches if N43/N46 are architecturally feasible without operator presence, else hold for operator-staged real feature.
+
 ## [0.10.8] - 2026-05-02
 
 ### Added — patch-tier (wave-cycle-3: N48 field-ownership runtime enforcement + ANSI passthrough sanitization)
