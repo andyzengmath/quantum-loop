@@ -353,17 +353,19 @@ without depending on quantum.json carryover.
   architects scoping decomposition vs daemon-style vs parent-side
   guard). Post-cycle: 3 parallel reviewers (architect + code-reviewer +
   security) on the cycle diff with score-≥85 inline-fix gate.
-  Empirical track record: **23 review applications** (post-v0.8.x:
-  v0.8.1-v0.8.4, v0.9.1, v0.9.3-v0.9.6, v0.10.0-v0.10.13; v0.9.2 SKIPPED
-  with rationale because US-004 was the dogfood; updated v0.10.14).
-  Enumerated: 4 + 1 + 4 + 14 = 23 ✓ (v0.9.1 had a full 3-reviewer trio
+  Empirical track record: **24 review applications** (post-v0.8.x:
+  v0.8.1-v0.8.4, v0.9.1, v0.9.3-v0.9.6, v0.10.0-v0.10.14; v0.9.2 SKIPPED
+  with rationale because US-004 was the dogfood; updated v0.10.15).
+  Enumerated: 4 + 1 + 4 + 15 = 24 ✓ (v0.9.1 had a full 3-reviewer trio
   per `idea-stage/PIPELINE_REPORT_v28.md:33-39`; explicitly counted as
   one of 8 applications at `idea-stage/PIPELINE_REPORT_v33.md:76`).
-  Career score-≥85 inline-fix hit rate: **9/23 ≈ 39%** (audited +
-  corrected v0.10.14; PR_v44 introduced off-by-one at v0.10.10 ship
-  that propagated through PR_v45/v46/v47; v0.10.12 review additionally
-  misattributed v0.9.1 as non-application — corrected v0.10.14 by
-  re-grounding against PR_v28/PR_v33 historical record).
+  Career score-≥85 inline-fix hit rate: **11/24 ≈ 46%** (incorporates
+  v0.10.15's own architect+code-reviewer convergent MEDIUM on the
+  missing 3rd p015 application enumeration; audited + corrected
+  v0.10.14 + v0.10.15: PR_v44 introduced off-by-one at v0.10.10 ship
+  that propagated through PR_v45/v46/v47; v0.10.12 review misattributed
+  v0.9.1 as non-application — corrected v0.10.14 by re-grounding
+  against PR_v28/PR_v33 historical record).
   Pre-cycle architect-design count: 5 applications
   (v0.9.0 minor, v0.10.0 design spike, plus 3 mid-arc applications).
   Canonical retrospectives:
@@ -376,15 +378,23 @@ without depending on quantum.json carryover.
   docs vs current code state, run after a cycle ships. Each agent has
   a focused scope (rolling-forward backlog claims; design/PRD line
   refs; PIPELINE_REPORT chain consistency). Findings synthesized into
-  a doc-cleanup patch cycle. Empirical track record: **3 applications**
+  a doc-cleanup patch cycle. Empirical track record: **6 applications**
   (post-v0.10.0 closed 6 gaps in v0.10.1; post-v0.10.1 closed 3 gaps
-  + p015 canonization in v0.10.2; post-v0.10.9 wave closure surfaced
-  5 gaps in v0.10.10). Canonized v0.10.2 / US-002 after meeting the
-  "applied a 2nd time" trigger condition flagged at
-  `idea-stage/IDEA_REPORT_v35.md:78`. Canonical retrospectives:
+  + p015 canonization in v0.10.2; post-v0.10.4 closed 5 gaps in
+  v0.10.5; post-v0.10.9 wave closure surfaced 5 gaps closed in v0.10.10;
+  post-v0.10.11 surfaced 4 gaps closed in v0.10.12; post-v0.10.14
+  surfaced 2 MEDIUM closed in v0.10.15. **Total 25 gaps closed across
+  6 applications: 6+3+5+5+4+2 = 25 ✓.** Note: v0.10.13 + v0.10.14
+  cycles were code/audit work, NOT new p015 applications — they closed
+  pre-existing items from prior audits.) Canonized v0.10.2 / US-002
+  after meeting the "applied a 2nd time" trigger condition flagged
+  at `idea-stage/IDEA_REPORT_v35.md:78`. Canonical retrospectives:
   `idea-stage/PIPELINE_REPORT_v35.md` (1st application; 6 gaps),
   `idea-stage/PIPELINE_REPORT_v36.md` (2nd application; 3 gaps),
-  `idea-stage/PIPELINE_REPORT_v44.md` (3rd application; 5 gaps).
+  `idea-stage/PIPELINE_REPORT_v39.md` (3rd application; 5 gaps),
+  `idea-stage/PIPELINE_REPORT_v44.md` (4th application; 5 gaps),
+  `idea-stage/PIPELINE_REPORT_v46.md` (5th application; 4 gaps),
+  `idea-stage/PIPELINE_REPORT_v49.md` (6th application; 2 gaps).
   False-positive filter is part of the pattern: each application has
   also produced 3-4 false-positive findings that the synthesizing
   step verifies-against-code and explicitly filters with rationale.
