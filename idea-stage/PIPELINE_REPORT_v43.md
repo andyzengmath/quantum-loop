@@ -89,9 +89,9 @@ v0.10.9 driven via autonomous /loop cron pattern. **Streak: PARTIALLY BROKEN thr
 | 1 | v0.10.6 | N50 (WAVE_COUNTER rename) + Trap RETURN docstring | ✓ | 1 MEDIUM cross-ref inline-fixed (code-reviewer 88) |
 | 2 | v0.10.7 | copilot-rate-limit + N49 closure | ✓ | 1 MEDIUM Retry-After extraction |
 | 3 | v0.10.8 | N48 field-ownership + ANSI sanitization | ✓ | none (sub-threshold MEDIUM + LOW deferred) |
-| 4 | v0.10.9 | N44 audit + N40-47 closeout | ✓ | TBD (this cycle's review) |
+| 4 | v0.10.9 | N44 audit + N40-47 closeout | ✓ | 3 MEDIUM inline-fixed (architect 88 N44-evidence; code-reviewer 88 ×2 reviewer-count + inline-fix-count) |
 
-**16 stories shipped first-attempt PASS** (no story failed and re-tried). **2 inline-fixable score-≥85 findings caught** out of 4 review trios (~50% trio-level hit; ~13% per-reviewer at 12 reviewers). Severity-rubric stable at LOW for all 4 cycles' G30.
+**16 stories shipped first-attempt PASS** (no story failed and re-tried). **5 inline-fixable score-≥85 findings caught** across the wave (v0.10.6: 1; v0.10.7: 1; v0.10.8: 0; v0.10.9: 3) at **3 of 4 trios** producing catches (75% trio-level hit; 5/12 ≈ 42% per-reviewer at 12 reviewers). Severity-rubric stable at LOW for all 4 cycles' G30.
 
 ## codebasePatterns
 

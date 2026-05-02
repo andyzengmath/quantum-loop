@@ -338,7 +338,7 @@ without depending on quantum.json carryover.
   doc + PRD + advisory hooks (pre-impl review CSV) on the cycle branch
   BEFORE the autonomous /loop fires. The autonomous loop then drives
   US-001 through US-N to first-attempt PASS. Empirical track record:
-  **12 applications** (v0.9.0 → v0.9.6, v0.10.0 → v0.10.4; updated v0.10.5).
+  **17 applications** (v0.9.0 → v0.9.6, v0.10.0 → v0.10.9; updated v0.10.10).
   The 1 deviation
   (v0.9.6 first-attempt autonomous-kickoff at `5de3bbc`) was rolled
   back the same /loop tick once source-doc reading revealed scope
@@ -353,9 +353,10 @@ without depending on quantum.json carryover.
   architects scoping decomposition vs daemon-style vs parent-side
   guard). Post-cycle: 3 parallel reviewers (architect + code-reviewer +
   security) on the cycle diff with score-≥85 inline-fix gate.
-  Empirical track record: **13 review applications** (post-v0.8.x:
-  v0.8.1-v0.8.4, v0.9.1, v0.9.3-v0.9.6, v0.10.0-v0.10.4; v0.9.2 SKIPPED
-  with rationale because US-004 was the dogfood; updated v0.10.5).
+  Empirical track record: **18 review applications** (post-v0.8.x:
+  v0.8.1-v0.8.4, v0.9.1, v0.9.3-v0.9.6, v0.10.0-v0.10.9; v0.9.2 SKIPPED
+  with rationale because US-004 was the dogfood; updated v0.10.10).
+  Career score-≥85 inline-fix hit rate: 6/18 ≈ 33%.
   Pre-cycle architect-design count: 5 applications
   (v0.9.0 minor, v0.10.0 design spike, plus 3 mid-arc applications).
   Canonical retrospectives:
@@ -368,16 +369,33 @@ without depending on quantum.json carryover.
   docs vs current code state, run after a cycle ships. Each agent has
   a focused scope (rolling-forward backlog claims; design/PRD line
   refs; PIPELINE_REPORT chain consistency). Findings synthesized into
-  a doc-cleanup patch cycle. Empirical track record: **2 applications**
+  a doc-cleanup patch cycle. Empirical track record: **3 applications**
   (post-v0.10.0 closed 6 gaps in v0.10.1; post-v0.10.1 closed 3 gaps
-  + p015 canonization in v0.10.2). Canonized v0.10.2 / US-002 after
-  meeting the "applied a 2nd time" trigger condition flagged at
+  + p015 canonization in v0.10.2; post-v0.10.9 wave closure surfaced
+  5 gaps in v0.10.10). Canonized v0.10.2 / US-002 after meeting the
+  "applied a 2nd time" trigger condition flagged at
   `idea-stage/IDEA_REPORT_v35.md:78`. Canonical retrospectives:
   `idea-stage/PIPELINE_REPORT_v35.md` (1st application; 6 gaps),
-  `idea-stage/PIPELINE_REPORT_v36.md` (2nd application; 3 gaps).
+  `idea-stage/PIPELINE_REPORT_v36.md` (2nd application; 3 gaps),
+  `idea-stage/PIPELINE_REPORT_v44.md` (3rd application; 5 gaps).
   False-positive filter is part of the pattern: each application has
   also produced 3-4 false-positive findings that the synthesizing
   step verifies-against-code and explicitly filters with rationale.
+
+- **p016 — Dogfood-driven LOW-sweep wave.** When LOW backlog accumulates
+  (typically 7+ N-findings carried forward across 3+ cycles), batch-
+  decompose it into a 3-5 cycle wave plan; each cycle becomes a small
+  feature shipping 3-5 stories of related LOW closures. Every cycle
+  is its own complete patch (PRD → code → review → ship), preserving
+  p013/p014/p015 invariants. Wave plan ends with a 4th cycle dedicated
+  to verification + closeout investigation (closes obsolete/implicit
+  N-findings; defers genuinely-architectural items to a future minor).
+  Empirical track record: **1 application** (v0.10.6..v0.10.9; 4 cycles,
+  16 stories all first-attempt PASS; 5 score-≥85 inline-fixable findings
+  caught at 75% trio-level hit-rate). Canonized v0.10.9 / US-004.
+  Canonical retrospective: `idea-stage/PIPELINE_REPORT_v43.md` (4-cycle
+  wave retrospective + p016 canonization rationale). Wave plan source:
+  `.omc/plans/2026-05-02-v0.11.0-wave-dogfood-driven-low-sweep.md`.
 
 ### Standing backlog (v0.10.4 / US-003)
 

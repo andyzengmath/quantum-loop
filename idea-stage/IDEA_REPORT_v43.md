@@ -71,7 +71,7 @@
 - **Bundle size sequence: ...3-4-4-4-4.** v0.10.9 = 4 stories.
 - **Manual-takeover streak: PARTIALLY BROKEN through v0.10.9** — 11 consecutive cycles with 1 operator gate (at v0.10.6 wave plan approval).
 - **p013 (operator-staged kickoff): 17 applications.**
-- **p014 (composite review trio): 18 review applications.** 5 review-gate catches in 18 applications (~28% hit-rate).
+- **p014 (composite review trio): 18 review applications.** 6 review-gate catches in 18 applications (~33% hit-rate; v0.10.9 review itself produced the 6th catch — see `PIPELINE_REPORT_v43.md:51`).
 - **p015 (post-cycle 3-agent doc-vs-code audit): 3 applications, canonized at 2.**
 - **p016 (dogfood-driven LOW sweep wave): 4/4 cycles complete.** Eligible for canonization — see canonization decision below.
 
@@ -81,8 +81,8 @@
 
 **Empirical evidence (v0.10.6..v0.10.9):**
 - 4 cycles, 16 stories total, all first-attempt PASS.
-- 4 review trios (12 reviewers total: architect + code-reviewer + security per cycle); 2 score-≥85 inline fixes across the wave (v0.10.6 cross-ref MEDIUM at code-reviewer 88; v0.10.7 Retry-After MEDIUM at code-reviewer 88 + architect 88); rest below threshold or deferred.
-- 2/4 review trios produced inline-fixable score-≥85 findings (50% trio-level hit rate; stable with p014's career trio-level hit rate of 5/18 ≈ 28%).
+- 4 review trios (12 reviewers total: architect + code-reviewer + security per cycle); 5 score-≥85 inline fixes across the wave (v0.10.6: 1 cross-ref MEDIUM at code-reviewer 88; v0.10.7: 1 Retry-After MEDIUM at code-reviewer 88 + architect 88; v0.10.8: 0 [sub-threshold deferred]; v0.10.9: 3 MEDIUM [architect 88 N44-evidence + code-reviewer 88 reviewer-count + code-reviewer 88 inline-fix-count]); rest below threshold or deferred.
+- 3/4 review trios produced inline-fixable score-≥85 findings (75% trio-level hit rate; ahead of p014's career trio-level hit rate of 6/18 ≈ 33%).
 - 36 → 37 consecutive LOW G30 across the wave (no severity-rubric escalation).
 - Manual-takeover streak preserved (1 operator gate at wave-plan approval; cycles ran autonomously on /loop cron).
 
