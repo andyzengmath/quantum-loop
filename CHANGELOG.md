@@ -7,6 +7,26 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.10.15] - 2026-05-02
+
+### Added — patch-tier (6th p015 audit closure: CLAUDE.md p014 + p015 staleness)
+
+3-story patch closing 2 MEDIUM doc-staleness items from 6th p015 application + 1 convergent MEDIUM caught at review-stage. Documentation-only; 0 LOC code change. **43 consecutive LOW G30 self-validations** (v0.6.5..v0.10.15).
+
+### Stories shipped
+
+- **US-001 — CLAUDE.md p014 + p015 count synchronization** — p014: 23 → 24 review applications (incorporates v0.10.14's own trio); range end v0.10.13 → v0.10.14; career hit rate 9/23 ≈ 39% → 10/24 ≈ 42%. p015: 3 → 6 applications (initial pass; refined at review).
+- **US-002 — Multi-perspective post-merge review (24th application; 1 MEDIUM convergent inline-fixed)** — Architect REVISE→SHIP 72, Code-reviewer SHIP 91, Security SHIP 97. Both reviewers convergently caught: missing 3rd p015 application (post-v0.10.4 → v0.10.5; 5 gaps; documented at PR_v39:26-34) had been omitted from CLAUDE.md parenthetical. Fixed: added entry, removed spurious post-v0.10.13 entry (v0.10.13/v0.10.14 were code work, not p015 applications), updated gap total 22 → 25 (6+3+5+5+4+2 ✓), expanded canonical retros 3 → 6 entries with corrected labels (PR_v44 was mislabeled as 3rd, actually 4th). Career stat refreshed to 11/24 ≈ 46%. **11th p014 catch in 24 applications career.**
+- **US-003 — Retrospective + IDEA_REPORT_v49 + version bump 0.10.14 → 0.10.15** — this entry.
+
+### Test-suite delta
+
+No delta. 6 suites green (carried forward): 175 total.
+
+### Architectural observations
+
+**15-cycle hardening arc complete (v0.10.6..v0.10.15).** Lessons learned (canonized in PIPELINE_REPORT_v49): "cascading misattribution risk demonstrated AGAIN" — when adding entries to a list, verify the existing list against historical sources to avoid perpetuating omissions. The architect+code-reviewer convergent catch demonstrates multi-perspective review-gate value even on docs-only patches. v0.11.0 still operator-gated.
+
 ## [0.10.14] - 2026-05-02
 
 ### Added — patch-tier (career hit-rate audit + p014 range disambiguation)

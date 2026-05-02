@@ -359,12 +359,13 @@ without depending on quantum.json carryover.
   Enumerated: 4 + 1 + 4 + 15 = 24 ✓ (v0.9.1 had a full 3-reviewer trio
   per `idea-stage/PIPELINE_REPORT_v28.md:33-39`; explicitly counted as
   one of 8 applications at `idea-stage/PIPELINE_REPORT_v33.md:76`).
-  Career score-≥85 inline-fix hit rate: **10/24 ≈ 42%** (audited +
-  corrected v0.10.14 + v0.10.15; PR_v44 introduced off-by-one at v0.10.10
-  ship that propagated through PR_v45/v46/v47; v0.10.12 review
-  misattributed v0.9.1 as non-application — corrected v0.10.14 by
-  re-grounding against PR_v28/PR_v33 historical record; v0.10.15 added
-  v0.10.14's own catch + application to bring count current).
+  Career score-≥85 inline-fix hit rate: **11/24 ≈ 46%** (incorporates
+  v0.10.15's own architect+code-reviewer convergent MEDIUM on the
+  missing 3rd p015 application enumeration; audited + corrected
+  v0.10.14 + v0.10.15: PR_v44 introduced off-by-one at v0.10.10 ship
+  that propagated through PR_v45/v46/v47; v0.10.12 review misattributed
+  v0.9.1 as non-application — corrected v0.10.14 by re-grounding
+  against PR_v28/PR_v33 historical record).
   Pre-cycle architect-design count: 5 applications
   (v0.9.0 minor, v0.10.0 design spike, plus 3 mid-arc applications).
   Canonical retrospectives:
