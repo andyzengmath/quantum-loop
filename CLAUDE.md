@@ -379,16 +379,21 @@ without depending on quantum.json carryover.
   refs; PIPELINE_REPORT chain consistency). Findings synthesized into
   a doc-cleanup patch cycle. Empirical track record: **6 applications**
   (post-v0.10.0 closed 6 gaps in v0.10.1; post-v0.10.1 closed 3 gaps
-  + p015 canonization in v0.10.2; post-v0.10.9 wave closure surfaced
-  5 gaps closed in v0.10.10; post-v0.10.11 surfaced 4 gaps closed in
-  v0.10.12; post-v0.10.13 surfaced 2 MEDIUM closed in v0.10.14; post-
-  v0.10.14 surfaced 2 MEDIUM closed in v0.10.15. Total 22 gaps closed
-  across 6 applications). Canonized v0.10.2 / US-002 after meeting the
-  "applied a 2nd time" trigger condition flagged at
-  `idea-stage/IDEA_REPORT_v35.md:78`. Canonical retrospectives:
+  + p015 canonization in v0.10.2; post-v0.10.4 closed 5 gaps in
+  v0.10.5; post-v0.10.9 wave closure surfaced 5 gaps closed in v0.10.10;
+  post-v0.10.11 surfaced 4 gaps closed in v0.10.12; post-v0.10.14
+  surfaced 2 MEDIUM closed in v0.10.15. **Total 25 gaps closed across
+  6 applications: 6+3+5+5+4+2 = 25 ✓.** Note: v0.10.13 + v0.10.14
+  cycles were code/audit work, NOT new p015 applications — they closed
+  pre-existing items from prior audits.) Canonized v0.10.2 / US-002
+  after meeting the "applied a 2nd time" trigger condition flagged
+  at `idea-stage/IDEA_REPORT_v35.md:78`. Canonical retrospectives:
   `idea-stage/PIPELINE_REPORT_v35.md` (1st application; 6 gaps),
   `idea-stage/PIPELINE_REPORT_v36.md` (2nd application; 3 gaps),
-  `idea-stage/PIPELINE_REPORT_v44.md` (3rd application; 5 gaps).
+  `idea-stage/PIPELINE_REPORT_v39.md` (3rd application; 5 gaps),
+  `idea-stage/PIPELINE_REPORT_v44.md` (4th application; 5 gaps),
+  `idea-stage/PIPELINE_REPORT_v46.md` (5th application; 4 gaps),
+  `idea-stage/PIPELINE_REPORT_v49.md` (6th application; 2 gaps).
   False-positive filter is part of the pattern: each application has
   also produced 3-4 false-positive findings that the synthesizing
   step verifies-against-code and explicitly filters with rationale.
