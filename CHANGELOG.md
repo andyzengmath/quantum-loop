@@ -7,6 +7,39 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.10.4] - 2026-05-01
+
+### Added — patch-tier (--max-parallel/--stale-timeout parity + subsumption correction + dogfood standing-backlog)
+
+5-story patch closing 3 v0.10.3-deferred items + standard cycle ceremony. **32 consecutive LOW G30 self-validations** (v0.6.5..v0.10.4).
+
+**Headline:** v0.10.x housekeeping arc complete. All v0.10.0-v0.10.3 review-deferred items closed.
+
+### Stories shipped
+
+- **US-001 — `--max-parallel` + `--stale-timeout` integer validation** — `quantum-loop.sh:208-228` both argparse branches add asymmetric regex `^[1-9][0-9]*$` (positive only; 0 rejected as degenerate). 0 parallel agents = nothing to dispatch; 0-min stale threshold = every story immediately stale. Differs from `--max-iterations`/`--max-retries` `^(0|[1-9][0-9]*)$` (0 is meaningful sentinel for those). Closes v0.10.3 review's deferred LOW (parity gap; security agreed bash integer compares failed safely as implicit safety net but operator-facing error would have been confusing).
+- **US-002 — Honest-framing wording correction in 4 docs** — Replaced "subsumed by current coverage" → "obsoleted-by-v0.9.0-rewrite; residual wiring-reachability gap accepted as low-risk" in CHANGELOG.md (this v0.10.3 entry), `docs/plans/2026-05-01-v0.10.3-bundle-design.md` (2 sites), `tasks/prd-v0.10.3-bundle.md` (1 site), `idea-stage/PIPELINE_REPORT_v37.md` (1 site). All annotated `[v0.10.4 honest-framing correction]`. Closes v0.10.3 architect MEDIUM (overstated subsumption claim — `ql_wrap_subagent_dispatch` + `COORDINATOR_MODE` symbol-greps return 0 hits in the 5 named test suites).
+- **US-003 — Dogfood per-cycle → standing-backlog conversion** — `CLAUDE.md` adds new `### Standing backlog (v0.10.4 / US-003)` subsection under `## Process references`. Documents real-feature dogfood as blocked-on-operator-feature-queue with resume condition and anti-pattern (synthesizing fake features = ceremony without value). Per architect recommendation (v0.10.3 review).
+- **US-004 — Multi-perspective post-merge review (13th application; ALL SHIP; no inline fixes)** — Architect SHIP 88/100 (asymmetric regex justified; CLAUDE.md placement appropriate; doc-edit traceability corrective). Code-reviewer SHIP 92/100 (1 MEDIUM pre-existing missing-arg-guard inconsistency across `--max-*` flags; not regressed; v0.10.5+ track). Security SHIP 95/100 (zero actionable findings; ReDoS-safe; no other un-validated integer flags remain).
+- **US-005 — Retrospective + IDEA_REPORT_v38 + version bump 0.10.3 → 0.10.4** — this entry.
+
+### Test-suite delta
+
+No delta. Existing suites green: `test_signal_parsing` 15/15, `test_coordinator_e2e` 21/21, `test_dag_query` 44/44, `test_json_atomic` 32/32, `test_next_wave` 18/18.
+
+### Architectural observations
+
+**v0.10.x housekeeping arc complete.** v0.10.5 optional patch for missing-arg-guard parity OR pivot to v0.11.0 feature work; operator decides per `idea-stage/IDEA_REPORT_v38.md`.
+
+### Honest scope drift
+
+- Asymmetric regex (positive-only vs non-negative) explicit and justified per design Q1+Q2; consumer-trace verification by architect.
+- Missing-arg-guard inconsistency (code-reviewer MEDIUM) is pre-existing across all `--max-*` flags on master; not introduced by v0.10.4. Tracked as v0.10.5+ work.
+
+### Dogfood milestone (v0.10.4)
+
+**5/5 stories first-attempt PASS** (zero inline fixes during US-004 review). **G30 self-validation captured** (32nd consecutive LOW). **Manual-takeover streak: PARTIALLY BROKEN through v0.10.4** — 6 consecutive cycles with 1 operator gate at scope-ratification time. Full retrospective: `idea-stage/PIPELINE_REPORT_v38.md`. v0.10.5+ backlog: `idea-stage/IDEA_REPORT_v38.md`.
+
 ## [0.10.3] - 2026-05-01
 
 ### Added — patch-tier (--max-retries parity + test_v081_wiring delete + 4th dogfood deferral)
