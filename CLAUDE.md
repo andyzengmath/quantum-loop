@@ -338,25 +338,25 @@ without depending on quantum.json carryover.
   doc + PRD + advisory hooks (pre-impl review CSV) on the cycle branch
   BEFORE the autonomous /loop fires. The autonomous loop then drives
   US-001 through US-N to first-attempt PASS. Empirical track record:
-  **9 applications** (v0.9.0 → v0.9.6, v0.10.0, v0.10.1; updated v0.10.2).
+  **12 applications** (v0.9.0 → v0.9.6, v0.10.0 → v0.10.4; updated v0.10.5).
   The 1 deviation
   (v0.9.6 first-attempt autonomous-kickoff at `5de3bbc`) was rolled
   back the same /loop tick once source-doc reading revealed scope
   errors — see `feedback_autonomous_kickoff_caution.md`. Pattern
   remains stable. Canonical retrospectives:
   `idea-stage/PIPELINE_REPORT_v28.md` (v0.9.1, first articulation),
-  `idea-stage/PIPELINE_REPORT_v33.md` (v0.9.6 with the deviation
-  + recovery footnote).
+  `idea-stage/PIPELINE_REPORT_v34.md` (v0.10.0 with the v0.9.6
+  first-attempt-rollback recovery footnote; corrected v0.10.5).
 - **p014 — Composite review trio (pre-cycle architect-design + post-cycle
   3-reviewer trio).** Pre-cycle: 3 parallel architect spike agents on
   decomposable sub-problems (worked example: v0.10.0 design spike's 3
   architects scoping decomposition vs daemon-style vs parent-side
   guard). Post-cycle: 3 parallel reviewers (architect + code-reviewer +
   security) on the cycle diff with score-≥85 inline-fix gate.
-  Empirical track record: **10 review applications** (post-v0.8.x:
-  v0.8.1, v0.8.2, v0.8.3, v0.8.4, v0.9.1, v0.9.3, v0.9.4, v0.9.5,
-  v0.9.6, v0.10.1; v0.9.2 SKIPPED with rationale because US-004 was
-  the dogfood; updated v0.10.2). Pre-cycle architect-design count: 5 applications
+  Empirical track record: **13 review applications** (post-v0.8.x:
+  v0.8.1-v0.8.4, v0.9.1, v0.9.3-v0.9.6, v0.10.0-v0.10.4; v0.9.2 SKIPPED
+  with rationale because US-004 was the dogfood; updated v0.10.5).
+  Pre-cycle architect-design count: 5 applications
   (v0.9.0 minor, v0.10.0 design spike, plus 3 mid-arc applications).
   Canonical retrospectives:
   `idea-stage/PIPELINE_REPORT_v28.md` (first formal application),

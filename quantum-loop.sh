@@ -166,6 +166,11 @@ while [[ $# -gt 0 ]]; do
       # through to MAX_ITERATIONS terminal signal). Rejects negatives, decimals,
       # leading-zero forms (e.g. 0042), and non-numeric input.
       # v0.10.3 / US-001: stale-file ref removed (test_v081_wiring.sh deleted).
+      # v0.10.5 / US-001 T-001-4: missing-arg guard (parity with --critic/--planner).
+      if [[ $# -lt 2 || "${2:-}" == --* ]]; then
+        printf "ERROR: --max-iterations requires a value\n" >&2
+        exit 1
+      fi
       if ! [[ "$2" =~ ^(0|[1-9][0-9]*)$ ]]; then
         printf "ERROR: --max-iterations requires a non-negative integer, got '%s'\n" "$2" >&2
         exit 1
@@ -177,6 +182,11 @@ while [[ $# -gt 0 ]]; do
       # v0.10.3 / US-001: parity validation with --max-iterations (closes
       # v0.10.2 US-005 deferred MEDIUM/LOW review finding). Same regex
       # rationale: 0 retries is a legitimate sentinel ("disable retries").
+      # v0.10.5 / US-001 T-001-4: missing-arg guard.
+      if [[ $# -lt 2 || "${2:-}" == --* ]]; then
+        printf "ERROR: --max-retries requires a value\n" >&2
+        exit 1
+      fi
       if ! [[ "$2" =~ ^(0|[1-9][0-9]*)$ ]]; then
         printf "ERROR: --max-retries requires a non-negative integer, got '%s'\n" "$2" >&2
         exit 1
@@ -208,6 +218,11 @@ while [[ $# -gt 0 ]]; do
     --max-parallel)
       # v0.10.4 / US-001: parity validation. Positive integer only — 0
       # parallel agents is degenerate (nothing to dispatch).
+      # v0.10.5 / US-001 T-001-4: missing-arg guard.
+      if [[ $# -lt 2 || "${2:-}" == --* ]]; then
+        printf "ERROR: --max-parallel requires a value\n" >&2
+        exit 1
+      fi
       if ! [[ "$2" =~ ^[1-9][0-9]*$ ]]; then
         printf "ERROR: --max-parallel requires a positive integer, got '%s'\n" "$2" >&2
         exit 1
@@ -218,6 +233,11 @@ while [[ $# -gt 0 ]]; do
     --stale-timeout)
       # v0.10.4 / US-001: parity validation. Positive integer only — 0
       # minute stale threshold would immediately mark every story stale.
+      # v0.10.5 / US-001 T-001-4: missing-arg guard.
+      if [[ $# -lt 2 || "${2:-}" == --* ]]; then
+        printf "ERROR: --stale-timeout requires a value\n" >&2
+        exit 1
+      fi
       if ! [[ "$2" =~ ^[1-9][0-9]*$ ]]; then
         printf "ERROR: --stale-timeout requires a positive integer, got '%s'\n" "$2" >&2
         exit 1
