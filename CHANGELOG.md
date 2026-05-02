@@ -7,6 +7,27 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.10.14] - 2026-05-02
+
+### Added — patch-tier (career hit-rate audit + p014 range disambiguation)
+
+4-story patch closing 2 pre-existing notational artifacts deferred at v0.10.12 review. Documentation-only; 0 LOC code change. **42 consecutive LOW G30 self-validations** (v0.6.5..v0.10.14).
+
+### Stories shipped
+
+- **US-001 — Career catch-count off-by-one correction** — Audit traced off-by-one origin to PR_v44:43 (v0.10.10 ship) which said "6th catch in 19" when v0.10.10's review trio caught a convergent MEDIUM (should have been 7th). Off-by-one propagated through PR_v45/v46/v47. True career stat: 9 catches.
+- **US-002 — p014 range notation disambiguation** — CLAUDE.md range enumeration matched stated count after restoring v0.9.1 to the listed range (was incorrectly excluded; v0.9.1 had a full 3-reviewer trio per PR_v28:33-39 and is explicitly counted at PR_v33:76). Total: 23 applications (4+1+4+14 = 23).
+- **US-003 — Multi-perspective post-merge review (23rd application; 1 MEDIUM inline-fixed)** — Architect REVISE→SHIP 72 (caught initial v0.9.1 misattribution: my first pass excluded v0.9.1 based on v0.10.12 code-reviewer's unverified claim; architect re-grounded against PR_v28/PR_v33 historical record). Code-reviewer SHIP 93. Security SHIP 98. **10th p014 catch in 23 applications career; ~43% career hit-rate (incorporating this cycle).**
+- **US-004 — Retrospective + IDEA_REPORT_v48 + version bump 0.10.13 → 0.10.14** — this entry.
+
+### Test-suite delta
+
+No delta. 6 suites green: 15+21+44+39+18+38 = 175.
+
+### Architectural observations
+
+**14-cycle hardening arc complete (v0.10.6..v0.10.14).** Autonomous backlog truly exhausted. Lessons learned: cascading misattribution risk demonstrated (v0.10.12 reviewer surfaced real anomaly with wrong root cause; v0.10.14 implementer adopted the diagnosis verbatim; architect re-grounded against historical sources). v0.11.0 still operator-gated.
+
 ## [0.10.13] - 2026-05-02
 
 ### Added — patch-tier (LOW idle-ticker batch: OSC body strip + Retry-After multi-line fallback)
