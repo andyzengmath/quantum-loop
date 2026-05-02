@@ -5,14 +5,14 @@
   },
   "metadata": {
     "description": "Universal CLI orchestrator with multi-runner support. Autonomous spec-driven development pipeline with dependency DAG, parallel worktree execution, two-stage review gates, DAG intelligence validation, and modular merge hardening",
-    "version": "0.10.8"
+    "version": "0.10.9"
   },
   "plugins": [
     {
       "name": "quantum-loop",
       "source": "./",
       "description": "6 skills (brainstorm, spec, plan, execute, verify, review) and 5 agents for autonomous spec-driven development with multi-runner support, DAG intelligence, and modular merge hardening",
-      "version": "0.10.8",
+      "version": "0.10.9",
       "keywords": [
         "autonomous",
         "prd",
