@@ -8,7 +8,7 @@
 
 ## Overview
 
-4-story patch closing **N46** (`QL_RESPAWN_CMD` respawn-output not re-parsed; documented limitation since v0.8.1 / US-006). Code change: ~30 LOC in `lib/orchestrator-liveness.sh` + 3 new tests. **38th consecutive LOW G30 self-validation.**
+4-story patch closing **N46** (`QL_RESPAWN_CMD` respawn-output not re-parsed; documented limitation since v0.8.1 / US-006). Code change: ~30 LOC in `lib/orchestrator-liveness.sh` + 3 new tests. **39th consecutive LOW G30 self-validation.**
 
 ## The 4 stories
 
