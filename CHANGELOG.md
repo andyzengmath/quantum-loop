@@ -7,6 +7,27 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.10.13] - 2026-05-02
+
+### Added — patch-tier (LOW idle-ticker batch: OSC body strip + Retry-After multi-line fallback)
+
+4-story patch closing 2 deferred LOW security/correctness items previously classified "defer indefinitely". **41 consecutive LOW G30 self-validations** (v0.6.5..v0.10.13).
+
+### Stories shipped
+
+- **US-001 — OSC body strip in `lib/json-atomic.sh` ANSI sanitization** — Sed pipeline at lines 301/348 extends with OSC-BEL strip pass + ESC byte added to tr -d set. ESC-byte neutralization handles OSC-ST and any unmatched escape variants without dialect-fragile sed pattern-matching. Test 16 added with 4 sub-asserts (CSI text preservation, OSC-BEL body strip, OSC-ST framing neutralization, no ESC bytes).
+- **US-002 — Retry-After multi-line fallback in `runners/hooks/copilot-hooks.sh`** — Single-line sed extraction primary path unchanged; awk fallback added for RFC 7230-deprecated folded-header form (header alone on one line, value on continuation). Uses match/substr (not gsub) for first-digit-group extraction; found-flag resets on non-continuation lines.
+- **US-003 — Multi-perspective post-merge review (22nd application; 3 MEDIUM + 2 LOW inline-fixed)** — Architect SHIP 88 (caught Test 16 OSC-ST encoding bug + awk found-flag), Code-reviewer SHIP 82 (caught awk gsub digit-concat + OSC-ST documentation gap), Security SHIP 97. Convergent findings on test-encoding + OSC-ST documentation from different angles. **8th p014 catch in 22 applications career; ~36% career hit-rate.**
+- **US-004 — Retrospective + IDEA_REPORT_v47 + version bump 0.10.12 → 0.10.13** — this entry.
+
+### Test-suite delta
+
+`tests/test_json_atomic.sh`: 35 → 39 tests (+4 sub-asserts in Test 16). 6 suites green: 15+21+44+39+18+38 = 175.
+
+### Architectural observations
+
+**Autonomous backlog TRULY EXHAUSTED** post-v0.10.13. Only items remaining open are operator-gated MEDIUMs (N43, N48 stub-coord test) + sub-threshold pre-existing notational artifacts. Expected next state: permanent idle-tick mode until operator stages real-feature dispatch (v0.11.0 entry) or new findings accumulate.
+
 ## [0.10.12] - 2026-05-02
 
 ### Added — patch-tier (5th p015 application closure; 4 doc gaps + autonomous backlog exhaustion)
