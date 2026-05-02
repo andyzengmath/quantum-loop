@@ -30,7 +30,7 @@
 | Finding | Severity | Story | Resolution |
 |---|---|---|---|
 | --max-retries argparse integer-validation parity gap | security LOW (deferred from v0.10.2 US-005) | US-001 | Same regex pattern as --max-iterations applied |
-| test_v081_wiring.sh 4/5 stale failures (v0.8.1-era assertions) | LOW (deferred from v0.10.2 retro) | US-002 | DELETED (138 LOC); v0.8.1 placeholders v0.9.0 superseded; coverage subsumed by current suites (with caveats — see Honest scope drift below) |
+| test_v081_wiring.sh 4/5 stale failures (v0.8.1-era assertions) | LOW (deferred from v0.10.2 retro) | US-002 | DELETED (138 LOC); v0.8.1 placeholders v0.9.0 superseded; obsoleted-by-v0.9.0-rewrite, residual wiring-reachability gap accepted as low-risk *[v0.10.4 honest-framing correction]* |
 | US-004 code-reviewer MEDIUM: stale `tests/test_v081_wiring.sh:121` ref in `quantum-loop.sh:165` comment | MEDIUM | US-004 inline | Comment refreshed; self-contained explanation of 0 sentinel semantics |
 
 ### Deferred to v0.10.4+ backlog

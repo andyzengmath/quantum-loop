@@ -379,6 +379,24 @@ without depending on quantum.json carryover.
   also produced 3-4 false-positive findings that the synthesizing
   step verifies-against-code and explicitly filters with rationale.
 
+### Standing backlog (v0.10.4 / US-003)
+
+Items that don't fit into per-cycle stories but should remain visible
+to operators planning future cycles. Promoted from per-cycle deferred
+stories when the deferral reason is structural rather than schedule-
+based.
+
+- **Real-feature dogfood (was v0.10.0 US-003 → v0.10.3 US-003).**
+  Status: **blocked-on-operator-feature-queue.** Resume condition:
+  operator queues a real feature for dispatch through `quantum-loop.sh
+  --coordinator`. Anti-pattern: synthesizing fake features for dogfood
+  adds ceremony without value — the system's housekeeping work is
+  by-design low-risk and direct-commit-friendly; routing it through
+  coordinator dispatch tests the dispatch path, not the housekeeping
+  work. Architect recommendation post-v0.10.3 review (12th p014
+  application). Tracked in `idea-stage/IDEA_REPORT_v37.md` § "Standing
+  backlog (re-classified per architect recommendation)".
+
 ## Signal Reference
 
 | Signal | Meaning |

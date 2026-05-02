@@ -15,7 +15,7 @@
 ## Section 2: Goals
 
 - Close `--max-retries` argparse integer-validation parity gap (v0.10.2 review deferral).
-- DELETE obsolete `tests/test_v081_wiring.sh` (4/5 stale failures; subsumed by current coverage).
+- DELETE obsolete `tests/test_v081_wiring.sh` (4/5 stale failures; obsoleted-by-v0.9.0-rewrite; residual wiring-reachability gap accepted as low-risk per architect review). *[v0.10.4 honest-framing correction]*
 - Continue deferring real-feature dogfood (4th cycle; no operator-queued feature).
 - 12th application of multi-perspective post-merge review pattern.
 - Bump 0.10.2 → 0.10.3 (4 manifest fields).
