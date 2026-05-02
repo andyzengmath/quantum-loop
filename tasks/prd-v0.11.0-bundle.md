@@ -49,7 +49,7 @@
   - `assert_contains "Test 5: WARN includes 'after:' line" "after:" "$OUT"`
   - `assert_contains "Test 5: WAVE_PASSED still classified" "Wave (wave-1) PASSED" "$OUT"` (verifies observability-only behavior).
   - `assert_eq "Test 5: US-A status=passed" "passed" "$US_A_STATUS"` (parent post-aggregation processed WAVE_PASSED normally).
-- [ ] Test counter increments: total goes from 21 → 26 (5 new asserts).
+- [ ] Test counter increments: total goes from 21 → 27 (6 new asserts).
 - [ ] `bash -n tests/test_coordinator_e2e.sh` clean.
 - [ ] `bash tests/test_coordinator_e2e.sh` rc=0.
 
@@ -114,7 +114,7 @@ Bash 4.3+. jq required (already a hard dep for the existing test). No new depend
 ## Section 8: Success Metrics
 
 - All 4 stories first-attempt PASS.
-- `tests/test_coordinator_e2e.sh`: 21 → 26 tests (5 new asserts in Test 5).
+- `tests/test_coordinator_e2e.sh`: 21 → 27 tests (6 new asserts in Test 9).
 - 5 baseline test suites + extended e2e suite green.
 - 44 consecutive LOW G30.
 - N48 stub-coordinator test coverage CLOSED (was deferred MEDIUM since v0.10.8).
