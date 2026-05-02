@@ -28,11 +28,13 @@ post_output() {
     fi
     printf "[RATE-LIMIT] copilot rate-limit detected: %s\n" "$first_match" >&2
     # Optional: extract Retry-After value if parseable.
+    # v0.10.7 / US-003 review fix: use sed capture-group anchored on
+    # "retry-after" to extract only the value after that header,
+    # avoiding mis-capture of preceding numbers (e.g. "HTTP/1.1 429
+    # Retry-After: 30" -> 30, not 1 or 429).
     local retry_after
     retry_after=$(printf '%s\n' "$output" \
-      | grep -iE 'retry-after[: ]+[0-9]+' \
-      | head -1 \
-      | grep -oE '[0-9]+' \
+      | sed -n 's/.*[Rr]etry-[Aa]fter[: ]\{1,\}\([0-9][0-9]*\).*/\1/p' \
       | head -1)
     if [[ -n "$retry_after" ]]; then
       printf "[RATE-LIMIT] copilot suggests Retry-After: %ss\n" "$retry_after" >&2
