@@ -62,7 +62,7 @@ The autonomous /loop cron will continue firing per its schedule. Each tick will:
 - **Bundle size sequence: ...3-4-4-4-4-4-4-4-4.** v0.10.13 = 4 stories.
 - **Manual-takeover streak: PARTIALLY BROKEN through v0.10.13** — 15 consecutive cycles with 1 operator gate (at v0.10.6 wave plan approval).
 - **p013 (operator-staged kickoff): 17 applications.** (v0.10.10/v0.10.11/v0.10.12/v0.10.13 are 2nd-5th autonomous-kickoff deviations.)
-- **p014 (composite review trio): 22 review applications.** 8 review-gate catches in 22 applications (~36% career hit-rate).
+- **p014 (composite review trio): 22 review applications.** **9 review-gate catches in 22 applications (~41% career hit-rate; corrected at v0.10.14 from previously-stated 8/22 — PR_v44 introduced off-by-one at v0.10.10 ship that propagated through PR_v45/v46/v47).**
 - **p015 (post-cycle 3-agent doc-vs-code audit): 5 applications**, canonized at 2; 18 gaps closed.
 - **p016 (dogfood-driven LOW sweep wave): 1 application**, canonized at 1.
 
