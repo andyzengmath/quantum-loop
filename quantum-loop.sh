@@ -206,10 +206,22 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --max-parallel)
+      # v0.10.4 / US-001: parity validation. Positive integer only — 0
+      # parallel agents is degenerate (nothing to dispatch).
+      if ! [[ "$2" =~ ^[1-9][0-9]*$ ]]; then
+        printf "ERROR: --max-parallel requires a positive integer, got '%s'\n" "$2" >&2
+        exit 1
+      fi
       MAX_PARALLEL="$2"
       shift 2
       ;;
     --stale-timeout)
+      # v0.10.4 / US-001: parity validation. Positive integer only — 0
+      # minute stale threshold would immediately mark every story stale.
+      if ! [[ "$2" =~ ^[1-9][0-9]*$ ]]; then
+        printf "ERROR: --stale-timeout requires a positive integer, got '%s'\n" "$2" >&2
+        exit 1
+      fi
       STALE_TIMEOUT="$2"
       shift 2
       ;;
