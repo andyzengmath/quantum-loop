@@ -353,14 +353,17 @@ without depending on quantum.json carryover.
   architects scoping decomposition vs daemon-style vs parent-side
   guard). Post-cycle: 3 parallel reviewers (architect + code-reviewer +
   security) on the cycle diff with score-≥85 inline-fix gate.
-  Empirical track record: **22 review applications** (post-v0.8.x:
-  v0.8.1-v0.8.4, v0.9.3-v0.9.6, v0.10.0-v0.10.13; v0.9.1 + v0.9.2 NOT
-  counted — v0.9.1 was foundational scaffolding with no review trio,
-  v0.9.2 SKIPPED with rationale because US-004 was the dogfood;
-  updated v0.10.14). Enumerated: 4 + 4 + 14 = 22 ✓.
-  Career score-≥85 inline-fix hit rate: **9/22 ≈ 41%** (audited +
-  corrected v0.10.14; PR_v44 introduced off-by-one at v0.10.10 ship that
-  propagated through PR_v45/v46/v47).
+  Empirical track record: **23 review applications** (post-v0.8.x:
+  v0.8.1-v0.8.4, v0.9.1, v0.9.3-v0.9.6, v0.10.0-v0.10.13; v0.9.2 SKIPPED
+  with rationale because US-004 was the dogfood; updated v0.10.14).
+  Enumerated: 4 + 1 + 4 + 14 = 23 ✓ (v0.9.1 had a full 3-reviewer trio
+  per `idea-stage/PIPELINE_REPORT_v28.md:33-39`; explicitly counted as
+  one of 8 applications at `idea-stage/PIPELINE_REPORT_v33.md:76`).
+  Career score-≥85 inline-fix hit rate: **9/23 ≈ 39%** (audited +
+  corrected v0.10.14; PR_v44 introduced off-by-one at v0.10.10 ship
+  that propagated through PR_v45/v46/v47; v0.10.12 review additionally
+  misattributed v0.9.1 as non-application — corrected v0.10.14 by
+  re-grounding against PR_v28/PR_v33 historical record).
   Pre-cycle architect-design count: 5 applications
   (v0.9.0 minor, v0.10.0 design spike, plus 3 mid-arc applications).
   Canonical retrospectives:
