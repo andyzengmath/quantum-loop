@@ -7,6 +7,42 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.10.6] - 2026-05-02
+
+### Added — patch-tier (wave-cycle-1 housekeeping; --coordinator dispatch deferred)
+
+4-story patch shipping wave-plan cycle-1 work content (N50 + Trap RETURN hardening) as direct-commits per honest tier re-framing. **34 consecutive LOW G30 self-validations** (v0.6.5..v0.10.6).
+
+**Headline:** Wave plan (`.omc/plans/2026-05-02-v0.11.0-wave-dogfood-driven-low-sweep.md`) cycle-1 work CLOSED. v0.11.0 minor framing **reserved** for first operator-run `--coordinator` dispatch session on the live repo (architectural milestone of real-feature dogfood unblock; cannot be performed by autonomous Claude Code session as it would spawn nested Claude sessions).
+
+### Stories shipped
+
+- **US-001 — N50 (Iteration vs Wave counter naming clarity)** — `lib/parallel-mode.sh` outer-loop counter `WAVE` → `WAVE_COUNTER`. 6 sites updated + 5-line comment block documenting disambiguation rationale (avoids confusion with `ITERATION` outer counter and `--coordinator` mode's `WAVE_ID`). Cross-checked `lib/iteration-loop.sh`, `quantum-loop.sh`, `lib/type-audit.sh`, all tests — no other rename required.
+- **US-002 — Trap RETURN re-entry hardening** — `lib/json-atomic.sh` docstrings on BOTH `json_atomic_update_args` and `json_atomic_update` now document the trap RETURN nesting risk (Bash supports only 1 RETURN trap per function scope; future nested-trap caller would silently replace inner trap → tmp file leak; today no such callers). `tests/test_json_atomic.sh` Test 15 added (3 asserts) verifying current-state baseline safety: wrapper_caller succeeds + filter applied + tmp delta ≤ 1. Closes v0.10.0 US-005 deferred security LOW. Test count: 32 → 35 (+3).
+- **US-003 — Multi-perspective post-merge review (15th application; 1 MEDIUM inline-fixed)** — Architect SHIP 88, Code-reviewer SHIP 88, Security SHIP 92. Code-reviewer MEDIUM: cross-reference missing on `json_atomic_update` sibling docstring (same trap RETURN pattern). **Inline-fixed at `bb4e745`**: both helpers now document the caveat. 1 LOW deferred (Test 15 racy tmp check; mitigated by ≤1 threshold). 4th review-gate catch in 15 applications (validates p014 spec-compliance value).
+- **US-004 — Retrospective + IDEA_REPORT_v40 + version bump 0.10.5 → 0.10.6** — this entry.
+
+### Test-suite delta
+
+| Test file | v0.10.5 | v0.10.6 | delta |
+|---|---:|---:|---:|
+| `tests/test_json_atomic.sh` (+Test 15) | 32 | 35 | +3 |
+
+Other suites unchanged: `test_signal_parsing` 15/15, `test_coordinator_e2e` 21/21, `test_dag_query` 44/44, `test_next_wave` 18/18, `test_orchestrator_liveness` 34/34.
+
+### Architectural observations
+
+**Wave-plan in progress.** v0.10.6 = cycle-1 of 4-cycle dogfood-driven LOW sweep. v0.10.7 (N49 + copilot-rate-limit), v0.10.8 (N48 + ANSI), v0.10.9 (N44 + investigation) follow. **v0.11.0 minor reserved for first operator-run `--coordinator` dispatch** — the architectural milestone of empirical pipeline validation.
+
+### Honest scope drift
+
+- Tier re-framed from approved-plan v0.11.0 minor → v0.10.6 patch because autonomous Claude Code session cannot perform interactive `--coordinator` dispatch (would spawn nested Claude sessions). Work content shipped; minor framing reserved cleanly.
+- Test 15 ambient-churn threshold ≤1 (vs strict =0) acknowledges shared-TMPDIR CI realities; tightening to private TMPDIR deferred.
+
+### Dogfood milestone (v0.10.6)
+
+**4/4 stories first-attempt PASS** (with 1 inline MEDIUM fix during US-003 review). **G30 self-validation captured** (34th consecutive LOW). **Manual-takeover streak: PARTIALLY BROKEN through v0.10.6** — 8 consecutive cycles with 1 operator gate (this cycle = wave plan approval). Full retrospective: `idea-stage/PIPELINE_REPORT_v40.md`. v0.10.7+ wave plan: `idea-stage/IDEA_REPORT_v40.md`.
+
 ## [0.10.5] - 2026-05-01
 
 ### Added — patch-tier (CLAUDE.md drift fixes + missing-arg-guard parity)
