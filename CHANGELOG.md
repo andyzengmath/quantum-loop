@@ -7,6 +7,27 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.10.8] - 2026-05-02
+
+### Added — patch-tier (wave-cycle-3: N48 field-ownership runtime enforcement + ANSI passthrough sanitization)
+
+4-story patch shipping wave-plan cycle-3. **36 consecutive LOW G30 self-validations** (v0.6.5..v0.10.8).
+
+### Stories shipped
+
+- **US-001 — N48 field-ownership runtime enforcement** — `lib/iteration-loop.sh` coordinator-mode branch gains a snapshot-diff guard. BEFORE dispatch (post-mark-in-progress, alongside `HEAD_BEFORE_COORD`): `PARENT_OWNED_BEFORE` snapshot of `{id, status, retries}` for the wave's stories via single-jq. AFTER dispatch (post-timeout-rc-translation, BEFORE per-story aggregation): identical snapshot to `PARENT_OWNED_AFTER`. On mismatch, `[FIELD-OWNERSHIP] WARN` to stderr with before/after JSON. Pure observability — does NOT abort or alter signal classification. Defense-in-depth complement to v0.9.5 parent-side HEAD guard (`lib/coordinator-guard.sh::guard_head_advance`).
+- **US-002 — ANSI control-char passthrough sanitization** — `lib/json-atomic.sh:296,341` (printf paths that include captured jq stderr) now strip ANSI ESC sequences + non-printable control chars except `\n`/`\t`: `err=$(printf '%s' "$err" | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' | tr -d '\001-\010\013-\037\177')`. Preserves jq error text content (Test 14 still passes). Closes security LOW carried since v0.10.0.
+- **US-003 — Multi-perspective post-merge review (17th application; no score-≥85 inline fixes)** — Architect SHIP 91, Code-reviewer SHIP 88, Security SHIP 92. Code-reviewer 1 MEDIUM (N48 missing test coverage; below score-85 threshold; deferred to v0.11.0 dogfood). Security 1 LOW (OSC residue; cosmetic; deferred per v0.10.x pattern).
+- **US-004 — Retrospective + IDEA_REPORT_v42 + version bump 0.10.7 → 0.10.8** — this entry.
+
+### Test-suite delta
+
+No delta. 5 suites green: 15+21+44+35+18 = 133.
+
+### Architectural observations
+
+**Wave plan cycle-3 of 4 closed.** Next: v0.10.9 (N44 + N40-47 closeout investigation), v0.11.0 (OPERATOR-GATED first `--coordinator` dispatch).
+
 ## [0.10.7] - 2026-05-02
 
 ### Added — patch-tier (wave-cycle-2: copilot-rate-limit + N49 closure verification)
