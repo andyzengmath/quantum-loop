@@ -1,7 +1,41 @@
 #!/usr/bin/env bash
-# copilot-hooks.sh — Pre-spawn hook for GitHub Copilot CLI.
-# Appends autonomous, scripting-safe flags for non-interactive dispatch.
+# copilot-hooks.sh — Pre-spawn + post-output hooks for GitHub Copilot CLI.
 
+# Pre-spawn: append autonomous, scripting-safe flags for non-interactive dispatch.
 pre_spawn() {
   RUNNER_EXTRA_FLAGS="${RUNNER_EXTRA_FLAGS:+$RUNNER_EXTRA_FLAGS }--autopilot --max-autopilot-continues 0 --no-ask-user --silent --no-color --stream off --no-remote"
+}
+
+# Post-output: v0.10.7 / US-001 — copilot rate-limit observability.
+# Detects rate-limit error signals in the captured copilot CLI output and
+# emits a visible [RATE-LIMIT] log line to stderr. Patterns: rate-limit,
+# 429, Retry-After, quota-exceeded, too-many-requests (case-insensitive).
+# Idempotent: emits once per invocation even if multiple matches.
+# Pure observability — does NOT alter signal classification or retry logic.
+post_output() {
+  local output="$1"
+  # Single-pass case-insensitive grep. Capture first matching line for context.
+  local first_match
+  first_match=$(printf '%s\n' "$output" \
+    | grep -iE 'rate.?limit|\b429\b|retry-after|quota.?exceeded|too.many.requests' \
+    | head -1)
+  if [[ -n "$first_match" ]]; then
+    # Trim leading/trailing whitespace + truncate at 120 chars.
+    first_match="${first_match#"${first_match%%[![:space:]]*}"}"
+    first_match="${first_match%"${first_match##*[![:space:]]}"}"
+    if (( ${#first_match} > 120 )); then
+      first_match="${first_match:0:117}..."
+    fi
+    printf "[RATE-LIMIT] copilot rate-limit detected: %s\n" "$first_match" >&2
+    # Optional: extract Retry-After value if parseable.
+    local retry_after
+    retry_after=$(printf '%s\n' "$output" \
+      | grep -iE 'retry-after[: ]+[0-9]+' \
+      | head -1 \
+      | grep -oE '[0-9]+' \
+      | head -1)
+    if [[ -n "$retry_after" ]]; then
+      printf "[RATE-LIMIT] copilot suggests Retry-After: %ss\n" "$retry_after" >&2
+    fi
+  fi
 }
