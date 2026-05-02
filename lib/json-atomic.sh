@@ -307,6 +307,12 @@ json_atomic_update_args() {
 # Applies a jq filter to quantum.json (or specified path) atomically.
 # Uses write_quantum_json for safe tmp+mv semantics.
 # Returns 0 on success, 1 on failure.
+#
+# v0.10.6 / US-002: same `trap "rm -f ..." RETURN` cleanup pattern as
+# json_atomic_update_args. See its docstring above for the trap RETURN
+# re-entry caveat (callers MUST NOT wrap this helper inside a function
+# that also sets a RETURN trap; would silently replace + leak tmp).
+# Test coverage: tests/test_json_atomic.sh Test 15.
 json_atomic_update() {
   local filter="$1"
   local json_path="${2:-quantum.json}"
