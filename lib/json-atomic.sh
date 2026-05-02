@@ -235,6 +235,18 @@ clear_story_worktree() {
 # jq arg pairs. Uses write_quantum_json for atomic tmp+mv semantics.
 # Returns 0 on success, 1 on failure.
 #
+# v0.10.6 / US-002 (trap RETURN re-entry caveat — closes v0.10.0 security LOW):
+# Cleanup of the captured-stderr tmp file uses `trap "rm -f ..." RETURN`.
+# Bash supports only ONE RETURN trap per function scope; if a future caller
+# wraps this helper in a function that ALSO sets a RETURN trap, the inner
+# trap silently REPLACES the outer (tmp file would leak). Today no nested-
+# RETURN-trap callers exist (verified by grep across lib/, quantum-loop.sh,
+# tests/). If you add a new caller that wraps these helpers AND sets its own
+# RETURN trap, switch THIS helper to explicit `rm -f` cleanup at every
+# return path instead. Coverage: tests/test_json_atomic.sh Test 15 asserts
+# cleanup runs when the helper is called from inside another function (the
+# baseline current-state safety property).
+#
 # Example:
 #   json_atomic_update_args \
 #     '.stories |= map(if .id == $sid then .status = "passed" else . end)' \
@@ -295,6 +307,12 @@ json_atomic_update_args() {
 # Applies a jq filter to quantum.json (or specified path) atomically.
 # Uses write_quantum_json for safe tmp+mv semantics.
 # Returns 0 on success, 1 on failure.
+#
+# v0.10.6 / US-002: same `trap "rm -f ..." RETURN` cleanup pattern as
+# json_atomic_update_args. See its docstring above for the trap RETURN
+# re-entry caveat (callers MUST NOT wrap this helper inside a function
+# that also sets a RETURN trap; would silently replace + leak tmp).
+# Test coverage: tests/test_json_atomic.sh Test 15.
 json_atomic_update() {
   local filter="$1"
   local json_path="${2:-quantum.json}"

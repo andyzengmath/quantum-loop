@@ -109,7 +109,11 @@ run_parallel_mode() {
     fi
   fi
 
-  WAVE=0
+  # v0.10.6 / US-001 (N50): WAVE_COUNTER (was WAVE) — disambiguates from
+  # ITERATION outer counter and from --coordinator mode's WAVE_ID
+  # (different semantics: WAVE_ID is per-coordinator-call, WAVE_COUNTER
+  # is per-parallel-mode-iteration spawn batch).
+  WAVE_COUNTER=0
 
   for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
     printf "\n=== Iteration %d / %d ===\n\n" "$ITERATION" "$MAX_ITERATIONS"
@@ -144,10 +148,10 @@ run_parallel_mode() {
 
     # Count executable stories
     EXEC_COUNT=$(echo "$EXECUTABLE" | jq '. | length')
-    WAVE=$((WAVE + 1))
+    WAVE_COUNTER=$((WAVE_COUNTER + 1))
 
     # Setup execution metadata
-    update_execution_field "$REPO_ROOT/quantum.json" "parallel" "$MAX_PARALLEL" "$WAVE" || true
+    update_execution_field "$REPO_ROOT/quantum.json" "parallel" "$MAX_PARALLEL" "$WAVE_COUNTER" || true
 
     # Arrays to track spawned agents
     declare -a AGENT_PIDS=()
@@ -190,7 +194,7 @@ run_parallel_mode() {
       AGENT_START_TIMES+=("$(date +%s)")
       SPAWN_COUNT=$((SPAWN_COUNT + 1))
 
-      printf "[SPAWNED] %s - %s (wave %d, PID %s)\n" "$SID" "$STITLE" "$WAVE" "$AGENT_PID"
+      printf "[SPAWNED] %s - %s (wave %d, PID %s)\n" "$SID" "$STITLE" "$WAVE_COUNTER" "$AGENT_PID"
     done
 
     if [[ "$SPAWN_COUNT" -eq 0 ]]; then
@@ -381,7 +385,7 @@ run_parallel_mode() {
         if [[ "$NEW_EXEC" != "COMPLETE" && "$NEW_EXEC" != "BLOCKED" && -n "$NEW_EXEC" ]]; then
           NEW_EXEC=$(filter_file_conflicts "$REPO_ROOT/quantum.json" "$NEW_EXEC")
           NEW_COUNT=$(echo "$NEW_EXEC" | jq '. | length')
-          WAVE=$((WAVE + 1))
+          WAVE_COUNTER=$((WAVE_COUNTER + 1))
           for ni in $(seq 0 $((NEW_COUNT - 1))); do
             if [[ ${#AGENT_PIDS[@]} -ge $MAX_PARALLEL ]]; then
               break
@@ -410,7 +414,7 @@ run_parallel_mode() {
             AGENT_WORKTREES+=("$NWT")
             AGENT_START_TIMES+=("$(date +%s)")
 
-            printf "[SPAWNED] %s - %s (wave %d, PID %s)\n" "$NSID" "$NSTITLE" "$WAVE" "$NAGENT_PID"
+            printf "[SPAWNED] %s - %s (wave %d, PID %s)\n" "$NSID" "$NSTITLE" "$WAVE_COUNTER" "$NAGENT_PID"
           done
         fi
       fi
