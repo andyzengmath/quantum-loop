@@ -7,6 +7,27 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.10.10] - 2026-05-02
+
+### Added — patch-tier (post-wave doc-cleanup; 4th p015 application; 5 gaps closed)
+
+4-story patch closing 5 of 5 gaps surfaced by the 4th p015 application (post-v0.10.9 architect + document-specialist + critic agent trio audit). 0 LOC code change; documentation-only. **38 consecutive LOW G30 self-validations** (v0.6.5..v0.10.10).
+
+### Stories shipped
+
+- **US-001 — CLAUDE.md process-patterns refresh + p016 canonization** — Bumped p013/p014/p015 application counts (12→17, 13→18, 2→3); added career hit rate 6/18 ≈ 33% to p014 entry; added new p016 entry per p015 canonization precedent at v0.10.2 (definition + 4-cycle empirical track record + canonical retrospective citation).
+- **US-002 — PIPELINE_REPORT_v43 + IDEA_REPORT_v43 quantitative reconciliation** — wave-scope review count (2 → 5 findings caught: 1+1+0+3 across cycles); trio-level hit rate (50% → 75%); per-reviewer rate (13% → 42%); cycle-4 retro row "TBD" → "3 MEDIUM inline-fixed"; career-count contradiction (5 vs 6) reconciled to 6/18 ≈ 33% matching `PIPELINE_REPORT_v43:51`.
+- **US-003 — PRD line-ref drift fixes** — `tasks/prd-v0.10.7-bundle.md` US-002: `lib/iteration-loop.sh:382/406/438` → `412/436/468` (post-N48 +30 shift); `tasks/prd-v0.10.8-bundle.md` US-002: `lib/json-atomic.sh:296/341` → `302/349` (post-ANSI-sanitization +6 shift). prd-v0.10.6 line-ref edit dropped per false-positive filter (re-grep confirmed source PRD didn't contain the cited ref text).
+- **US-004 — Multi-perspective post-merge review (19th application; 1 MEDIUM inline-fixed) + retrospective + IDEA_REPORT_v44 + version bump 0.10.9 → 0.10.10** — Architect REVISE→SHIP 82, Code-reviewer REVISE→SHIP 88, Security SHIP 95. Both reviewers convergently caught 1 MEDIUM: IDEA_REPORT_v43:84-85 (p016 evidence block) was not propagated when v43:74 was corrected — left "2 fixes / 50% / 5/18 ≈ 28%" stale. Inline-fixed in this commit. **6th p014 catch in 19 applications career; ~32% career hit-rate.**
+
+### Test-suite delta
+
+No delta. 5 suites green: 15+21+44+35+18 = 133.
+
+### Architectural observations
+
+**p015 4th application complete.** 14 gaps closed across 3 p015 applications (6+3+5). Next autonomous candidate: v0.10.11 — N46 (QL_RESPAWN_CMD respawn-output re-parse fix; ~30 LOC + test; per architect's p015 audit, autonomously achievable). v0.11.0 still operator-gated for first `--coordinator` dispatch.
+
 ## [0.10.9] - 2026-05-02
 
 ### Added — patch-tier (wave-cycle-4 FINAL: N44 audit + N40-47 closeout investigation; WAVE PLAN COMPLETE)
