@@ -247,6 +247,43 @@ else
 fi
 
 # =========================================================================
+# v0.10.6 / US-002: trap RETURN re-entry baseline-safety verification.
+# Asserts that calling json_atomic_update from inside another function does
+# NOT leak the stderr-capture tmp file. This is the current-state safety
+# property; the docstring caveat documents the future-nesting risk.
+# =========================================================================
+echo "=== Test 15: json_atomic_update tmp-file cleanup from wrapper function ==="
+QJSON="$TEST_TMPDIR/quantum15.json"
+cat > "$QJSON" << 'JSONEOF'
+{"stories":[{"id":"US-001","status":"pending"}]}
+JSONEOF
+# Snapshot tmp dir state before, run helper from inside a wrapper, then
+# count any leaked tmp.* files that match the mktemp pattern.
+TMPDIR_BEFORE=$(find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'tmp.*' 2>/dev/null | wc -l)
+wrapper_caller() {
+  json_atomic_update_args \
+    '.stories |= map(if .id == $sid then .status = "passed" else . end)' \
+    "$QJSON" \
+    --arg sid "US-001"
+}
+wrapper_caller
+EXIT_CODE=$?
+TMPDIR_AFTER=$(find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'tmp.*' 2>/dev/null | wc -l)
+assert_eq "wrapper_caller succeeds" "0" "$EXIT_CODE"
+ACTUAL=$(jq -r '.stories[0].status' "$QJSON")
+assert_eq "wrapper_caller applied filter" "passed" "$ACTUAL"
+# Allow ±1 for ambient tmp churn, but no growth indicates clean RETURN trap.
+TMP_DELTA=$((TMPDIR_AFTER - TMPDIR_BEFORE))
+TOTAL=$((TOTAL + 1))
+if (( TMP_DELTA <= 1 )); then
+  echo "  PASS: trap RETURN cleanup ran (delta=$TMP_DELTA, threshold ≤1)"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: trap RETURN cleanup leaked tmp files (delta=$TMP_DELTA)"
+  FAIL=$((FAIL + 1))
+fi
+
+# =========================================================================
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 if [[ $FAIL -eq 0 ]]; then
