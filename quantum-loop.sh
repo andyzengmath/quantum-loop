@@ -195,6 +195,12 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     --tool)
+      # v0.10.5 / US-002 review fix (code-reviewer HIGH): missing-arg guard
+      # parity with --max-* flags. Closes the patch's stated parity goal.
+      if [[ $# -lt 2 || "${2:-}" == --* ]]; then
+        printf "ERROR: --tool requires a value\n" >&2
+        exit 1
+      fi
       TOOL="$2"
       shift 2
       ;;
