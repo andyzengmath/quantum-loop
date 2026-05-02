@@ -7,6 +7,36 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.10.5] - 2026-05-01
+
+### Added — patch-tier (CLAUDE.md drift fixes + missing-arg-guard parity)
+
+3-story patch closing 3 CLAUDE.md drift findings (3rd p015 audit) + 1 deferred MEDIUM from v0.10.4 + 1 inline-fixed HIGH (`--tool` missing-arg guard, caught by US-002 review). **33 consecutive LOW G30 self-validations** (v0.6.5..v0.10.5).
+
+**Headline:** v0.10.x housekeeping arc TRULY COMPLETE. 5 consecutive patches (v0.10.1 → v0.10.5) closed all internal review/audit findings. Missing-arg-guard parity now covers all 5 value-taking CLI flags (`--max-iterations`, `--max-retries`, `--max-parallel`, `--stale-timeout`, `--tool`).
+
+### Stories shipped
+
+- **US-001 — 4 sub-task fixes (CLAUDE.md drift + missing-arg-guard parity)** — T-001-1: CLAUDE.md p013 count 9→12 (stale 3 cycles since v0.10.2 canonization). T-001-2: CLAUDE.md p014 count 10→13. T-001-3: CLAUDE.md p013 retro-ref `PIPELINE_REPORT_v33.md` → `v34.md` (recovery narrative actually in v0.10.0 retro per doc-specialist audit). T-001-4: 4 `--max-*` flags gain `if [[ $# -lt 2 || "${2:-}" == --* ]]` missing-arg guard before integer-validation regex; pattern matches existing `--critic`/`--planner`/`--executor` style.
+- **US-002 — Multi-perspective post-merge review (14th application; 1 HIGH inline-fixed)** — Architect SHIP 91 (counts verified). Code-reviewer **REQUEST CHANGES → SHIP** 82→92: **HIGH parity gap — `--tool` flag missed initial PRD scope.** Inline-fixed at `9dcb41d`: `--tool` gains identical missing-arg guard. All 5 value-taking flags now consistent. Security SHIP 95 (zero actionable). 3rd p014 review-gate catch in 14 applications (v0.10.2 CRITICAL + v0.10.3 MEDIUM + v0.10.5 HIGH; hit-rate ~21%).
+- **US-003 — Retrospective + IDEA_REPORT_v39 + version bump 0.10.4 → 0.10.5** — this entry.
+
+### Test-suite delta
+
+No delta. Existing 5 suites green: `test_signal_parsing` 15/15, `test_coordinator_e2e` 21/21, `test_dag_query` 44/44, `test_json_atomic` 32/32, `test_next_wave` 18/18.
+
+### Architectural observations
+
+**v0.10.x housekeeping arc genuinely complete.** 5 patch cycles (v0.10.1 → v0.10.5) cleared all internal-review/audit findings. v0.11.0 awaits operator-queued feature scope per `idea-stage/IDEA_REPORT_v39.md`.
+
+### Honest scope drift
+
+- Initial PRD scoped 4 `--max-*` flags for missing-arg-guard parity but missed `--tool` (which also takes `$2` and shifts 2). US-002 review caught this; inline-fixed before commit. Validates the review-gate value (3rd HIGH-or-CRITICAL catch in 14 applications).
+
+### Dogfood milestone (v0.10.5)
+
+**3/3 stories first-attempt PASS** (with 1 inline HIGH fix during US-002 review). **G30 self-validation captured** (33rd consecutive LOW). **Manual-takeover streak: PARTIALLY BROKEN through v0.10.5** — 7 consecutive cycles with 1 operator gate at scope-ratification time. Full retrospective: `idea-stage/PIPELINE_REPORT_v39.md`. v0.11.0 backlog: `idea-stage/IDEA_REPORT_v39.md`.
+
 ## [0.10.4] - 2026-05-01
 
 ### Added — patch-tier (--max-parallel/--stale-timeout parity + subsumption correction + dogfood standing-backlog)
