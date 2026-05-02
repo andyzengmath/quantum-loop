@@ -419,6 +419,49 @@ else
 fi
 rm -rf "$TMP14"
 
+# Test 14c: v0.10.11 / US-003 review fix (architect MEDIUM regression
+# coverage) — respawn rc!=0 under `set -euo pipefail` no longer aborts
+# the wrap; rc propagates correctly via `|| rc=$?` pattern.
+echo ""
+echo "Test 14c: respawn rc!=0 under set -euo pipefail propagates without abort"
+TMP14C=$(mktemp -d)
+( cd "$TMP14C" && git init -q && git config user.email "t@t.t" && git config user.name "t" \
+  && echo "init" > README.md && git add README.md && git commit -qm "init" ) >/dev/null 2>&1
+RESPAWN_FAIL_SCRIPT="$TMP14C/mock-respawn-fail.sh"
+cat > "$RESPAWN_FAIL_SCRIPT" <<'EOSH'
+#!/usr/bin/env bash
+echo "respawn-output-with-failure"
+exit 42
+EOSH
+chmod +x "$RESPAWN_FAIL_SCRIPT"
+
+# Source under `set -euo pipefail` (production shell flags) — pre-fix the
+# PIPESTATUS read would be skipped on rc!=0 due to set -e + pipefail abort.
+out14c=$(cd "$TMP14C" && bash -c "
+  set -euo pipefail
+  source '$RUNNER_LIB' >/dev/null 2>&1
+  source '$LIB'
+  # runner_parse_output references RUNNER_HEURISTIC_FALLBACK; production
+  # sets this via runner_load. Test scaffolds it directly.
+  RUNNER_HEURISTIC_FALLBACK=false
+  export QL_RESPAWN_CMD='bash $RESPAWN_FAIL_SCRIPT'
+  set +e
+  wrap_orchestrator_dispatch 1 1 >/dev/null 2>&1
+  rc=\$?
+  set -e
+  echo \"wrap_rc=\$rc\"
+" 2>&1)
+
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$out14c" | grep -q "wrap_rc=42"; then
+  echo "  PASS: wrap rc=42 propagated cleanly under set -euo pipefail"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: wrap rc=42 not propagated — out: $out14c"
+  FAIL=$((FAIL + 1))
+fi
+rm -rf "$TMP14C"
+
 # Test 15: v0.10.11 / US-001 (N46) — graceful when runner_parse_output is
 # NOT sourced (standalone usage); respawn rc still propagates.
 echo ""

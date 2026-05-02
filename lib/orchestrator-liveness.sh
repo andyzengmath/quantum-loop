@@ -133,19 +133,38 @@ wrap_orchestrator_dispatch() {
     printf "[QL-EXECUTE] orchestrator-stale — respawning via QL_RESPAWN_CMD\n" >&2
     local respawn_tmpfile
     respawn_tmpfile=$(mktemp)
+    # v0.10.11 / US-003 review fix (security MEDIUM): chmod 600 closes the
+    # Git Bash mode-644-by-default gap where co-tenant on shared host could
+    # read respawn output during the brief tee-write/rm-f window.
+    chmod 600 "$respawn_tmpfile" 2>/dev/null || true
+    # v0.10.11 / US-003 review fix (architect MEDIUM): trap RETURN cleans
+    # up tmpfile even if SIGTERM/abort interrupts between tee and rm.
+    trap 'rm -f "$respawn_tmpfile"' RETURN
     # tee preserves live streaming to stderr while capturing for re-parse.
-    # PIPESTATUS[0] recovers `bash -c` rc unaffected by the tee exit code.
-    bash -c "${QL_RESPAWN_CMD}" 2>&1 | tee "$respawn_tmpfile" >&2
-    local respawn_rc=${PIPESTATUS[0]}
+    # v0.10.11 / US-003 review fix (architect MEDIUM): use a subshell to
+    # locally disable `errexit` so the pipeline + PIPESTATUS read both run
+    # regardless of the caller's `set -euo pipefail`. tee output goes to
+    # stderr (>&2) which propagates through the subshell; rc is emitted
+    # to stdout via printf and captured into respawn_rc. Works in both
+    # production (set -euo pipefail) and test contexts (set -uo pipefail).
+    local respawn_rc
+    respawn_rc=$(
+      set +e
+      bash -c "${QL_RESPAWN_CMD}" 2>&1 | tee "$respawn_tmpfile" >&2
+      printf '%s' "${PIPESTATUS[0]}"
+    )
     local respawn_out
     respawn_out=$(cat "$respawn_tmpfile")
-    rm -f "$respawn_tmpfile"
     if [[ "$respawn_rc" -ne 0 ]]; then
       printf "[QL-EXECUTE] QL_RESPAWN_CMD exited %d — respawn may have failed\n" "$respawn_rc" >&2
     fi
     # N46 closure: re-parse respawn output to update SIGNAL_RESULT /
     # SIGNAL_CONFIDENCE. No-op when runner_parse_output not in scope.
     if type runner_parse_output >/dev/null 2>&1; then
+      # runner_parse_output references RUNNER_HEURISTIC_FALLBACK; production
+      # sets this via runner_load before reaching here. Defensive default
+      # avoids unbound-var abort under `set -u` if invoked pre-runner_load.
+      : "${RUNNER_HEURISTIC_FALLBACK:=false}"
       runner_parse_output "$respawn_out" "$respawn_rc" "${worktree_path:-.}"
     fi
     return $respawn_rc
