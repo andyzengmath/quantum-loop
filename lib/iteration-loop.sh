@@ -339,18 +339,21 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
   # (exact match, heuristic fallback, or "STORY_FAILED" no-signal default).
   # The corrected guard fires on STORY_FAILED with non-exact confidence —
   # the actual "drift suspect" condition: the runner failed but we used
-  # heuristics or fallback to classify it. Limitation: when QL_RESPAWN_CMD
-  # is set and the wrap respawns successfully, the respawn's output is NOT
-  # re-parsed (SIGNAL_RESULT stays at STORY_FAILED). Soft-fire diagnostic
-  # only. Operators wanting full re-entry should use the iteration loop's
-  # natural retry path. Tracked as N46 for v0.9.0+ alongside N42.
+  # heuristics or fallback to classify it.
+  #
+  # v0.10.11 / US-001 (N46 CLOSED): when QL_RESPAWN_CMD is set and the
+  # wrap respawns successfully, the respawn's stdout/stderr is now
+  # captured via tee + re-fed through runner_parse_output, so
+  # SIGNAL_RESULT/SIGNAL_CONFIDENCE reflect the respawned run. See
+  # lib/orchestrator-liveness.sh::wrap_orchestrator_dispatch.
   #
   # v0.9.0 / US-001 (N42 minor) — skip wrap under coordinator mode:
   # The coordinator handles its own internal retries (per
   # agents/coordinator.md), and the wrap's QL_RESPAWN_CMD path was
   # designed for single-story respawn — re-running it under coordinator
   # mode would re-spawn the entire wave with stale story arguments.
-  # N46 (respawn output re-parsing) is the proper v0.9.1+ fix.
+  # N46 (respawn output re-parsing) closed in v0.10.11; coordinator-mode
+  # skip remains correct policy independent of the N46 closure.
   #
   # v0.9.3 / US-002 follow-up — gate kept OFF, rationale documented:
   # STALE detection is unsafe under coordinator mode — the coordinator
@@ -358,7 +361,8 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
   # fields without producing new commits, which would false-positive STALE.
   # The v0.9.3 US-001 wallclock timeout (QL_COORDINATOR_TIMEOUT_S, default
   # 1800s) is the operational alternative: blanket wallclock kill rather
-  # than commit-progress poll. N46 remains unresolved as of v0.9.3.
+  # than commit-progress poll. (N46 closed in v0.10.11; the coordinator-mode
+  # skip rationale here is unrelated and remains in force.)
   if [[ "$COORDINATOR_MODE" != "true" \
         && "${SIGNAL_RESULT:-}" == "STORY_FAILED" \
         && "${SIGNAL_CONFIDENCE:-}" != "exact" ]]; then
