@@ -370,6 +370,126 @@ else
 fi
 rm -rf "$TMP13"
 
+# Test 14: v0.10.11 / US-001 (N46 closure) — respawn output is re-parsed
+# and updates SIGNAL_RESULT/SIGNAL_CONFIDENCE.
+echo ""
+echo "Test 14: wrap_orchestrator_dispatch re-parses QL_RESPAWN_CMD output (N46 closure)"
+TMP14=$(mktemp -d)
+( cd "$TMP14" && git init -q && git config user.email "t@t.t" && git config user.name "t" \
+  && echo "init" > README.md && git add README.md && git commit -qm "init" ) >/dev/null 2>&1
+
+# Mock respawn: emit STORY_PASSED signal then exit 0.
+RESPAWN_SCRIPT="$TMP14/mock-respawn.sh"
+cat > "$RESPAWN_SCRIPT" <<'EOSH'
+#!/usr/bin/env bash
+echo "<quantum>STORY_PASSED</quantum>"
+exit 0
+EOSH
+chmod +x "$RESPAWN_SCRIPT"
+
+# Run wrap with tiny timeout (forces STALE path) + QL_RESPAWN_CMD set.
+# Pre-set SIGNAL_RESULT=STORY_FAILED to simulate prior failed parse.
+RUNNER_LIB="$REPO_ROOT/lib/runner.sh"
+out14=$(cd "$TMP14" && bash -c "
+  source '$RUNNER_LIB' >/dev/null 2>&1
+  source '$LIB'
+  SIGNAL_RESULT='STORY_FAILED'
+  SIGNAL_CONFIDENCE='high'
+  export QL_RESPAWN_CMD='bash $RESPAWN_SCRIPT'
+  wrap_orchestrator_dispatch 1 1 >/dev/null 2>&1
+  echo \"SIGNAL_RESULT=\$SIGNAL_RESULT SIGNAL_CONFIDENCE=\$SIGNAL_CONFIDENCE\"
+" 2>&1)
+
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$out14" | grep -q "SIGNAL_RESULT=STORY_PASSED"; then
+  echo "  PASS: SIGNAL_RESULT updated to STORY_PASSED after respawn re-parse"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: SIGNAL_RESULT not updated — out: $out14"
+  FAIL=$((FAIL + 1))
+fi
+
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$out14" | grep -q "SIGNAL_CONFIDENCE=exact"; then
+  echo "  PASS: SIGNAL_CONFIDENCE updated to exact after respawn re-parse"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: SIGNAL_CONFIDENCE not updated to exact — out: $out14"
+  FAIL=$((FAIL + 1))
+fi
+rm -rf "$TMP14"
+
+# Test 14c: v0.10.11 / US-003 review fix (architect MEDIUM regression
+# coverage) — respawn rc!=0 under `set -euo pipefail` no longer aborts
+# the wrap; rc propagates correctly via `|| rc=$?` pattern.
+echo ""
+echo "Test 14c: respawn rc!=0 under set -euo pipefail propagates without abort"
+TMP14C=$(mktemp -d)
+( cd "$TMP14C" && git init -q && git config user.email "t@t.t" && git config user.name "t" \
+  && echo "init" > README.md && git add README.md && git commit -qm "init" ) >/dev/null 2>&1
+RESPAWN_FAIL_SCRIPT="$TMP14C/mock-respawn-fail.sh"
+cat > "$RESPAWN_FAIL_SCRIPT" <<'EOSH'
+#!/usr/bin/env bash
+echo "respawn-output-with-failure"
+exit 42
+EOSH
+chmod +x "$RESPAWN_FAIL_SCRIPT"
+
+# Source under `set -euo pipefail` (production shell flags) — pre-fix the
+# PIPESTATUS read would be skipped on rc!=0 due to set -e + pipefail abort.
+out14c=$(cd "$TMP14C" && bash -c "
+  set -euo pipefail
+  source '$RUNNER_LIB' >/dev/null 2>&1
+  source '$LIB'
+  # runner_parse_output references RUNNER_HEURISTIC_FALLBACK; production
+  # sets this via runner_load. Test scaffolds it directly.
+  RUNNER_HEURISTIC_FALLBACK=false
+  export QL_RESPAWN_CMD='bash $RESPAWN_FAIL_SCRIPT'
+  set +e
+  wrap_orchestrator_dispatch 1 1 >/dev/null 2>&1
+  rc=\$?
+  set -e
+  echo \"wrap_rc=\$rc\"
+" 2>&1)
+
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$out14c" | grep -q "wrap_rc=42"; then
+  echo "  PASS: wrap rc=42 propagated cleanly under set -euo pipefail"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: wrap rc=42 not propagated — out: $out14c"
+  FAIL=$((FAIL + 1))
+fi
+rm -rf "$TMP14C"
+
+# Test 15: v0.10.11 / US-001 (N46) — graceful when runner_parse_output is
+# NOT sourced (standalone usage); respawn rc still propagates.
+echo ""
+echo "Test 15: wrap_orchestrator_dispatch graceful without runner_parse_output"
+TMP15=$(mktemp -d)
+( cd "$TMP15" && git init -q && git config user.email "t@t.t" && git config user.name "t" \
+  && echo "init" > README.md && git add README.md && git commit -qm "init" ) >/dev/null 2>&1
+
+RESPAWN_SCRIPT15="$TMP15/mock-respawn.sh"
+cat > "$RESPAWN_SCRIPT15" <<'EOSH'
+#!/usr/bin/env bash
+echo "respawn-output-without-signal"
+exit 0
+EOSH
+chmod +x "$RESPAWN_SCRIPT15"
+
+# Source ONLY orchestrator-liveness.sh (not runner.sh) — runner_parse_output
+# undefined. Wrap should not error; respawn rc=0 should propagate.
+rc15=$(cd "$TMP15" && bash -c "
+  source '$LIB'
+  export QL_RESPAWN_CMD='bash $RESPAWN_SCRIPT15'
+  wrap_orchestrator_dispatch 1 1 >/dev/null 2>&1
+  echo \$?
+")
+
+assert "Test 15: respawn rc=0 propagates without runner_parse_output" "0" "$rc15"
+rm -rf "$TMP15"
+
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 [[ $FAIL -eq 0 ]] || exit 1

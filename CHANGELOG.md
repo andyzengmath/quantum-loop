@@ -7,6 +7,27 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.10.11] - 2026-05-02
+
+### Added — patch-tier (N46 closure: respawn output re-parsing)
+
+4-story patch closing N46 (`QL_RESPAWN_CMD` respawn-output not re-parsed; documented limitation tracked since v0.8.1 / US-006). **39 consecutive LOW G30 self-validations** (v0.6.5..v0.10.11).
+
+### Stories shipped
+
+- **US-001 — N46 closure** — `lib/orchestrator-liveness.sh::wrap_orchestrator_dispatch` (around lines 122-150) replaces `bash -c "${QL_RESPAWN_CMD}"; rc=$?` with a tee-and-capture pattern. Subshell-isolates `set +e` so the pipeline + `PIPESTATUS[0]` read both run regardless of caller's `set -euo pipefail` (production shell flags). After capture, re-feeds output through `runner_parse_output` to update `SIGNAL_RESULT`/`SIGNAL_CONFIDENCE`. Defensive default for `RUNNER_HEURISTIC_FALLBACK` (avoids unbound-var abort under `set -u` for standalone callers). `chmod 600` + trap RETURN cleanup for tmpfile hygiene.
+- **US-002 — Test coverage** — `tests/test_orchestrator_liveness.sh` adds 4 new tests (Test 14a SIGNAL_RESULT update; Test 14b SIGNAL_CONFIDENCE update; Test 14c rc!=0 under `set -euo pipefail`; Test 15 graceful no-runner-parse-output). 37/37 → 38/38 passing.
+- **US-003 — Multi-perspective post-merge review (20th application; 2 MEDIUM + 2 LOW inline-fixed)** — Architect REVISE→SHIP 72 (caught the `set -e` pipefail abort regression; insisted on subshell isolation pattern), Code-reviewer SHIP 95, Security SHIP 92 (caught Git Bash mode-644 mktemp gap). Convergent findings on tmpfile hygiene + trap cleanup. **7th p014 catch in 20 applications career; ~35% career hit-rate.**
+- **US-004 — Retrospective + IDEA_REPORT_v45 + version bump 0.10.10 → 0.10.11** — this entry.
+
+### Test-suite delta
+
+`tests/test_orchestrator_liveness.sh`: +3 tests (one fold). 5 baseline suites unchanged: 15+21+44+35+18 = 133. No regression.
+
+### Architectural observations
+
+**Autonomously-achievable backlog largely exhausted post-v0.10.11.** Remaining DEFERRED-future MEDIUMs (N43, N48 stub-coordinator test) are operator-gated. Next autonomous candidate would be v0.10.12 idle-tick filler (OSC body strip + Retry-After multi-line; ~15 LOC total; LOW value). v0.11.0 still operator-gated for first `--coordinator` dispatch.
+
 ## [0.10.10] - 2026-05-02
 
 ### Added — patch-tier (post-wave doc-cleanup; 4th p015 application; 5 gaps closed)
