@@ -191,6 +191,18 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
     # the post-runner_parse_output gate ~line 1675). Captures empty when the
     # CWD is not a git repo (test fixtures); guard skips on empty.
     HEAD_BEFORE_COORD=$(git rev-parse HEAD 2>/dev/null || echo "")
+    # v0.10.8 / US-001 (N48): field-ownership runtime enforcement (defense-
+    # in-depth complement to v0.9.5 parent-side HEAD guard). Snapshot the
+    # parent-owned fields (status, retries.*) for wave stories BEFORE
+    # coordinator dispatch. After dispatch, compare; if changed, the
+    # coordinator violated the field-ownership contract documented in
+    # agents/coordinator.md § "quantum.json field ownership" (parent owns
+    # status + retries; coordinator owns review.*). WARN-only — does NOT
+    # alter signal classification or abort. Observability-only.
+    PARENT_OWNED_BEFORE=$(jq -c \
+      --argjson ids "$WAVE_STORY_IDS_JSON" \
+      '[.stories[] | select(.id as $id | $ids | index($id)) | {id, status, retries}]' \
+      quantum.json 2>/dev/null || echo "[]")
     # v0.9.3 / US-001: wallclock timeout guard. Default 30 min ceiling
     # (configurable via QL_COORDINATOR_TIMEOUT_S env). On rc=124 (SIGTERM
     # kill from `timeout`), the override below sets SIGNAL_RESULT to
@@ -268,6 +280,24 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
   if [[ "$COORDINATOR_MODE" == "true" && "$RUNNER_EXIT" == "124" ]]; then
     printf "ERROR: Coordinator subagent exceeded %ss timeout; marking wave failed.\n" "$QL_COORDINATOR_TIMEOUT_S" >&2
     SIGNAL_RESULT="WAVE_FAILED"
+  fi
+
+  # v0.10.8 / US-001 (N48): field-ownership runtime enforcement diff check.
+  # Compare PARENT_OWNED_BEFORE (captured pre-dispatch) against current
+  # state. If different, coordinator violated the field-ownership contract
+  # by writing parent-owned fields (status, retries.*). WARN-only;
+  # parent's per-story aggregation below still runs uniformly.
+  if [[ "$COORDINATOR_MODE" == "true" && -n "${PARENT_OWNED_BEFORE:-}" ]]; then
+    PARENT_OWNED_AFTER=$(jq -c \
+      --argjson ids "$WAVE_STORY_IDS_JSON" \
+      '[.stories[] | select(.id as $id | $ids | index($id)) | {id, status, retries}]' \
+      quantum.json 2>/dev/null || echo "[]")
+    if [[ "$PARENT_OWNED_BEFORE" != "$PARENT_OWNED_AFTER" ]]; then
+      printf "[FIELD-OWNERSHIP] WARN: parent-owned fields modified during dispatch (coordinator contract violation)\n" >&2
+      printf "  before: %s\n" "$PARENT_OWNED_BEFORE" >&2
+      printf "  after:  %s\n" "$PARENT_OWNED_AFTER" >&2
+    fi
+    unset PARENT_OWNED_AFTER
   fi
 
   # v0.9.5 / US-002: parent-side HEAD-snapshot guard (defense-in-depth).
