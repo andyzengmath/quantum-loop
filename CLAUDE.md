@@ -338,7 +338,7 @@ without depending on quantum.json carryover.
   doc + PRD + advisory hooks (pre-impl review CSV) on the cycle branch
   BEFORE the autonomous /loop fires. The autonomous loop then drives
   US-001 through US-N to first-attempt PASS. Empirical track record:
-  **17 applications** (v0.9.0 → v0.9.6, v0.10.0 → v0.10.9; updated v0.10.10).
+  **17 applications** (v0.9.0 → v0.9.6, v0.10.0 → v0.10.9; updated v0.10.12 — note: v0.10.10 + v0.10.11 are autonomous-kickoff deviations per IDEA_REPORT_v45:62 and do NOT count toward p013).
   The 1 deviation
   (v0.9.6 first-attempt autonomous-kickoff at `5de3bbc`) was rolled
   back the same /loop tick once source-doc reading revealed scope
@@ -353,10 +353,10 @@ without depending on quantum.json carryover.
   architects scoping decomposition vs daemon-style vs parent-side
   guard). Post-cycle: 3 parallel reviewers (architect + code-reviewer +
   security) on the cycle diff with score-≥85 inline-fix gate.
-  Empirical track record: **18 review applications** (post-v0.8.x:
-  v0.8.1-v0.8.4, v0.9.1, v0.9.3-v0.9.6, v0.10.0-v0.10.9; v0.9.2 SKIPPED
-  with rationale because US-004 was the dogfood; updated v0.10.10).
-  Career score-≥85 inline-fix hit rate: 6/18 ≈ 33%.
+  Empirical track record: **20 review applications** (post-v0.8.x:
+  v0.8.1-v0.8.4, v0.9.1, v0.9.3-v0.9.6, v0.10.0-v0.10.11; v0.9.2 SKIPPED
+  with rationale because US-004 was the dogfood; updated v0.10.12).
+  Career score-≥85 inline-fix hit rate: 7/20 ≈ 35%.
   Pre-cycle architect-design count: 5 applications
   (v0.9.0 minor, v0.10.0 design spike, plus 3 mid-arc applications).
   Canonical retrospectives:
