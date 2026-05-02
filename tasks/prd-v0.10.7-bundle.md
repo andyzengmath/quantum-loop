@@ -34,7 +34,7 @@
 ### US-002: N49 closure verification
 
 **Acceptance Criteria:**
-- [ ] Audit `lib/iteration-loop.sh:150, 382, 406, 438` (4 WAVE-branch `json_atomic_update_args` sites) for "single-jq bulk-update" pattern. If each already uses `.stories |= map(...)` to update all wave stories in 1 jq invocation, N49 is implicitly closed.
+- [ ] Audit `lib/iteration-loop.sh:150, 412, 436, 468` (4 WAVE-branch `json_atomic_update_args` sites; line numbers as of v0.10.10 — original PRD cited 382/406/438 prior to v0.10.8 N48 snapshot-diff insertion shifting 3 sites by +30) for "single-jq bulk-update" pattern. If each already uses `.stories |= map(...)` to update all wave stories in 1 jq invocation, N49 is implicitly closed.
 - [ ] Document closure rationale in `idea-stage/IDEA_REPORT_v41.md`: when was the implicit closure (likely v0.9.0 N42), why no follow-up needed.
 - [ ] If closure NOT verified (e.g., per-story jq calls still exist somewhere), extend AC to add the consolidation refactor.
 

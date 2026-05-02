@@ -71,7 +71,7 @@
 - **Bundle size sequence: ...3-4-4-4-4.** v0.10.9 = 4 stories.
 - **Manual-takeover streak: PARTIALLY BROKEN through v0.10.9** — 11 consecutive cycles with 1 operator gate (at v0.10.6 wave plan approval).
 - **p013 (operator-staged kickoff): 17 applications.**
-- **p014 (composite review trio): 18 review applications.** 5 review-gate catches in 18 applications (~28% hit-rate).
+- **p014 (composite review trio): 18 review applications.** 6 review-gate catches in 18 applications (~33% hit-rate; v0.10.9 review itself produced the 6th catch — see `PIPELINE_REPORT_v43.md:51`).
 - **p015 (post-cycle 3-agent doc-vs-code audit): 3 applications, canonized at 2.**
 - **p016 (dogfood-driven LOW sweep wave): 4/4 cycles complete.** Eligible for canonization — see canonization decision below.
 

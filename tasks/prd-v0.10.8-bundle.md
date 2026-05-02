@@ -32,7 +32,7 @@
 ### US-002: ANSI control-char passthrough sanitization
 
 **Acceptance Criteria:**
-- [ ] `lib/json-atomic.sh:296, 341` (printf statements that include `$err` from captured jq stderr) sanitize `$err` before printing: strip ANSI ESC sequences + non-printable control chars except newline/tab.
+- [ ] `lib/json-atomic.sh:302, 349` (printf statements that include `$err` from captured jq stderr; line numbers as of v0.10.10 — original PRD cited 296/341 prior to ANSI-sanitization insertion shifting printf sites by +6) sanitize `$err` before printing: strip ANSI ESC sequences + non-printable control chars except newline/tab.
 - [ ] Sanitization helper added at top of `lib/json-atomic.sh` (or inline): `err=$(printf '%s' "$err" | tr -d '\001-\010\013-\037\177' | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g')` OR equivalent compatible pattern.
 - [ ] Existing Test 14 (jq stderr surfaces in error message) still passes — sanitization preserves the actual jq error text, only strips control chars.
 - [ ] `bash -n lib/json-atomic.sh` clean.
