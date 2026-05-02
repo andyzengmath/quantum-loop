@@ -42,7 +42,13 @@
 
 ## Multi-perspective review synthesis (US-003, 18th application)
 
-To be filled after the review trio runs.
+| Reviewer | Verdict | Score | Key finding |
+|---|---|---:|---|
+| **Architect** | SHIP | 88/100 | **1 MEDIUM (inline-fixed):** N44 audit evidence claimed "no plan row for v0.8.0" but CSV row 34 (`2026-04-28T19:18:05Z,plan,quantum.json,1,0,0,0,1`) is the v0.8.0 plan row (matches by timestamp, not source-path string). Closure verdict CLOSED-implicit unchanged; only the supporting evidence was wrong. **Inline-fixed in this commit.** |
+| **Code-reviewer** | SHIP | 88/100 | **2 MEDIUM (both inline-fixed):** (a) "16 reviewers" → should be 12 (4 trios × 3 reviewers); (b) "1 score-≥85 inline fix" → should be 2 (v0.10.6 cross-ref + v0.10.7 Retry-After; PIPELINE_REPORT_v43 already had 2 correctly). 2 LOW: contradictory "none (1 MEDIUM...)" prose; garbled "5/16" stat. All 4 inline-fixed. |
+| **Security** | SHIP | 95/100 | **0 findings.** Closeout verdicts correctly classify N48 follow-on (OSC residue LOW deferred) and stub-coordinator (MEDIUM sub-threshold deferred). N43/N46 do NOT warrant security tagging — both are reliability/UX MEDIUMs. No secrets, internal URLs, or sensitive paths leaked. 5-pt deduction was for the temporary "to be filled" placeholder (also fixed in this commit). |
+
+**3 MEDIUM + 2 LOW inline-fixed in this commit (2 in IDEA_REPORT_v43, 2 in PIPELINE_REPORT_v43, plus this section's prior placeholder).** All 7 closeout verdicts (N44, N40, N41, N38, N45 CLOSED; N43, N46 DEFERRED-future MEDIUM; N47 DEFERRED-operator) verified architecturally sound. **6th review-gate catch in 18 applications (~33%); pattern p014 stable.**
 
 ## v0.10.9 fixes shipped + deferrals
 
@@ -80,7 +86,7 @@ v0.10.9 driven via autonomous /loop cron pattern. **Streak: PARTIALLY BROKEN thr
 
 | Cycle | Version | Stories | First-attempt PASS? | Inline fix at review? |
 |-------|---------|---------|:-:|---|
-| 1 | v0.10.6 | N50 (WAVE_COUNTER rename) + Trap RETURN docstring | ✓ | none (1 MEDIUM cross-ref inline-fixed) |
+| 1 | v0.10.6 | N50 (WAVE_COUNTER rename) + Trap RETURN docstring | ✓ | 1 MEDIUM cross-ref inline-fixed (code-reviewer 88) |
 | 2 | v0.10.7 | copilot-rate-limit + N49 closure | ✓ | 1 MEDIUM Retry-After extraction |
 | 3 | v0.10.8 | N48 field-ownership + ANSI sanitization | ✓ | none (sub-threshold MEDIUM + LOW deferred) |
 | 4 | v0.10.9 | N44 audit + N40-47 closeout | ✓ | TBD (this cycle's review) |

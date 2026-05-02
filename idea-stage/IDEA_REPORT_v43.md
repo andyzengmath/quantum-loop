@@ -25,8 +25,8 @@
 - Underlying CSV rows for v0.8.0 timeframe (`metrics/pre-impl-review-findings.csv`):
   - `2026-04-28T19:18:01Z,design,docs/plans/2026-04-28-v0.8.0-bundle-design.md,1,0,0,0,1`
   - `2026-04-28T19:18:04Z,prd,tasks/prd-v0.8.0-bundle.md,1,0,0,0,1`
-  - (no `plan` row for v0.8.0)
-  - **CSV totals for v0.8.0: 2 findings (1 design LOW + 1 prd LOW), no plan row.**
+  - `2026-04-28T19:18:05Z,plan,quantum.json,1,0,0,0,1`
+  - **CSV totals for v0.8.0: 3 findings (1 design LOW + 1 prd LOW + 1 plan LOW = `count=1, 0/0/0/1` per stage).**
 - v22's claim was a one-shot reporting over-count (likely cumulative across multiple cycles or fabricated; not reproducible).
 - v0.8.1's PIPELINE_REPORT_v23 onwards correctly reflect CSV: "design=1, prd=1, plan=1" matches CSV row counts. No subsequent PIPELINE_REPORT (v24-v42) repeats the over-count pattern.
 
@@ -81,8 +81,8 @@
 
 **Empirical evidence (v0.10.6..v0.10.9):**
 - 4 cycles, 16 stories total, all first-attempt PASS.
-- 4 review trios (16 reviewers); 1 score-≥85 inline fix (v0.10.7 Retry-After MEDIUM at code-reviewer 88 + architect 88); rest below threshold or deferred.
-- 5/16 review applications produced inline-fixable findings (~31% hit rate, stable with p014's career rate).
+- 4 review trios (12 reviewers total: architect + code-reviewer + security per cycle); 2 score-≥85 inline fixes across the wave (v0.10.6 cross-ref MEDIUM at code-reviewer 88; v0.10.7 Retry-After MEDIUM at code-reviewer 88 + architect 88); rest below threshold or deferred.
+- 2/4 review trios produced inline-fixable score-≥85 findings (50% trio-level hit rate; stable with p014's career trio-level hit rate of 5/18 ≈ 28%).
 - 36 → 37 consecutive LOW G30 across the wave (no severity-rubric escalation).
 - Manual-takeover streak preserved (1 operator gate at wave-plan approval; cycles ran autonomously on /loop cron).
 
