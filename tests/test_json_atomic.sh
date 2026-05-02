@@ -292,7 +292,10 @@ fi
 #   - residual ESC bytes (any unmatched escape framing) — added v0.10.13
 # =========================================================================
 echo "=== Test 16: ANSI sanitization strips CSI + OSC-BEL + neutralizes ESC bytes ==="
-SANITIZED=$(printf 'csi: \x1b[31mred\x1b[0m\nosc-bel: \x1b]2;title\x07ok\nosc-st: \x1b]3;hover\x1b\\back\nplain' \
+# v0.10.13 / US-003 review fix (architect MEDIUM): use \x5c hex escape
+# for literal backslash. printf's \\ produces \\b which is interpreted
+# as backspace, not ESC + backslash. \x5c encodes the byte directly.
+SANITIZED=$(printf 'csi: \x1b[31mred\x1b[0m\nosc-bel: \x1b]2;title\x07ok\nosc-st: \x1b]3;hover\x1b\x5cback\nplain' \
   | sed -e 's/\x1b\[[0-9;]*[a-zA-Z]//g' -e 's/\x1b\][^\x07]*\x07//g' \
   | tr -d '\001-\010\013-\037\177\033')
 
@@ -323,6 +326,18 @@ if printf '%s' "$SANITIZED" | grep -q "osc-bel: ok"; then
 else
   echo "  FAIL: OSC-BEL not fully stripped"
   echo "    output: $SANITIZED"
+  FAIL=$((FAIL + 1))
+fi
+
+# OSC-ST framing neutralized via tr -d '\033' (ESC byte). Body residue
+# `]3;hover\` remains as inert plaintext (no ESC = no terminal control).
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$SANITIZED" | grep -q "osc-st: \]3;hover" && \
+   ! printf '%s' "$SANITIZED" | grep -q $'\x1b'; then
+  echo "  PASS: OSC-ST framing neutralized (body inert; no ESC bytes)"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: OSC-ST framing leak — output: $SANITIZED"
   FAIL=$((FAIL + 1))
 fi
 

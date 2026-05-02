@@ -295,9 +295,15 @@ json_atomic_update_args() {
     if [[ -n "$err" ]]; then
       # v0.10.8 / US-002: strip ANSI ESC sequences + control chars from
       # captured jq stderr before printing to operator terminal. Closes
-      # v0.10.0 ANSI passthrough security LOW (re-flagged in v0.10.7
-      # review). Preserves \n, \t, printable ASCII; strips ESC bracket
-      # sequences (\x1b[...) + non-printable control chars.
+      # v0.10.0 ANSI passthrough security LOW.
+      # v0.10.13 / US-001: extended for OSC-BEL (sed pass 2) + ESC byte
+      # neutralization (tr \033). OSC-ST form (ESC ] body ESC \) is NOT
+      # pattern-matched (sed-dialect literal-backslash escaping is fragile
+      # across BSD/GNU); instead, the tr \033 strip removes the ESC
+      # introducer, leaving body chars as inert plaintext that no terminal
+      # interprets as a control sequence. Architectural intent (block
+      # terminal manipulation) achieved without the dialect-fragile sed.
+      # Preserves \n, \t, printable ASCII.
       err=$(printf '%s' "$err" | sed -e 's/\x1b\[[0-9;]*[a-zA-Z]//g' -e 's/\x1b\][^\x07]*\x07//g' | tr -d '\001-\010\013-\037\177\033')
       printf "ERROR: json_atomic_update_args: jq filter produced empty output (jq stderr: %s)\n" "$err" >&2
     else

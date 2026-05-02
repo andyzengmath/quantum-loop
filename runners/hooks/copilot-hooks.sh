@@ -44,8 +44,18 @@ post_output() {
     # alone on a line followed by a numeric value on the next non-empty
     # line. awk handles the line-context state.
     if [[ -z "$retry_after" ]]; then
+      # v0.10.13 / US-003 review fix (code-reviewer MEDIUM): use match/
+      # substr to extract only the FIRST contiguous digit group from the
+      # continuation line, avoiding gsub-non-digits which would concat
+      # disparate digit groups (e.g., "30 something 99" → "3099").
+      # found-flag resets on non-continuation lines (header line followed
+      # by a non-numeric line cancels the lookup) to avoid spurious match.
       retry_after=$(printf '%s\n' "$output" \
-        | awk '/[Rr]etry-[Aa]fter[: ]*$/ {found=1; next} found && /^[ \t]*[0-9]+/ {gsub(/[^0-9]/, ""); print; exit}')
+        | awk '
+          /[Rr]etry-[Aa]fter[: ]*$/ { found=1; next }
+          found && /^[ \t]*[0-9]+/ { match($0, /[0-9]+/); print substr($0, RSTART, RLENGTH); exit }
+          found && !/^[ \t]/ { found=0 }
+        ')
     fi
     if [[ -n "$retry_after" ]]; then
       printf "[RATE-LIMIT] copilot suggests Retry-After: %ss\n" "$retry_after" >&2
