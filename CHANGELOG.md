@@ -7,6 +7,35 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.11.0] - 2026-05-02
+
+### Added — minor-tier (FIRST `--coordinator` dispatch dogfood: N48 stub-coordinator test)
+
+4-story minor closing **N48 stub-coordinator test coverage** (deferred MEDIUM since v0.10.8). **First actual `--coordinator` dispatch on live repo** since v0.9.0 N42 wires shipped (~3 weeks ago). The 15-cycle hardening arc (v0.10.6..v0.10.15) prepared every infrastructure piece for this milestone. **44 consecutive LOW G30 self-validations** (v0.6.5..v0.11.0).
+
+### Stories shipped
+
+- **US-001 — Stub `field_ownership_violation` mode** — `tests/test_coordinator_e2e.sh` STUB_EOF heredoc gets new case where stub mutates `.stories[].status` for US-A (parent-owned per `agents/coordinator.md`) + writes review.* fields normally. Emits WAVE_PASSED.
+- **US-002 — Test 9 end-to-end** — Real `bash quantum-loop.sh --coordinator` invocation with PATH-injected stub. 6 sub-asserts validating: stderr emits `[FIELD-OWNERSHIP] WARN`, `before:` + `after:` JSON lines, WAVE_PASSED still classified normally, both stories status=passed (parent processed via WAVE_PASSED aggregation despite the violation). All 6 sub-asserts PASS first attempt.
+- **US-003 — Multi-perspective post-merge review (25th application; 1 MEDIUM doc inline-fixed)** — Architect SHIP 92, Code-reviewer SHIP 95 (PRD counter off-by-one: 21→26 should be 21→27; doc-only inline-fix), Security SHIP 95. Architect confirmed test exercises real N48 production path end-to-end (not stub-of-stub). **12th p014 catch in 25 applications career; ~48% career hit-rate.**
+- **US-004 — Retrospective + IDEA_REPORT_v50 + version bump 0.10.15 → 0.11.0** — this entry.
+
+### Test-suite delta
+
+`tests/test_coordinator_e2e.sh`: 21 → 27 tests (+6 sub-asserts). 5 baseline suites unchanged. Total: 175 + 6 = **181 across 6 suites**.
+
+### Architectural observations
+
+**Milestone reached: v0.11.0 entry.** The 15-cycle hardening arc (v0.10.6..v0.10.15) was justified — the FIRST actual `--coordinator` dispatch on the live repo passed all 6 sub-asserts on first attempt. All 6 infrastructure pieces (N42 wires, coordinator-guard HEAD-snapshot, QL_COORDINATOR_TIMEOUT_S, HEAD-guard reset detection, N48 FIELD-OWNERSHIP WARN, wave-cycle hardening) participated in the dispatch path during Test 9, all functioned correctly. **N48 closed.**
+
+### What's next
+
+| Path | Description | Path |
+|------|-------------|------|
+| **A** | N43 (parallel-with-dispatch wrap pattern) — operator-gated MEDIUM; ~100-150 LOC; bg-process supervision | v0.11.1 candidate |
+| **B** | Real-feature dispatch via `--coordinator` — operator-queued multi-story feature | v0.11.x (operator-decision) |
+| **C** | N48 negative-path test (no-violation case verifies WARN does NOT fire) | v0.11.x hotfix or future hardening |
+
 ## [0.10.15] - 2026-05-02
 
 ### Added — patch-tier (6th p015 audit closure: CLAUDE.md p014 + p015 staleness)

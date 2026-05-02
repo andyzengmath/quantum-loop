@@ -142,6 +142,25 @@ case "$MODE" in
     git reset --hard HEAD~1 2>/dev/null || true
     echo "<quantum>WAVE_PASSED</quantum>"
     ;;
+  field_ownership_violation)
+    # v0.11.0 / US-001 (N48 dogfood) — violate field-ownership contract
+    # by writing to .stories[].status (parent-owned per agents/coordinator.md).
+    # Parent's PARENT_OWNED_BEFORE/AFTER snapshot-diff at
+    # lib/iteration-loop.sh:202,291 should detect the change and emit
+    # `[FIELD-OWNERSHIP] WARN:` to stderr. Pure observability — non-blocking;
+    # WAVE_PASSED still classified normally.
+    jq '.stories |= map(
+      if .id == "US-A" then
+        .status = "passed"
+        | .review.specCompliance = {"status": "passed"}
+        | .review.codeQuality = {"status": "passed"}
+      elif .id == "US-B" then
+        .review.specCompliance = {"status": "passed"}
+        | .review.codeQuality = {"status": "passed"}
+      else . end
+    )' quantum.json > quantum.json.tmp && mv quantum.json.tmp quantum.json
+    echo "<quantum>WAVE_PASSED</quantum>"
+    ;;
   *)
     echo "<quantum>WAVE_FAILED</quantum>"
     ;;
@@ -376,6 +395,38 @@ US_B_STATUS=$(jq -r '.stories[] | select(.id == "US-B") | .status' "$TEST_ROOT/w
 assert_contains "Test 8: ERROR about parent-side HEAD guard" "Parent-side HEAD guard fired" "$OUT"
 assert_eq "Test 8: US-A status=failed (no review fields after guard)" "failed" "$US_A_STATUS"
 assert_eq "Test 8: US-B status=failed (no review fields after guard)" "failed" "$US_B_STATUS"
+
+rm -rf "$TEST_ROOT/work"
+
+# ─ Test 9: N48 field-ownership WARN observability (v0.11.0 dogfood) ──────
+# v0.11.0 / US-002: validates v0.10.8 N48 PARENT_OWNED_BEFORE/AFTER
+# snapshot-diff at lib/iteration-loop.sh:202,291. Stub coordinator
+# deliberately writes to .stories[].status (parent-owned per
+# agents/coordinator.md); parent's diff should detect + emit WARN to
+# stderr. WARN is non-blocking — WAVE_PASSED still classified normally.
+echo ""
+echo "Test 9: N48 field-ownership WARN observability (v0.11.0 dogfood)"
+mkdir -p "$TEST_ROOT/work"
+write_2story_plan "$TEST_ROOT/work/quantum.json"
+printf 'field_ownership_violation' > "$TEST_ROOT/work/.test-coord-mode"
+# Initialize git repo (coordinator dispatch captures HEAD_BEFORE_COORD).
+( cd "$TEST_ROOT/work" && \
+  git init -q && \
+  git config user.email t@t.test && git config user.name testuser && \
+  git add quantum.json .test-coord-mode 2>/dev/null && \
+  git commit -q -m "init" )
+
+OUT=$(cd "$TEST_ROOT/work" && PATH="$STUB_DIR:$PATH" bash "$QL_BIN" --coordinator --tool claude --max-iterations 1 --non-interactive 2>&1)
+
+US_A_STATUS=$(jq -r '.stories[] | select(.id == "US-A") | .status' "$TEST_ROOT/work/quantum.json")
+US_B_STATUS=$(jq -r '.stories[] | select(.id == "US-B") | .status' "$TEST_ROOT/work/quantum.json")
+
+assert_contains "Test 9: stderr emits FIELD-OWNERSHIP WARN" "[FIELD-OWNERSHIP] WARN" "$OUT"
+assert_contains "Test 9: WARN includes 'before:' line" "before:" "$OUT"
+assert_contains "Test 9: WARN includes 'after:' line" "after:" "$OUT"
+assert_contains "Test 9: WAVE_PASSED still classified normally" "Wave (wave-1) PASSED" "$OUT"
+assert_eq "Test 9: US-A status=passed (parent processed WAVE_PASSED)" "passed" "$US_A_STATUS"
+assert_eq "Test 9: US-B status=passed (parent processed WAVE_PASSED)" "passed" "$US_B_STATUS"
 
 rm -rf "$TEST_ROOT/work"
 
