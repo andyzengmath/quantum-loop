@@ -7,6 +7,27 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.10.12] - 2026-05-02
+
+### Added — patch-tier (5th p015 application closure; 4 doc gaps + autonomous backlog exhaustion)
+
+4-story patch closing 4 of 4 actionable gaps surfaced by the 5th p015 application (post-v0.10.11 architect + document-specialist + critic agent trio audit). 0 LOC code change; documentation-only. **40 consecutive LOW G30 self-validations** (v0.6.5..v0.10.12). **Autonomous backlog FULLY EXHAUSTED.**
+
+### Stories shipped
+
+- **US-001 — CLAUDE.md p013/p014 count refresh post-v0.10.11** — Line 341 p013 marker bumped to "updated v0.10.12" with explicit deviation note (v0.10.10 + v0.10.11 are autonomous-kickoff deviations per IDEA_REPORT_v45:62; do NOT count toward p013, count remains 17). Lines 356-358 p014 bumped to "20 review applications ... v0.10.0-v0.10.11; updated v0.10.12". Line 359 career hit rate updated to "7/20 ≈ 35%".
+- **US-002 — PIPELINE_REPORT_v45:11 G30 streak typo fix** — Overview blurb stale copy-forward "38th consecutive LOW" → "39th consecutive LOW" (matches lines 86-88 which were already correct). Document-specialist + critic convergent finding.
+- **US-003 — Multi-perspective post-merge review (21st application; 0 inline-fix findings from this diff)** — Architect SHIP 92, Code-reviewer SHIP 94, Security SHIP 96. Both LOW + MEDIUM findings raised are pre-existing artifacts (PR_v44:43 "6th catch" off-by-one carried forward; p014 range notation ambiguity present in prior CLAUDE.md). Defer to v0.10.13 candidate or future p015. Architect: backlog exhaustion confirmed at high confidence.
+- **US-004 — Retrospective + IDEA_REPORT_v46 + version bump 0.10.11 → 0.10.12** — this entry.
+
+### Test-suite delta
+
+No delta. 6 suites green: 15+21+44+35+18+38 = 171 (no regression).
+
+### Architectural observations
+
+**Autonomous backlog FULLY EXHAUSTED** post-v0.10.12. Expected next state: idle-tick mode. Resume conditions: (a) operator stages real-feature dispatch (v0.11.0); (b) 3+ new findings accumulate; (c) operator decides to batch deferred LOW idle-tickers as v0.10.13. v0.11.0 still operator-gated.
+
 ## [0.10.11] - 2026-05-02
 
 ### Added — patch-tier (N46 closure: respawn output re-parsing)
