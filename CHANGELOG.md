@@ -7,6 +7,34 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.11.3] - 2026-05-03
+
+### Added — patch-tier (copilot-hooks::post_output test coverage)
+
+3-story patch closing **`runners/hooks/copilot-hooks.sh::post_output` coverage gap** (MEDIUM from post-v0.11.1 comprehensive review). NEW `tests/test_copilot_hooks.sh` adds 11 tests with no copilot CLI required (pure string parsing). **47 consecutive LOW G30 self-validations** (v0.6.5..v0.11.3).
+
+### Stories shipped
+
+- **US-001 — `tests/test_copilot_hooks.sh` NEW (11 tests)** — Covers all 5 rate-limit regex patterns from `copilot-hooks.sh:20` (`rate.?limit`, `\b429\b`, `retry-after`, `quota.?exceeded`, `too.many.requests`). 4 Retry-After extraction cases including v0.10.7 HTTP/1.1 anchor fix + v0.10.13 folded-header awk fallback + v0.10.13 digit-mix match/substr fix. 2 negative cases (no false positive; idempotent emission). Test framework conforms to `tests/test_orchestrator_liveness.sh` (custom assert helpers; positional-arg `$1` pattern for safe input handling). 11/11 passing first attempt.
+- **US-002 — Multi-perspective post-merge review (28th application; 1 LOW retro-noted)** — Architect SHIP 92, Code-reviewer SHIP 95, Security SHIP 95. Convergent LOW (code-reviewer + security): single-quote in `source '$HOOKS'` inside double-quoted `bash -c` could break if repo cloned into a path containing a single quote. Latent fragility, not active; below score-≥85 threshold. Retro-noted. **15th p014 catch in 28 applications career; ~54% career hit-rate (up from 52% at v0.11.2; 3rd consecutive cycle climbing past 50% threshold).**
+- **US-003 — Retrospective + IDEA_REPORT_v53 + version bump 0.11.2 → 0.11.3** — this entry.
+
+### Test-suite delta
+
+NEW: `tests/test_copilot_hooks.sh` (11 tests). 6 baseline suites unchanged. **Total: 7 suites; 205 tests** (was 6×194 at v0.11.2).
+
+### Scope reduction note
+
+The comprehensive-review critic also flagged `build_coordinator_prompt` content unchecked, but pre-PRD verification confirmed `tests/test_coordinator_dispatch.sh:99-106` Test 7 already validates wave-id + story-ids embedding via grep. That finding was a FALSE POSITIVE (audit miss); v0.11.3 reduced from 4 to 3 stories. Documented for future-audit calibration: comprehensive review should grep target test files for the function being flagged BEFORE classifying as "uncovered".
+
+### Comprehensive-review backlog status
+
+**6/6 findings disposed.** v0.11.2 closed 5; v0.11.3 closed 1 + filtered 1 false positive.
+
+### Lessons learned
+
+**Comprehensive review false-positive filter is a structural pattern.** ~17% false-positive rate (1/6) is acceptable but argues for grep-before-classify in future audits. **Code-reviewer agent test-execution pattern:** v0.11.2 timeouts mitigated by explicit "DO NOT run tests" instruction; review proceeds via diff inspection + commit-message verification.
+
 ## [0.11.2] - 2026-05-02
 
 ### Added — patch-tier (D-medium: N48 negative-path test + CLAUDE.md doc updates from comprehensive review)
