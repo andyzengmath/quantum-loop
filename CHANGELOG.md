@@ -7,6 +7,29 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.11.2] - 2026-05-02
+
+### Added — patch-tier (D-medium: N48 negative-path test + CLAUDE.md doc updates from comprehensive review)
+
+4-story patch closing **5 findings from post-v0.11.1 comprehensive review**: N48 negative-path test (Test 10 pairs with v0.11.0 Test 9) + 4 CLAUDE.md doc gaps (line refs stale; QL_PARALLEL_POLL undocumented; dispatch_with_parallel_poll unreferenced; trap-RETURN-nesting invariant uncanonized). **46 consecutive LOW G30 self-validations** (v0.6.5..v0.11.2).
+
+### Stories shipped
+
+- **US-001 — N48 negative-path test (Test 10)** — `tests/test_coordinator_e2e.sh:433-481` adds Test 10 reusing existing `passed` stub mode (already field-ownership-compliant by construction). 5 sub-asserts: positive control + WARN absence + before:/after: absence + US-A status=passed + US-B status=passed. Validates N48 detection symmetry (no false positives on compliant coordinators).
+- **US-002 — CLAUDE.md doc updates (4 gaps)** — Edit 1: line refs `iteration-loop.sh:~212/~215` → `~224/~227` (HIGH-1; v0.11.1 wire shifted). Edit 2: new `QL_PARALLEL_POLL` env var bullet in Coordinator-related section (MEDIUM-1). Edit 3: new `dispatch_with_parallel_poll` reference (MEDIUM-2). Edit 4: new "Bash trap RETURN is last-write-wins" Platform Notes entry (MEDIUM-3).
+- **US-003 — Multi-perspective post-merge review (27th application; 1 LOW retro-noted)** — Architect SHIP 94 + Security SHIP 95. Code-reviewer agent timed out twice mid-test-execution; coverage gap mitigated by architect convergence on same items. Architect's 1 LOW: PRD counter said +4, actual +5 sub-asserts; retro-noted. **14th p014 catch in 27 applications career; ~52% career hit-rate.**
+- **US-004 — Retrospective + IDEA_REPORT_v52 + version bump 0.11.1 → 0.11.2** — this entry.
+
+### Test-suite delta
+
+`tests/test_coordinator_e2e.sh`: 27 → 32 tests (+5 sub-asserts in Test 10). 6 baseline suites total: 194.
+
+### Architectural observations
+
+**Comprehensive review beats per-cycle p015 audits for cross-cutting concerns.** The post-v0.11.1 comprehensive review surfaced 4 doc gaps + 2 code coverage gaps that 6 prior p015 audits hadn't caught — p015 audits focus on rolling-forward IDEA_REPORT/PIPELINE_REPORT chain consistency, while comprehensive review walks the entire codebase + docs surface holistically. **Candidate p017** (comprehensive review at major version boundaries) — may warrant canonization if applied 2+ times.
+
+**v0.11.x autonomous backlog reducing.** Remaining: copilot-hooks::post_output coverage (v0.11.3 candidate, ~150 LOC), build_coordinator_prompt content assertions, Path E (test file split). Operator-gated: Path B (real-feature dispatch) + pre-Path-B field-ownership escalation policy decision.
+
 ## [0.11.1] - 2026-05-02
 
 ### Added — patch-tier (N43 parallel-with-dispatch wrap pattern; opt-in default OFF)
