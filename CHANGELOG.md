@@ -7,6 +7,29 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.11.4] - 2026-05-03
+
+### Added — patch-tier (emit_terminal_signal coverage + Path E test split)
+
+4-story patch closing the LAST autonomous-tier MEDIUM from comprehensive review (`emit_terminal_signal` coverage) + executing Path E test split (`tests/test_orchestrator_liveness.sh` was 615 LOC, over architect's 600 threshold). **48 consecutive LOW G30 self-validations** (v0.6.5..v0.11.4). **Post-v0.11.4: comprehensive-review autonomous backlog COMPLETELY CLOSED.**
+
+### Stories shipped
+
+- **US-001 — `tests/test_loop_helpers.sh` NEW (12 sub-asserts)** — Direct test coverage for `lib/loop-helpers.sh::emit_terminal_signal` (pure formatter; called from 5 production sites in `iteration-loop.sh` + `parallel-mode.sh`; zero direct tests pre-v0.11.4). 6 test groups: parameter-required guard + signal-only call + signal+message call + separator wrapping + 4 production signal names + no-side-effects trio (rc=0/no-exit/env-unchanged).
+- **US-002 — Path E split** — `tests/test_orchestrator_liveness.sh` (was 609 LOC, 46 sub-asserts) split into 2 files. Original keeps Tests 1-13 (poll_orchestrator_commits + base wrap + base respawn + worktree-aware): now 392 LOC, 34 sub-asserts. NEW `tests/test_dispatch_helpers.sh` gets renumbered Tests 1-6 (was 14/14c/15/16/17/18; N46 respawn re-parse + N43 dispatch_with_parallel_poll): 254 LOC, 12 sub-asserts. **Test count preserved: 34 + 12 = 46 ✓.** PATHE_REMOVED_DOCSTRING in original file documents the 1:1 provenance mapping.
+- **US-003 — Multi-perspective post-merge review (29th application; 0 blocking findings)** — Architect SHIP 94, Code-reviewer SHIP (truncated; verified offline), Security SHIP 95. **16th p014 catch in 29 applications career; ~55% career hit-rate (4th consecutive cycle past 50% threshold).**
+- **US-004 — Retrospective + IDEA_REPORT_v54 + version bump 0.11.3 → 0.11.4** — this entry.
+
+### Test-suite delta
+
+8 test suites total post-v0.11.4 (was 7 at v0.11.3). +12 net new sub-asserts (emit_terminal_signal); split is structural so total preserved on that portion. **Total: 217** (was 205 at v0.11.3).
+
+### Architectural observations
+
+**Comprehensive-review autonomous backlog COMPLETELY CLOSED.** Across v0.11.2 + v0.11.3 + v0.11.4: 6/6 findings disposed (5 closed + 1 filtered as false positive). 28 new sub-asserts added across 3 cycles. CLAUDE.md fully refreshed with v0.11.1 surface.
+
+**Post-v0.11.4 backlog is operator-gated only.** Path B (real-feature dispatch via `--coordinator`) requires operator-queued multi-story feature. Pre-Path-B field-ownership escalation policy decision is architectural pre-Path-B item. `run_iteration_loop` decomposition (HIGH structural) is the only remaining autonomous-tier item but high regression risk; recommended operator-presence for that.
+
 ## [0.11.3] - 2026-05-03
 
 ### Added — patch-tier (copilot-hooks::post_output test coverage)
