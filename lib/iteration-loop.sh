@@ -239,7 +239,18 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
       printf "ERROR: runner_build_cmd failed for %s\n" "$RUNNER_NAME" >&2
       continue
     }
-    OUTPUT=$(eval "$RUNNER_CMD" 2>&1) || RUNNER_EXIT=$?
+    # v0.11.1 / US-002 (N43): opt-in parallel-with-dispatch wrap.
+    # When QL_PARALLEL_POLL=true, dispatch runs in bg + commit-poll runs
+    # in fg + stuck child is killed via SIGTERM/SIGKILL cascade. Default
+    # OFF preserves backwards compat (Git Bash bg-process supervision is
+    # known fragile; opt-in lets operators try it on stable hosts).
+    if [[ "${QL_PARALLEL_POLL:-false}" == "true" ]]; then
+      local _ppoll_timeout="${QL_PARALLEL_POLL_TIMEOUT_S:-600}"
+      local _ppoll_interval="${QL_PARALLEL_POLL_INTERVAL_S:-60}"
+      OUTPUT=$(dispatch_with_parallel_poll "$_ppoll_timeout" "$_ppoll_interval" "$RUNNER_CMD" 2>&1) || RUNNER_EXIT=$?
+    else
+      OUTPUT=$(eval "$RUNNER_CMD" 2>&1) || RUNNER_EXIT=$?
+    fi
   fi
 
   # -------------------------------------------------------------------------

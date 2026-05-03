@@ -179,6 +179,100 @@ HANDOFF
   return 1
 }
 
+# v0.11.1 / US-001 (N43): parallel-with-dispatch wrap pattern.
+#
+# Spawns CMD in background, polls commits in foreground, kills child if
+# STALE (no commits within timeout window). Each new commit resets the
+# timeout window — commit-progress signals liveness.
+#
+# Contract:
+#   dispatch_with_parallel_poll TIMEOUT_SEC INTERVAL_SEC CMD
+#     TIMEOUT_SEC   — max wallclock without commit progress (default 600)
+#     INTERVAL_SEC  — poll cadence (default 60)
+#     CMD           — shell command string (executed via bash -c)
+#   Output: child's stdout+stderr emitted on this function's stdout.
+#   Stderr logs:
+#     [LIVENESS] new commit XXXXXXXX observed at +Ns   (commit progress)
+#     [LIVENESS] STALE: no commits in Ns; killing PID X (kill cascade)
+#   Returns: child's rc on natural completion, or signal-kill rc (143/137).
+#
+# Opt-in only: caller (lib/iteration-loop.sh) gates on QL_PARALLEL_POLL=true.
+# Coordinator mode is NOT a wire site — it has its own wallclock kill via
+# QL_COORDINATOR_TIMEOUT_S (v0.9.3).
+#
+# Git Bash bg-process notes:
+#   - `kill -0 PID` reliably probes liveness.
+#   - SIGTERM may not deliver to all bg-spawned children; SIGKILL fallback.
+#   - `wait` after kill cascade may return early if process is already
+#     reaped — rc capture proceeds either way.
+#   - tmpfile cleanup via trap RETURN handles abort/SIGTERM-to-parent paths.
+#
+# Trap RETURN constraint (v0.11.1 / US-003 review fix; convergent
+# code-reviewer + security MEDIUM): this function uses `trap RETURN`
+# for tmpfile cleanup. Bash REPLACES (not stacks) RETURN traps. Caller
+# must NOT invoke this function from a scope that has its own RETURN
+# trap relying on tmpfile cleanup (e.g., wrap_orchestrator_dispatch
+# also uses trap RETURN for its respawn tmpfile). Currently safe:
+# wrap_orchestrator_dispatch and dispatch_with_parallel_poll are called
+# from mutually exclusive branches in iteration-loop.sh.
+dispatch_with_parallel_poll() {
+  local timeout_sec="${1:-600}"
+  local interval_sec="${2:-60}"
+  local cmd="${3:?dispatch_with_parallel_poll: cmd required}"
+  # v0.11.1 / US-003 review fix (architect MEDIUM): optional 4th arg
+  # forwards a worktree path to poll_orchestrator_commits + git rev-parse,
+  # matching wrap_orchestrator_dispatch's signature. Future-proofs against
+  # worktree callers; current legacy-dispatch wire passes "" (pwd HEAD).
+  local worktree_path="${4:-}"
+
+  local tmpfile child_pid base_sha rc=0
+  tmpfile=$(mktemp)
+  chmod 600 "$tmpfile" 2>/dev/null || true
+  trap 'rm -f "$tmpfile"' RETURN
+
+  # Spawn CMD in background; capture stdout+stderr to tmpfile.
+  bash -c "$cmd" >"$tmpfile" 2>&1 &
+  child_pid=$!
+  if [[ -n "$worktree_path" && "$worktree_path" != "." ]]; then
+    base_sha=$(git -C "$worktree_path" rev-parse HEAD 2>/dev/null || echo "INIT")
+  else
+    base_sha=$(git rev-parse HEAD 2>/dev/null || echo "INIT")
+  fi
+
+  # Poll loop: each window resets on new commit; STALE-kill if no commits.
+  while kill -0 "$child_pid" 2>/dev/null; do
+    if poll_orchestrator_commits "$timeout_sec" "$interval_sec" "$base_sha" "$worktree_path" >&2; then
+      # New commit observed — child is making progress, reset window.
+      if [[ -n "$worktree_path" && "$worktree_path" != "." ]]; then
+        base_sha=$(git -C "$worktree_path" rev-parse HEAD 2>/dev/null || echo "$base_sha")
+      else
+        base_sha=$(git rev-parse HEAD 2>/dev/null || echo "$base_sha")
+      fi
+      continue
+    fi
+    # poll timed out. Race: child may have completed DURING the poll
+    # (poll blocks up to timeout_sec; child can exit mid-poll without
+    # being detected by the outer loop's `kill -0` gate). Re-check
+    # liveness before emitting STALE log + kill cascade — avoids
+    # false-positive STALE on natural completion.
+    if ! kill -0 "$child_pid" 2>/dev/null; then
+      break  # child already exited; let `wait` capture rc cleanly.
+    fi
+    # STALE: no commits within timeout window AND child still alive.
+    printf "[LIVENESS] STALE: no commits in %ds; killing PID %s\n" "$timeout_sec" "$child_pid" >&2
+    kill -TERM "$child_pid" 2>/dev/null || true
+    sleep 2
+    kill -KILL "$child_pid" 2>/dev/null || true
+    break
+  done
+
+  # Wait for child (natural or killed); capture rc.
+  wait "$child_pid" 2>/dev/null
+  rc=$?
+  cat "$tmpfile"
+  return "$rc"
+}
+
 fi  # ORCHESTRATOR_LIVENESS_LIB guard
 
 # CLI entry — only when invoked directly (bash lib/orchestrator-liveness.sh).

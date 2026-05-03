@@ -7,6 +7,31 @@ Format: [Semantic Versioning](https://semver.org/). Bump per PR:
 - **Minor** (0.x.0): new features, backward-compatible
 - **Major** (x.0.0): breaking changes
 
+## [0.11.1] - 2026-05-02
+
+### Added — patch-tier (N43 parallel-with-dispatch wrap pattern; opt-in default OFF)
+
+4-story patch closing **N43** (parallel-with-dispatch wrap pattern; deferred MEDIUM since v0.8.1; tracked through 8+ IDEA_REPORTs). The genuinely architectural work from operator's Path A choice. **45 consecutive LOW G30 self-validations** (v0.6.5..v0.11.1).
+
+### Stories shipped
+
+- **US-001 — `dispatch_with_parallel_poll` function** — `lib/orchestrator-liveness.sh` adds new function (~70 LOC). Spawns CMD in background (`bash -c "$cmd" >"$tmpfile" 2>&1 &`); polls commits in foreground via existing `poll_orchestrator_commits`; kills child via SIGTERM → 2s grace → SIGKILL cascade if no commits within timeout window. Each new commit resets the window (commit-progress = liveness signal). tmpfile hardening: `chmod 600` + trap RETURN cleanup.
+- **US-002 — Wire opt-in + Tests 16/17/18** — `lib/iteration-loop.sh:247-253` legacy dispatch site gated on `QL_PARALLEL_POLL=true`. Default OFF preserves backwards compat (Git Bash bg-process supervision is fragile; opt-in lets operators try it on stable hosts). Coordinator mode NOT wired (already has `QL_COORDINATOR_TIMEOUT_S` wallclock kill via `timeout(1)`). 3 new tests: clean completion, STALE-kill, commit-progress reset. **Race fix discovered at Test 18:** child can exit DURING `poll_orchestrator_commits` blocking window; added post-poll `kill -0` re-check before STALE log + kill cascade.
+- **US-003 — Multi-perspective post-merge review (26th application; 2 MEDIUM inline-fixed)** — Architect SHIP 91 (caught worktree_path forwarding gap; inline-fixed via optional 4th arg). Code-reviewer SHIP 93 + Security SHIP 92 convergent on trap RETURN overwrite latent risk (currently safe; mutually exclusive call sites; documented as invariant). **13th p014 catch in 26 applications career; ~50% career hit-rate (crossed 50% threshold for first time).**
+- **US-004 — Retrospective + IDEA_REPORT_v51 + version bump 0.11.0 → 0.11.1** — this entry.
+
+### Test-suite delta
+
+`tests/test_orchestrator_liveness.sh`: 38 → 46 tests (+8 sub-asserts). 6 baseline suites total: 189.
+
+### Architectural observations
+
+**N43 closed — last autonomously-achievable architectural item.** Only one operator-gated MEDIUM remains: real-feature dispatch via `--coordinator` (blocked-on-operator-feature-queue). v0.11.x now has only sub-priority hardening (Path D: N48 negative-path test; Path E: test_orchestrator_liveness.sh split — file crossed 600 LOC threshold this cycle).
+
+**Lessons learned (canonized in PIPELINE_REPORT_v51):**
+1. **Race condition in bg-process supervision:** initial implementation passed clean-completion + STALE-kill smoke tests but failed Test 18. Standard pattern: re-check liveness at every transition point, not just loop-head.
+2. **Trap RETURN nesting fragility:** convergent finding from code-reviewer + security demonstrates p014's value for cross-cutting concerns visible only in inter-function context.
+
 ## [0.11.0] - 2026-05-02
 
 ### Added — minor-tier (FIRST `--coordinator` dispatch dogfood: N48 stub-coordinator test)

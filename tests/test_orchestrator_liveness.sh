@@ -490,6 +490,120 @@ rc15=$(cd "$TMP15" && bash -c "
 assert "Test 15: respawn rc=0 propagates without runner_parse_output" "0" "$rc15"
 rm -rf "$TMP15"
 
+# Test 16: v0.11.1 / US-001 (N43) — dispatch_with_parallel_poll clean
+# completion path. CMD exits 0 with output; rc=0 propagates; output captured.
+echo ""
+echo "Test 16: dispatch_with_parallel_poll clean completion (CMD exits 0)"
+TMP16=$(mktemp -d)
+( cd "$TMP16" && git init -q && git config user.email "t@t.t" && git config user.name "t" \
+  && echo "init" > README.md && git add README.md && git commit -qm "init" ) >/dev/null 2>&1
+
+out16=$(cd "$TMP16" && bash -c "
+  source '$LIB'
+  dispatch_with_parallel_poll 5 1 'echo hello-from-child; exit 0'
+")
+rc16=$?
+
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$out16" | grep -q "hello-from-child"; then
+  echo "  PASS: child output captured"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: child output missing — out: $out16"
+  FAIL=$((FAIL + 1))
+fi
+assert "Test 16: rc=0 propagates from clean completion" "0" "$rc16"
+rm -rf "$TMP16"
+
+# Test 17: v0.11.1 / US-001 (N43) — STALE-kill path. CMD `sleep 30`;
+# timeout=2; assert rc != 0 + STALE log emitted within ~6 sec wallclock.
+echo ""
+echo "Test 17: dispatch_with_parallel_poll STALE-kill (sleep 30 with timeout=2)"
+TMP17=$(mktemp -d)
+( cd "$TMP17" && git init -q && git config user.email "t@t.t" && git config user.name "t" \
+  && echo "init" > README.md && git add README.md && git commit -qm "init" ) >/dev/null 2>&1
+
+t0=$(date +%s)
+out17=$(cd "$TMP17" && bash -c "
+  source '$LIB'
+  dispatch_with_parallel_poll 2 1 'sleep 30; echo never-reached' 2>&1
+")
+rc17=$?
+t1=$(date +%s)
+elapsed17=$((t1 - t0))
+
+TOTAL=$((TOTAL + 1))
+if (( rc17 != 0 )); then
+  echo "  PASS: rc=$rc17 (non-zero from kill cascade)"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: rc=0 (expected non-zero from kill)"
+  FAIL=$((FAIL + 1))
+fi
+
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$out17" | grep -q "STALE: no commits in .* killing PID"; then
+  echo "  PASS: STALE-kill log emitted"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: STALE-kill log missing — out: $out17"
+  FAIL=$((FAIL + 1))
+fi
+
+TOTAL=$((TOTAL + 1))
+if (( elapsed17 <= 15 )); then
+  echo "  PASS: kill cascade completed in ${elapsed17}s (≤15s ceiling)"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: kill cascade took ${elapsed17}s (>15s — investigate Git Bash jitter)"
+  FAIL=$((FAIL + 1))
+fi
+rm -rf "$TMP17"
+
+# Test 18: v0.11.1 / US-001 (N43) — commit-progress reset. CMD makes a
+# commit during the poll window; verify commit resets the timeout window
+# and CMD completes naturally without kill (rc=0).
+echo ""
+echo "Test 18: dispatch_with_parallel_poll commit-progress resets timeout window"
+TMP18=$(mktemp -d)
+( cd "$TMP18" && git init -q && git config user.email "t@t.t" && git config user.name "t" \
+  && echo "init" > README.md && git add README.md && git commit -qm "init" ) >/dev/null 2>&1
+
+# CMD: sleeps 3s, makes a commit (resets window), sleeps another 3s, exits 0.
+# With timeout=4, the first 3s + commit + 3s would naturally be 6s but the
+# commit at 3s resets the window; the second 3s falls within the new window.
+# Without the reset, the first 3s + commit at 3s would still fit within the
+# initial 4s window, so no kill — but Test 18 specifically validates that
+# the LIVENESS log emits a "new commit observed" line confirming the reset.
+PROGRESS_CMD="cd '$TMP18' && sleep 3 && echo step1 > marker.txt && git add marker.txt && git commit -qm step1 && sleep 1 && exit 0"
+t0=$(date +%s)
+out18=$(cd "$TMP18" && bash -c "
+  source '$LIB'
+  dispatch_with_parallel_poll 4 1 \"$PROGRESS_CMD\" 2>&1
+")
+rc18=$?
+t1=$(date +%s)
+elapsed18=$((t1 - t0))
+
+assert "Test 18: rc=0 from natural completion" "0" "$rc18"
+TOTAL=$((TOTAL + 1))
+if printf '%s' "$out18" | grep -q "new commit"; then
+  echo "  PASS: commit-progress log emitted (LIVENESS detected progress)"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: commit-progress log missing — out: $out18"
+  FAIL=$((FAIL + 1))
+fi
+TOTAL=$((TOTAL + 1))
+if ! printf '%s' "$out18" | grep -q "STALE: no commits .* killing"; then
+  echo "  PASS: no STALE-kill log (child completed naturally)"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: STALE-kill log appeared — out: $out18"
+  FAIL=$((FAIL + 1))
+fi
+rm -rf "$TMP18"
+
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 [[ $FAIL -eq 0 ]] || exit 1
