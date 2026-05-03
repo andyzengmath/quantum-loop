@@ -307,6 +307,18 @@ for ITERATION in $(seq 1 "$MAX_ITERATIONS"); do
       printf "[FIELD-OWNERSHIP] WARN: parent-owned fields modified during dispatch (coordinator contract violation)\n" >&2
       printf "  before: %s\n" "$PARENT_OWNED_BEFORE" >&2
       printf "  after:  %s\n" "$PARENT_OWNED_AFTER" >&2
+      # v0.11.5 / US-001 (Pre-Path-B): opt-in escalation via env var.
+      # Default OFF preserves v0.10.8 WARN-only behavior (Tests 9+10).
+      # Operator queuing real-feature dispatch (Path B) sets
+      # QL_FIELD_OWNERSHIP_STRICT=true for hardened data-integrity guarantee
+      # (silent acceptance of contract violation could leave quantum.json
+      # inconsistent under real-coordinator dispatch). Pattern-consistent
+      # with v0.11.1 N43 QL_PARALLEL_POLL opt-in design.
+      if [[ "${QL_FIELD_OWNERSHIP_STRICT:-false}" == "true" ]]; then
+        printf "[FIELD-OWNERSHIP] FAIL: strict mode enabled (QL_FIELD_OWNERSHIP_STRICT=true); forcing WAVE_FAILED\n" >&2
+        SIGNAL_RESULT="WAVE_FAILED"
+        SIGNAL_CONFIDENCE="exact"
+      fi
     fi
     unset PARENT_OWNED_AFTER
   fi

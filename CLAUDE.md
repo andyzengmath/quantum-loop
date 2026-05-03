@@ -297,6 +297,23 @@ Operator-facing surface for the v0.9.x per-wave coordinator dispatch
   whose `tasks[].filePaths` is empty in aggregate. Wired into
   `lib/dag-query.sh::next_wave` preamble. Never blocks. Closes v0.9.1
   architect MEDIUM (silent `filter_file_conflicts` bypass).
+- **`QL_FIELD_OWNERSHIP_STRICT`** (env var; default `false`; v0.11.5 / US-001).
+  Opt-in escalation of the v0.10.8 N48 field-ownership WARN to WAVE_FAILED
+  on contract violation. Default OFF preserves WARN-only observability
+  semantics (cf. v0.11.0 Test 9 + v0.11.2 Test 10). When `true` and the
+  coordinator subagent's dispatch modifies parent-owned fields
+  (`.stories[].status`, `.retries.*`), the existing WARN log still fires,
+  THEN an additional `[FIELD-OWNERSHIP] FAIL: strict mode enabled` log
+  emits AND `SIGNAL_RESULT` is forced to `WAVE_FAILED` + `SIGNAL_CONFIDENCE`
+  to `exact`. Wire site: `lib/iteration-loop.sh:~306-320`. Recommended
+  for **Path B real-feature dispatch** to provide hardened data-integrity
+  guarantee (silent acceptance of contract violation could leave
+  `quantum.json` inconsistent under real-coordinator dispatch). Pattern-
+  consistent with `QL_PARALLEL_POLL` opt-in design (v0.11.1 N43).
+  Semantic note: escalation operates at the wave-signal level only —
+  per-story aggregation under WAVE_FAILED branch still derives individual
+  story status from `review.*` fields (cf. Test 2 partial-pass semantics).
+  Closes Pre-Path-B operator-decision item.
 - **`QL_PARALLEL_POLL`** (env var; default `false`; v0.11.1 / US-002).
   **Note: applies to LEGACY (non-coordinator) dispatch path, not
   `--coordinator`** (which uses `QL_COORDINATOR_TIMEOUT_S` above).

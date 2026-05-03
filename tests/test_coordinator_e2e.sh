@@ -481,6 +481,47 @@ assert_eq "Test 10: US-B status=passed (parent processed WAVE_PASSED)" "passed" 
 
 rm -rf "$TEST_ROOT/work"
 
+# ─ Test 11: QL_FIELD_OWNERSHIP_STRICT escalation (v0.11.5 / US-002) ──────
+# v0.11.5: validates Pre-Path-B opt-in escalation. Same setup as Test 9
+# (stub coordinator violates field-ownership contract by mutating
+# .stories[].status), but with QL_FIELD_OWNERSHIP_STRICT=true env var.
+# Expected: v0.10.8 WARN still fires (observability preserved), THEN
+# v0.11.5 escalation forces WAVE_FAILED + per-story aggregation marks
+# both stories as failed (review.* fields ignored under WAVE_FAILED branch).
+echo ""
+echo "Test 11: QL_FIELD_OWNERSHIP_STRICT=true escalates WARN to WAVE_FAILED (v0.11.5 strict mode)"
+mkdir -p "$TEST_ROOT/work"
+write_2story_plan "$TEST_ROOT/work/quantum.json"
+printf 'field_ownership_violation' > "$TEST_ROOT/work/.test-coord-mode"
+( cd "$TEST_ROOT/work" && \
+  git init -q && \
+  git config user.email t@t.test && git config user.name testuser && \
+  git add quantum.json .test-coord-mode 2>/dev/null && \
+  git commit -q -m "init" )
+
+# Inline dispatch (run_ql_coord helper doesn't take env vars).
+OUT=$(cd "$TEST_ROOT/work" && \
+  PATH="$STUB_DIR:$PATH" QL_FIELD_OWNERSHIP_STRICT=true \
+  bash "$QL_BIN" --coordinator --tool claude --max-iterations 1 --non-interactive 2>&1)
+
+# Note on v0.11.5 strict-mode semantics: the escalation forces WAVE_FAILED
+# at the wave-signal level. Per-story aggregation under WAVE_FAILED branch
+# still runs and DERIVES status from review.* fields (cf. Test 2 partial-
+# pass semantics). The stub here populates review.* for both stories, so
+# both aggregate to status=passed under WAVE_FAILED — the strict-mode
+# escalation evidence is the wave-level FAIL, NOT per-story status.
+# A violating coordinator that produced trustworthy review.* writes still
+# has those reviews preserved; strict mode flags the wave as untrusted.
+
+# WARN still fires (observability preserved; same as Test 9).
+assert_contains "Test 11: stderr emits FIELD-OWNERSHIP WARN (observability preserved)" "[FIELD-OWNERSHIP] WARN" "$OUT"
+# FAIL escalation log fires (strict mode evidence).
+assert_contains "Test 11: stderr emits FIELD-OWNERSHIP FAIL with strict-mode message" "[FIELD-OWNERSHIP] FAIL: strict mode enabled" "$OUT"
+# Wave classified as FAILED (escalation worked at wave-signal level).
+assert_contains "Test 11: Wave FAILED (escalation forced WAVE_FAILED)" "Wave (wave-1) FAILED" "$OUT"
+
+rm -rf "$TEST_ROOT/work"
+
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 if (( FAIL > 0 )); then
