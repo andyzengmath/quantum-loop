@@ -430,6 +430,57 @@ assert_eq "Test 9: US-B status=passed (parent processed WAVE_PASSED)" "passed" "
 
 rm -rf "$TEST_ROOT/work"
 
+# ─ Test 10: N48 field-ownership negative-path (v0.11.2 / US-001) ──────────
+# v0.11.2: pair with Test 9 to validate N48 detection symmetry. Test 9
+# proves WARN fires on contract violation; Test 10 proves WARN does NOT
+# fire on contract compliance. Together they confirm no false-positive
+# WARN emission. Reuses existing 'passed' stub mode (line 97-106) which
+# is already field-ownership-compliant by design (writes only review.*
+# fields; never touches .stories[].status).
+echo ""
+echo "Test 10: N48 field-ownership compliance — WARN does NOT fire (v0.11.2 negative-path)"
+mkdir -p "$TEST_ROOT/work"
+write_2story_plan "$TEST_ROOT/work/quantum.json"
+( cd "$TEST_ROOT/work" && \
+  git init -q && \
+  git config user.email t@t.test && git config user.name testuser && \
+  git add quantum.json 2>/dev/null && \
+  git commit -q -m "init" )
+
+OUT=$(run_ql_coord passed)
+
+US_A_STATUS=$(jq -r '.stories[] | select(.id == "US-A") | .status' "$TEST_ROOT/work/quantum.json")
+US_B_STATUS=$(jq -r '.stories[] | select(.id == "US-B") | .status' "$TEST_ROOT/work/quantum.json")
+
+# Positive control: dispatch must complete normally.
+assert_contains "Test 10: stdout mentions Wave PASSED (positive control)" "Wave (wave-1) PASSED" "$OUT"
+
+# Negative — WARN absence: validate N48 detection symmetry.
+TOTAL=$((TOTAL + 1))
+if echo "$OUT" | grep -qF "[FIELD-OWNERSHIP] WARN"; then
+  echo "  FAIL: Test 10: FIELD-OWNERSHIP WARN fired on compliant coordinator (false positive)"
+  FAIL=$((FAIL + 1))
+else
+  echo "  PASS: Test 10: FIELD-OWNERSHIP WARN absent (no false positive)"
+  PASS=$((PASS + 1))
+fi
+
+# Negative — before:/after: absence (side-effect of WARN absence).
+TOTAL=$((TOTAL + 1))
+if echo "$OUT" | grep -qE '^\s*before:'; then
+  echo "  FAIL: Test 10: before: line appeared without WARN (inconsistent state)"
+  FAIL=$((FAIL + 1))
+else
+  echo "  PASS: Test 10: before:/after: lines absent (consistent with WARN absence)"
+  PASS=$((PASS + 1))
+fi
+
+# Status correctness: parent processed WAVE_PASSED normally.
+assert_eq "Test 10: US-A status=passed (parent processed WAVE_PASSED)" "passed" "$US_A_STATUS"
+assert_eq "Test 10: US-B status=passed (parent processed WAVE_PASSED)" "passed" "$US_B_STATUS"
+
+rm -rf "$TEST_ROOT/work"
+
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 if (( FAIL > 0 )); then
