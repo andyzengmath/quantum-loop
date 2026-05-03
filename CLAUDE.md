@@ -237,6 +237,19 @@ the function comment so future readers aren't surprised.
 version-style numeric sort anywhere you're finding the "latest" of a
 set of numbered siblings.
 
+**Bash `trap RETURN` is last-write-wins per function scope:** unlike
+EXIT traps which can be stacked via care, `trap '...' RETURN` REPLACES
+the prior trap when set in the same function scope. Two functions in
+`lib/orchestrator-liveness.sh` (`wrap_orchestrator_dispatch` for
+N46 respawn re-parse, and `dispatch_with_parallel_poll` for N43
+parallel-with-dispatch wrap) both rely on `trap RETURN` for tmpfile
+cleanup. **Callers must NOT nest these two functions** in the same
+shell scope — the second trap silently overwrites the first, leaking
+the earlier function's tmpfile. Currently safe per call graph
+(mutually exclusive branches in `lib/iteration-loop.sh`); see inline
+invariant comment at `lib/orchestrator-liveness.sh:~211`. Convergent
+v0.11.1 review finding (architect+code-reviewer+security).
+
 ## Process references
 
 Operator-side workflow docs that the standard pipeline does not invoke
@@ -260,9 +273,10 @@ Operator-facing surface for the v0.9.x per-wave coordinator dispatch
 
 - **`QL_COORDINATOR_TIMEOUT_S`** (env var; default `1800` seconds = 30 min;
   v0.9.3 / US-001). Wallclock ceiling on the coordinator subagent's
-  `bash -c "$COORD_CMD"` invocation in `lib/iteration-loop.sh:~212`
-  (post-v0.9.5 decomposition; line 212 is the timeout-guarded dispatch,
-  line 215 is the no-timeout fallback). On `timeout`
+  `bash -c "$COORD_CMD"` invocation in `lib/iteration-loop.sh:~224`
+  (post-v0.11.1 decomposition; line ~224 is the timeout-guarded dispatch,
+  line ~227 is the no-timeout fallback; line numbers shift over time —
+  search for `QL_COORDINATOR_TIMEOUT_S` to locate). On `timeout`
   rc=124 (SIGTERM kill from `timeout(1)` + 10s `--kill-after` grace), the
   parent prints `ERROR: Coordinator subagent exceeded ${N}s timeout` and
   forces `<quantum>WAVE_FAILED</quantum>` so per-story review-field
@@ -283,9 +297,32 @@ Operator-facing surface for the v0.9.x per-wave coordinator dispatch
   whose `tasks[].filePaths` is empty in aggregate. Wired into
   `lib/dag-query.sh::next_wave` preamble. Never blocks. Closes v0.9.1
   architect MEDIUM (silent `filter_file_conflicts` bypass).
+- **`QL_PARALLEL_POLL`** (env var; default `false`; v0.11.1 / US-002).
+  **Note: applies to LEGACY (non-coordinator) dispatch path, not
+  `--coordinator`** (which uses `QL_COORDINATOR_TIMEOUT_S` above).
+  When `QL_PARALLEL_POLL=true`, the legacy dispatch at
+  `lib/iteration-loop.sh:~247` runs the runner CMD in background +
+  polls commits in foreground via `dispatch_with_parallel_poll` (see
+  next bullet); kills child on STALE (no commits within
+  `QL_PARALLEL_POLL_TIMEOUT_S` window; default 600s). Companion vars:
+  `QL_PARALLEL_POLL_INTERVAL_S` (poll cadence; default 60s). Default
+  OFF preserves backwards compat — Git Bash bg-process supervision is
+  fragile (see Platform Notes). Closes N43 (deferred MEDIUM since v0.8.1).
+- [`lib/orchestrator-liveness.sh::dispatch_with_parallel_poll`](lib/orchestrator-liveness.sh)
+  (v0.11.1 / US-001). New helper called from the legacy dispatch site
+  (gated by `QL_PARALLEL_POLL` above). Signature:
+  `dispatch_with_parallel_poll TIMEOUT_SEC INTERVAL_SEC CMD [WORKTREE_PATH]`.
+  Spawns CMD in bg via `bash -c`, polls commits in fg, kills child via
+  SIGTERM → 2s grace → SIGKILL on STALE. Race-safe: post-poll `kill -0`
+  re-check handles child-exits-during-poll. Coordinator mode does NOT
+  use this path — it has wallclock kill via `QL_COORDINATOR_TIMEOUT_S`
+  instead.
 - Coordinator-specific tests: `tests/test_coordinator_guard.sh`,
-  `tests/test_quantum_validate.sh`, `tests/test_coordinator_e2e.sh`,
-  `tests/test_coordinator_dispatch.sh`, `tests/test_next_wave.sh`.
+  `tests/test_quantum_validate.sh`, `tests/test_coordinator_e2e.sh`
+  (incl. v0.11.0 Test 9 N48 dogfood + v0.11.2 Test 10 N48 negative-path),
+  `tests/test_coordinator_dispatch.sh`, `tests/test_next_wave.sh`,
+  `tests/test_orchestrator_liveness.sh` (incl. v0.11.1 Tests 16/17/18
+  for `dispatch_with_parallel_poll`).
 
 ### Test-related
 
