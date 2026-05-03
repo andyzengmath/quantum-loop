@@ -206,10 +206,24 @@ HANDOFF
 #   - `wait` after kill cascade may return early if process is already
 #     reaped — rc capture proceeds either way.
 #   - tmpfile cleanup via trap RETURN handles abort/SIGTERM-to-parent paths.
+#
+# Trap RETURN constraint (v0.11.1 / US-003 review fix; convergent
+# code-reviewer + security MEDIUM): this function uses `trap RETURN`
+# for tmpfile cleanup. Bash REPLACES (not stacks) RETURN traps. Caller
+# must NOT invoke this function from a scope that has its own RETURN
+# trap relying on tmpfile cleanup (e.g., wrap_orchestrator_dispatch
+# also uses trap RETURN for its respawn tmpfile). Currently safe:
+# wrap_orchestrator_dispatch and dispatch_with_parallel_poll are called
+# from mutually exclusive branches in iteration-loop.sh.
 dispatch_with_parallel_poll() {
   local timeout_sec="${1:-600}"
   local interval_sec="${2:-60}"
   local cmd="${3:?dispatch_with_parallel_poll: cmd required}"
+  # v0.11.1 / US-003 review fix (architect MEDIUM): optional 4th arg
+  # forwards a worktree path to poll_orchestrator_commits + git rev-parse,
+  # matching wrap_orchestrator_dispatch's signature. Future-proofs against
+  # worktree callers; current legacy-dispatch wire passes "" (pwd HEAD).
+  local worktree_path="${4:-}"
 
   local tmpfile child_pid base_sha rc=0
   tmpfile=$(mktemp)
@@ -219,13 +233,21 @@ dispatch_with_parallel_poll() {
   # Spawn CMD in background; capture stdout+stderr to tmpfile.
   bash -c "$cmd" >"$tmpfile" 2>&1 &
   child_pid=$!
-  base_sha=$(git rev-parse HEAD 2>/dev/null || echo "INIT")
+  if [[ -n "$worktree_path" && "$worktree_path" != "." ]]; then
+    base_sha=$(git -C "$worktree_path" rev-parse HEAD 2>/dev/null || echo "INIT")
+  else
+    base_sha=$(git rev-parse HEAD 2>/dev/null || echo "INIT")
+  fi
 
   # Poll loop: each window resets on new commit; STALE-kill if no commits.
   while kill -0 "$child_pid" 2>/dev/null; do
-    if poll_orchestrator_commits "$timeout_sec" "$interval_sec" "$base_sha" >&2; then
+    if poll_orchestrator_commits "$timeout_sec" "$interval_sec" "$base_sha" "$worktree_path" >&2; then
       # New commit observed — child is making progress, reset window.
-      base_sha=$(git rev-parse HEAD 2>/dev/null || echo "$base_sha")
+      if [[ -n "$worktree_path" && "$worktree_path" != "." ]]; then
+        base_sha=$(git -C "$worktree_path" rev-parse HEAD 2>/dev/null || echo "$base_sha")
+      else
+        base_sha=$(git rev-parse HEAD 2>/dev/null || echo "$base_sha")
+      fi
       continue
     fi
     # poll timed out. Race: child may have completed DURING the poll
