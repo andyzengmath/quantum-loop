@@ -372,6 +372,26 @@ find_post_commit_dead() {
   '
 }
 
+# dead_code_blocking_verdict(report_json) -> 0 (ok) | 1 (block)
+# Track A / Q4 — OPT-IN quality gate. Default OFF: returns 0 (advisory) so the
+# documented advisory-by-design behavior is unchanged. Under QL_QUALITY_BLOCKING
+# (1|true|yes|on) it returns 1 when the diff introduces HIGH-PRECISION dead code
+# — an unused NEW import (.summary.by_kind.import > 0). Unused PRIVATES stay
+# advisory even when blocking is on (documented false-positive: a private helper
+# exercised only by a later commit's test). report_json is the output of
+# find_post_commit_dead / scan_dead_code. Mirrors the QL_VALIDATE_BLOCKING opt-in
+# so default pipelines keep the one-retry-budget behavior.
+dead_code_blocking_verdict() {
+  local report="${1:?dead_code_blocking_verdict: report json required}"
+  case "${QL_QUALITY_BLOCKING:-}" in
+    1|true|TRUE|yes|on) ;;
+    *) return 0 ;;
+  esac
+  local imports
+  imports=$(jq -r '.summary.by_kind.import // 0' <<< "$report" 2>/dev/null)
+  [[ "${imports:-0}" -eq 0 ]]
+}
+
 # ------------------------------------------------------------------------------
 # CLI entry
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
@@ -383,6 +403,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     privates)  scan_unused_privates "$@" ;;
     scan)      scan_dead_code "$@" ;;
     commit)    find_post_commit_dead "$@" ;;
+    verdict)   dead_code_blocking_verdict "$@" ;;
     *)
       cat >&2 <<USAGE
 Usage: bash lib/dead-code.sh <subcmd> [args...]
@@ -390,6 +411,7 @@ Usage: bash lib/dead-code.sh <subcmd> [args...]
   privates FILE                  — JSON array of unused private symbols
   scan     FILE_OR_DIR           — aggregated dead-code report
   commit   BASE HEAD [FILTER]    — scan files changed between two SHAs
+  verdict  REPORT_JSON           — rc 1 under QL_QUALITY_BLOCKING if unused new imports > 0
 USAGE
       exit 2
       ;;
