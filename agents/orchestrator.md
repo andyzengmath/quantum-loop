@@ -264,6 +264,23 @@ Before running reviews, verify the story's new code is actually connected:
 - If any new code is unwired: wire it in now (add import + call to the appropriate caller)
 - Run the full test suite (not just the story's tests) to confirm no regressions
 
+### 3A.4B: Surface-Budget Pre-Gate (Track A / Q3)
+Before the review gate, enforce the story's `surfaceBudget` deterministically (0 LLM tokens). Applies to both the sequential gate (below) and the parallel inline gate (3B.4).
+```bash
+if [[ -f lib/surface-budget.sh ]]; then
+  BUDGET=$(jq -c --arg id "$STORY_ID" '.stories[] | select(.id==$id) | (.surfaceBudget // {})' quantum.json)
+  if [[ "$BUDGET" != "{}" && -n "$BUDGET" ]]; then
+    breaches=$(bash lib/surface-budget.sh gate "$BASE_SHA" "$HEAD_SHA" "$BUDGET")
+    if [[ "$(jq 'length' <<< "$breaches")" -gt 0 ]]; then
+      # Over budget: do NOT review. Fail the story back to re-plan (split it).
+      echo "<quantum>STORY_FAILED</quantum>  budget_exceeded: $breaches"
+      # record reason in retries.failureLog; route to ql-plan for decomposition
+    fi
+  fi
+fi
+```
+A story that exceeds its declared `surfaceBudget` (new files / lines / public symbols / abstractions vs `BASE_SHA..HEAD_SHA`) is failed with reason `budget_exceeded` and routed back to re-plan — oversized files and speculative abstraction layers can't be born inside one story. Skip cleanly if `lib/surface-budget.sh` is absent or the story declares no budget (backward-compatible).
+
 ### 3A.5: Two-Stage Review Gate
 
 **Stage 1: Spec Compliance**
@@ -776,6 +793,8 @@ The full post-merge sequence is: **merge -> typecheck -> delta_check -> test sui
 ### 3B.4: Inline Review Gate (Parallel Mode)
 
 In parallel mode, implementer agents self-review (quality checks + acceptance criteria verification). The orchestrator runs an **inline review gate** after each successful merge, equivalent to Step 3A.5 but executed by the orchestrator rather than a separate agent:
+
+**Surface-Budget Pre-Gate (inline):** before the inline review, run the Step 3A.4B `lib/surface-budget.sh gate` check on the merged story's diff; a `budget_exceeded` story is reverted and failed back to re-plan, not reviewed.
 
 **Stage 1: Spec Compliance (inline)**
 - Read the PRD acceptance criteria for the just-merged story
