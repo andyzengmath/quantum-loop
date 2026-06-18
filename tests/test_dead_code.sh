@@ -313,6 +313,33 @@ out=$(scan_unused_privates "$TEST_TMPDIR/a.xyz")
 assert "unknown ext privates=[]" "[]" "$out"
 rm -rf "$TEST_TMPDIR"
 
+# Test 18-21: Track A Q4 — opt-in blocking verdict (dead_code_blocking_verdict)
+R_IMP='{"summary":{"total":1,"by_kind":{"import":1,"private":0}}}'
+R_PRIV='{"summary":{"total":1,"by_kind":{"import":0,"private":1}}}'
+R_CLEAN='{"summary":{"total":0,"by_kind":{"import":0,"private":0}}}'
+
+echo ""
+echo "Test 18: verdict advisory by default (env unset)"
+unset QL_QUALITY_BLOCKING
+dead_code_blocking_verdict "$R_IMP" >/dev/null 2>&1
+assert "default: imports>0 -> rc 0 (advisory)" "0" "$?"
+
+echo ""
+echo "Test 19: blocking on unused new import"
+QL_QUALITY_BLOCKING=1 dead_code_blocking_verdict "$R_IMP" >/dev/null 2>&1
+assert "blocking: imports>0 -> rc 1" "1" "$?"
+
+echo ""
+echo "Test 20: privates stay advisory under blocking"
+QL_QUALITY_BLOCKING=1 dead_code_blocking_verdict "$R_PRIV" >/dev/null 2>&1
+assert "blocking: privates-only -> rc 0" "0" "$?"
+
+echo ""
+echo "Test 21: clean report passes under blocking"
+QL_QUALITY_BLOCKING=1 dead_code_blocking_verdict "$R_CLEAN" >/dev/null 2>&1
+assert "blocking: clean -> rc 0" "0" "$?"
+unset QL_QUALITY_BLOCKING
+
 echo ""
 echo "=== Results: $PASS/$TOTAL passed, $FAIL failed ==="
 exit $((FAIL > 0 ? 1 : 0))
