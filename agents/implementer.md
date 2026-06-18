@@ -170,6 +170,15 @@ Before creating any new component, function, or module, check if another task ha
 
 This prevents the "two agents independently implement the same thing" failure pattern.
 
+### Reuse-first (Track A / Q2)
+
+`consumedBy` covers reuse WITHIN this plan. `reuseCandidates[]` (set by `/ql-plan`) covers reuse of the EXISTING codebase. Before writing a new function / class / module, check your story's `reuseCandidates`:
+
+1. If a candidate already provides what you need: **call it** (import the `symbol` from its `file`) rather than writing a new one.
+2. If you must write new code anyway (the candidates don't fit): add a one-line `noReuseJustification: <why>` to your output message, naming the candidate you rejected and why.
+
+`lib/reuse-scan.sh gate` checks this — advisory by default, blocking under `QL_QUALITY_BLOCKING`. This directly attacks the "reinvent instead of reuse" + duplication slop classes.
+
 ## After Wiring Check
 
 Run the project's quality checks in order:
@@ -205,6 +214,7 @@ Answer each item with a one-line status. If any item fails, **do not signal yet*
 - [ ] Every acceptance criterion has a concrete evidence line (test name, file:line, or command output) cited in my output message.
 - [ ] Every `wiring_verification.must_contain` string appears verbatim in its target file.
 - [ ] Any `consumedBy` contract for this story is satisfied (I imported, not re-created).
+- [ ] Each `reuseCandidates` entry was reused, or I recorded a `noReuseJustification` for it (Track A / Q2).
 - [ ] No task in this story is left `in_progress` or `pending`.
 
 **Quality**
