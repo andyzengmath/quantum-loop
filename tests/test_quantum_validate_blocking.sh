@@ -100,6 +100,17 @@ echo "Test 8: missing file"
 validate_quantum_blocking "$TMP/does_not_exist.json" >/dev/null 2>&1; rc=$?
 assert "missing file -> rc 1" "1" "$rc"
 
+# Test 9: a 'passed' story with violations is NOT blocked — the blocking eligibility
+# filter only counts active statuses (pending/failed/in_progress), so completed work
+# is never re-flagged.
+cat > "$TMP/passed_with_violations.json" << 'JSON'
+{"stories":[{"id":"US-001","status":"passed","dependsOn":[],"tasks":[{"filePaths":[]}]}]}
+JSON
+echo ""
+echo "Test 9: passed story with violations is not blocked (eligibility filter)"
+QL_VALIDATE_BLOCKING=1 validate_quantum_blocking "$TMP/passed_with_violations.json" >/dev/null 2>&1; rc=$?
+assert "passed story, blocking -> rc 0 (not eligible)" "0" "$rc"
+
 rm -rf "$TMP"
 
 echo ""
