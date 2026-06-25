@@ -415,6 +415,15 @@ Set the top-level `coverageThreshold` field in quantum.json:
 
 The quality-reviewer will enforce this threshold during review. If the project has no coverage tooling, the reviewer will skip enforcement on the first story and enforce after first successful measurement.
 
+### reuseCandidates Generation (Track A / Q2 — reuse-first)
+
+For each story, populate `reuseCandidates[]` with existing symbols the implementer should REUSE instead of reinventing. This extends `consumedBy` (intra-plan) to the whole existing codebase, attacking the "reinvent instead of reuse" + duplication slop classes.
+
+1. **With the code graph** (preferred): run the `relational_envelope` verb keyed on the story's acceptance-criteria nouns/verbs → existing FUNCTION/CLASS nodes + near-duplicate candidates, with per-edge confidence tiers (surface EXTRACTED/INFERRED candidates as "must consider"; leave AMBIGUOUS advisory).
+2. **Without a graph** (fallback): `bash lib/reuse-scan.sh scan "<comma-separated concept terms>" .` → existing symbol definitions whose names relate to the story (test files excluded).
+
+Write the result as `reuseCandidates: [{symbol, file, line}]` on the story. The implementer (`agents/implementer.md`) must then reuse one or record a `noReuseJustification`; `lib/reuse-scan.sh gate` enforces it (advisory by default, blocking under `QL_QUALITY_BLOCKING`). Empty `reuseCandidates` (nothing relevant exists) is fine — the gate is a no-op.
+
 ## Step 3: Decompose Stories into Tasks
 
 For each story, break it into granular tasks. Each task should take 2-5 minutes for an AI agent.
@@ -527,6 +536,7 @@ Assemble the complete quantum.json with this structure:
       "title": "[Story title]",
       "description": "As a [user], I want [feature] so that [benefit]",
       "acceptanceCriteria": ["criterion 1", "criterion 2", "Typecheck passes"],
+      "reuseCandidates": [],
       "priority": 1,
       "status": "pending",
       "dependsOn": [],
@@ -558,6 +568,7 @@ Assemble the complete quantum.json with this structure:
 - `branchName`: Always prefixed with `ql/`, followed by kebab-case feature name
 - `priority`: Integer starting at 1. Used as tiebreaker when DAG allows multiple stories.
 - `dependsOn`: Array of story IDs (e.g., `["US-001", "US-002"]`). Empty array for stories with no dependencies.
+- `reuseCandidates`: Existing symbols `[{symbol, file, line}]` the implementer should reuse before writing new code (Track A / Q2 reuse-first). Populated by the reuseCandidates Generation step below; empty is fine.
 - `status`: Always "pending" for all stories and tasks when first created.
 - `retries.maxAttempts`: Default 3. Increase for complex stories if needed.
 
