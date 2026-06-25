@@ -29,6 +29,18 @@ else
 fi
 ```
 
+### Opt-in blocking (Track A / Q4)
+
+By default this check is advisory (above). When `QL_QUALITY_BLOCKING` is set (`1|true|yes|on`), a HIGH-PRECISION dead-code signal — an unused **new import** introduced by this story — fails the story so it is fixed before commit rather than only annotated. Unused **privates** stay advisory even under blocking (the documented false-positive: a helper exercised only by a later commit's test). This default-off opt-in preserves the one-retry-budget rationale for teams that don't enable it, mirroring the `QL_VALIDATE_BLOCKING` pattern.
+
+```bash
+# After computing DEAD_CODE_REPORT / DEAD_IMP above:
+if [[ "$DEAD_CODE_AVAILABLE" != "false" ]] && ! dead_code_blocking_verdict "$DEAD_CODE_REPORT"; then
+  echo "<quantum>STORY_FAILED</quantum>  dead_code_blocked: $DEAD_IMP unused new import(s)"
+  # record reason in retries.failureLog; the story re-runs to remove the dead import.
+fi
+```
+
 Why advisory not blocking:
 - False positives are real. A private helper called only from a test file in a future commit would be flagged here incorrectly. Blocking would train the loop to retry-until-empty, breaking the one-retry budget.
 - Deslop (3A.5B) already has the blocking authority when it wants to. Dead-code is a secondary read for reviewer context.
