@@ -540,6 +540,7 @@ Assemble the complete quantum.json with this structure:
       "priority": 1,
       "status": "pending",
       "dependsOn": [],
+      "surfaceBudget": { "maxNewFiles": 3, "maxNewLines": 200, "maxNewPublicSymbols": 8, "maxNewAbstractions": 2 },
       "tasks": [
         {
           "id": "T-001",
@@ -571,6 +572,7 @@ Assemble the complete quantum.json with this structure:
 - `reuseCandidates`: Existing symbols `[{symbol, file, line}]` the implementer should reuse before writing new code (Track A / Q2 reuse-first). Populated by the reuseCandidates Generation step below; empty is fine.
 - `status`: Always "pending" for all stories and tasks when first created.
 - `retries.maxAttempts`: Default 3. Increase for complex stories if needed.
+- `surfaceBudget`: Per-story cap on NEW surface (Track A anti-slop gate): `maxNewFiles` / `maxNewLines` / `maxNewPublicSymbols` / `maxNewAbstractions`. Scale defaults with story size — a 2-5-minute task needs a small budget; tighten for focused stories. Enforced pre-review by `lib/surface-budget.sh` (a story over budget is failed back to re-plan / split, not reviewed) and validated by `lib/quantum-validate.sh` (blocking under `QL_VALIDATE_BLOCKING`). The `maxNewAbstractions` cap targets premature generality; small `maxNewLines` forces bounded diffs.
 
 ## Step 5: Validate and Save
 

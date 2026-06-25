@@ -223,7 +223,15 @@ next_wave() {
   # filePaths in their tasks (would silently bypass filter_file_conflicts).
   # Gated behind `type` check so this is a no-op if quantum-validate.sh is
   # missing (older checkout). Never blocks — return code ignored.
-  if type validate_story_filepaths >/dev/null 2>&1; then
+  # Track A / Q1: advisory warnings always emit; under QL_VALIDATE_BLOCKING a
+  # filePaths/surfaceBudget violation HALTS the wave (anti-slop gate). Falls
+  # back to the v0.9.2 advisory-only call on older checkouts.
+  if type validate_quantum_blocking >/dev/null 2>&1; then
+    if ! validate_quantum_blocking "$json_path"; then
+      printf "ERROR: next_wave: quantum.json failed blocking validation (QL_VALIDATE_BLOCKING)\n" >&2
+      return 2
+    fi
+  elif type validate_story_filepaths >/dev/null 2>&1; then
     validate_story_filepaths "$json_path" || true
   fi
 
